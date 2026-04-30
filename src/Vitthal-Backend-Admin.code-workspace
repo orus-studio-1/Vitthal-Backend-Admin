@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../vitthal-frontend-admin"
+		},
+		{
+			"path": "../../Vitthal-Backend-Client"
+		},
+		{
+			"path": "../../vitthal-frontend"
+		},
+		{
+			"path": "../../vitthal-vendor-frontend"
+		}
+	],
+	"settings": {}
+}

@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+enum UserRole {
+  client
+  vendor
+  admin
+  super_admin
+}
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  email       String   @unique
+  password_hash String
+  role        UserRole @default(client)
+  is_active   Boolean  @default(true)
+  refresh_token String?
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @default(now()) @db.Timestamptz
+}
+
+model Product {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String
+  description     String?
+  category        String?
+  product_type    String?
+  specifications  Json     @default("{}")
+  created_at      DateTime @default(now()) @db.Timestamptz
+  updated_at      DateTime @default(now()) @db.Timestamptz
+
+  products_images ProductImage[]
+  orders          Order[]
+}
+
+model ProductImage {
+  id             String   @id @default(uuid()) @db.Uuid
+  product_id     String   @db.Uuid
+  image_url      String
+  is_primary     Boolean  @default(false)
+  display_order  Int      @default(0)
+  created_at     DateTime @default(now()) @db.Timestamptz
+
+  product        Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+}
+
+enum OrderStatus {
+  placed
+  payment_pending
+  payment_completed
+  processing
+  shipped
+  delivered
+  cancelled
+  refunded
+}
+
+model Vendor {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  email       String   @unique
+  phone       String?
+  address     String?
+  business_type String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @default(now()) @db.Timestamptz
+
+  orders      Order[]
+}
+
+model Order {
+  id              String      @id @default(uuid()) @db.Uuid
+  customer_name   String
+  customer_email  String
+  customer_phone  String?
+  vendor_id       String      @db.Uuid
+  product_id      String      @db.Uuid
+  quantity        Int         @default(1)
+  total_amount    Float
+  status          OrderStatus @default(placed)
+  qr_code         String?     @unique
+  order_notes     String?
+  delivery_address String?
+  created_at      DateTime    @default(now()) @db.Timestamptz
+  updated_at      DateTime    @default(now()) @db.Timestamptz
+
+  vendor          Vendor      @relation(fields: [vendor_id], references: [id])
+  product         Product     @relation(fields: [product_id], references: [id])
+}
