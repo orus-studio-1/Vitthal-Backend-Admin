@@ -17,7 +17,7 @@ const app = express();
 const PORT = process.env.PORT || 9001;
 
 //cors configuration
-const allowedOrigins = ['https://vitthal-frontend.vercel.app', 'http://localhost:5173', 'http://localhost:3000'];
+const allowedOrigins = ['https://vitthal-frontend-admin.vercel.app','https://vitthal-frontend.vercel.app', 'http://localhost:5173', 'http://localhost:3000'];
 
 app.use("/", cors({
     origin: allowedOrigins,
