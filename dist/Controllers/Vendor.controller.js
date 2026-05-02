@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import { marketplacePool } from "../lib/marketplace.js";
+import { getVendorAnalyticsData, getVendorDashboardData, getVendorProfile, } from "../services/vendorInsights.service.js";
 const adminRoles = ["admin", "super_admin"];
 const reviewDecisions = ["approved", "rejected"];
 function ensureAdmin(req, res) {
@@ -144,6 +145,35 @@ export const getVendorById = async (req, res) => {
     }
     catch (error) {
         console.error("Error fetching vendor:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+export const getVendorInsights = async (req, res) => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res;
+    }
+    try {
+        const vendorId = String(req.params.id ?? "");
+        const vendor = await getVendorProfile(vendorId);
+        if (!vendor) {
+            return res.status(404).json({ message: "Vendor not found" });
+        }
+        const [dashboard, analytics] = await Promise.all([
+            getVendorDashboardData(vendorId),
+            getVendorAnalyticsData(vendorId, typeof req.query.timeframe === "string" ? req.query.timeframe : undefined),
+        ]);
+        return res.status(200).json({
+            message: "Vendor insights retrieved successfully",
+            data: {
+                vendor,
+                dashboard,
+                analytics,
+            },
+        });
+    }
+    catch (error) {
+        console.error("Error fetching vendor insights:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };

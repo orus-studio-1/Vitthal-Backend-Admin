@@ -222,6 +222,26 @@ export async function ensureMarketplaceSchema() {
                 REFERENCES vendors(id)
         );
 
+        CREATE TABLE IF NOT EXISTS vendor_chat_messages (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            vendor_id UUID NOT NULL,
+            sender_user_id UUID NOT NULL,
+            sender_role TEXT NOT NULL,
+            body TEXT NOT NULL,
+            is_read BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            CONSTRAINT fk_vendor_chat_messages_vendor
+                FOREIGN KEY (vendor_id)
+                REFERENCES vendors(id)
+                ON DELETE CASCADE,
+            CONSTRAINT fk_vendor_chat_messages_sender
+                FOREIGN KEY (sender_user_id)
+                REFERENCES users(id)
+                ON DELETE CASCADE,
+            CONSTRAINT chk_vendor_chat_sender_role
+                CHECK (sender_role IN ('vendor', 'admin', 'super_admin'))
+        );
+
         ALTER TABLE users
             ADD COLUMN IF NOT EXISTS OTP TEXT,
             ADD COLUMN IF NOT EXISTS OTP_Expiry TIMESTAMPTZ,
@@ -292,6 +312,10 @@ export async function ensureMarketplaceSchema() {
             ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
+        ALTER TABLE vendor_chat_messages
+            ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
         ALTER TABLE products DROP CONSTRAINT IF EXISTS chk_products_product_type;
 
         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email);
@@ -312,6 +336,10 @@ export async function ensureMarketplaceSchema() {
         CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
         CREATE INDEX IF NOT EXISTS idx_orders_vendor_id ON orders(vendor_id);
         CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+        CREATE INDEX IF NOT EXISTS idx_vendor_chat_messages_vendor_id
+            ON vendor_chat_messages(vendor_id, created_at ASC);
+        CREATE INDEX IF NOT EXISTS idx_vendor_chat_messages_is_read
+            ON vendor_chat_messages(vendor_id, is_read);
 
         UPDATE products
         SET approval_status = 'approved'

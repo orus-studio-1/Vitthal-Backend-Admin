@@ -2,6 +2,7 @@ import 'dotenv/config';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import cors from 'cors';
+import http from 'http';
 import AuthRouter from './Routers/Auth.router.js';
 import productRouter from './Routers/Product.router.js';
 import orderRouter from './Routers/Order.router.js';
@@ -10,10 +11,12 @@ import adminRouter from './Routers/Admin.router.js';
 import { authMiddleware } from './Middleware/AuthMiddleware.js';
 import { validateEnv } from './lib/env.js';
 import { ensureMarketplaceSchema } from './lib/marketplace.js';
+import { initSocket } from './lib/socket.js';
 
 validateEnv();
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 9001;
 
 //cors configuration
@@ -38,8 +41,9 @@ app.use("/api/admin", authMiddleware, adminRouter);
 async function startServer() {
     try {
         await ensureMarketplaceSchema();
+        initSocket(server);
 
-        app.listen(PORT, () => {
+        server.listen(PORT, () => {
             console.log(`Admin Server is running on port ${PORT}`);
         });
     } catch (error) {

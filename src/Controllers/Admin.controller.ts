@@ -1,5 +1,10 @@
 import type { Request, Response } from "express";
 import { marketplacePool } from "../lib/marketplace.js";
+import {
+    getVendorAnalyticsData,
+    getVendorDashboardData,
+    getVendorIdByUserId,
+} from "../services/vendorInsights.service.js";
 
 const adminRoles = ["admin", "super_admin"];
 
@@ -190,6 +195,37 @@ export const getAnalytics = async (req: Request, res: Response): Promise<Respons
         return res.status(200).json({ message: "Analytics data retrieved successfully", data: analytics });
     } catch (error) {
         console.error("Error fetching analytics:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getMyVendorAnalytics = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res as Response;
+    }
+
+    try {
+        const vendorId = await getVendorIdByUserId(authUser.userId);
+        if (!vendorId) {
+            return res.status(404).json({ message: "Vendor profile not found for this user." });
+        }
+
+        const [dashboard, analytics] = await Promise.all([
+            getVendorDashboardData(vendorId),
+            getVendorAnalyticsData(vendorId, typeof req.query.timeframe === "string" ? req.query.timeframe : undefined),
+        ]);
+
+        return res.status(200).json({
+            message: "Vendor analytics retrieved successfully",
+            data: {
+                vendorId,
+                dashboard,
+                analytics,
+            },
+        });
+    } catch (error) {
+        console.error("Error fetching current admin-linked vendor analytics:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };
