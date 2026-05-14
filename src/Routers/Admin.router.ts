@@ -3,6 +3,7 @@ import {
     getDashboardStats,
     getAnalytics,
     getMyVendorAnalytics,
+    getUserDetails,
     getUserManagement,
     updateUserStatus
 } from "../Controllers/Admin.controller.js";
@@ -22,6 +23,7 @@ router.get("/vendor-chats", getAdminVendorConversations);
 router.get("/vendor-chats/:vendorId", getAdminVendorConversation);
 router.post("/vendor-chats/:vendorId", sendAdminVendorMessage);
 router.get("/users", getUserManagement);
+router.get("/users/:id", getUserDetails);
 router.put("/users/:id/status", updateUserStatus);
 
 export default router;

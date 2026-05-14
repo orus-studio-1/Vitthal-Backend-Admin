@@ -252,6 +252,7 @@ export async function ensureMarketplaceSchema() {
             ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
         ALTER TABLE products
+            ADD COLUMN IF NOT EXISTS specifications JSONB NOT NULL DEFAULT '{}'::jsonb,
             ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'approved',
             ADD COLUMN IF NOT EXISTS approval_notes TEXT,
             ADD COLUMN IF NOT EXISTS created_by_user_id UUID,
@@ -340,6 +341,23 @@ export async function ensureMarketplaceSchema() {
             ON vendor_chat_messages(vendor_id, created_at ASC);
         CREATE INDEX IF NOT EXISTS idx_vendor_chat_messages_is_read
             ON vendor_chat_messages(vendor_id, is_read);
+
+        UPDATE products
+        SET specifications = jsonb_strip_nulls(
+            jsonb_build_object(
+                'material', material,
+                'grade', grade,
+                'application', application,
+                'standard', standard
+            )
+        )
+        WHERE specifications = '{}'::jsonb
+          AND (
+              material IS NOT NULL
+              OR grade IS NOT NULL
+              OR application IS NOT NULL
+              OR standard IS NOT NULL
+          );
 
         UPDATE products
         SET approval_status = 'approved'
