@@ -242,6 +242,55 @@ export async function ensureMarketplaceSchema() {
                 CHECK (sender_role IN ('vendor', 'admin', 'super_admin'))
         );
 
+        CREATE TABLE IF NOT EXISTS vendor_quotations (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            quotation_number TEXT NOT NULL UNIQUE,
+            vendor_id UUID NOT NULL,
+            created_by_admin_id UUID NOT NULL,
+            sent_to_email CITEXT NOT NULL,
+            title TEXT NOT NULL,
+            quantity NUMERIC(12,2) NOT NULL CHECK (quantity > 0),
+            unit TEXT NOT NULL,
+            target_price NUMERIC(12,2) CHECK (target_price >= 0),
+            requested_moq INTEGER CHECK (requested_moq > 0),
+            request_notes TEXT,
+            validity_date TIMESTAMPTZ,
+            status TEXT NOT NULL DEFAULT 'sent',
+            vendor_price NUMERIC(12,2) CHECK (vendor_price >= 0),
+            vendor_moq INTEGER CHECK (vendor_moq > 0),
+            vendor_notes TEXT,
+            admin_signature_data TEXT NOT NULL,
+            vendor_signature_data TEXT,
+            token_hash TEXT NOT NULL UNIQUE,
+            token_expires_at TIMESTAMPTZ NOT NULL,
+            vendor_opened_at TIMESTAMPTZ,
+            vendor_responded_at TIMESTAMPTZ,
+            vendor_response_ip TEXT,
+            vendor_response_user_agent TEXT,
+            admin_reviewed_at TIMESTAMPTZ,
+            reviewed_by_admin_id UUID,
+            admin_review_notes TEXT,
+            vendor_rejection_reason TEXT,
+            email_sent_at TIMESTAMPTZ,
+            email_last_error TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            CONSTRAINT fk_vendor_quotations_vendor
+                FOREIGN KEY (vendor_id)
+                REFERENCES vendors(id)
+                ON DELETE CASCADE,
+            CONSTRAINT fk_vendor_quotations_admin
+                FOREIGN KEY (created_by_admin_id)
+                REFERENCES users(id)
+                ON DELETE CASCADE,
+            CONSTRAINT fk_vendor_quotations_reviewed_by_admin
+                FOREIGN KEY (reviewed_by_admin_id)
+                REFERENCES users(id)
+                ON DELETE CASCADE,
+            CONSTRAINT chk_vendor_quotation_status
+                CHECK (status IN ('sent', 'vendor_opened', 'vendor_approved', 'vendor_rejected', 'admin_approved', 'admin_rejected'))
+        );
+
         ALTER TABLE users
             ADD COLUMN IF NOT EXISTS OTP TEXT,
             ADD COLUMN IF NOT EXISTS OTP_Expiry TIMESTAMPTZ,
@@ -317,7 +366,50 @@ export async function ensureMarketplaceSchema() {
             ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
+        ALTER TABLE vendor_quotations
+            ADD COLUMN IF NOT EXISTS quotation_number TEXT,
+            ADD COLUMN IF NOT EXISTS vendor_id UUID,
+            ADD COLUMN IF NOT EXISTS created_by_admin_id UUID,
+            ADD COLUMN IF NOT EXISTS sent_to_email CITEXT,
+            ADD COLUMN IF NOT EXISTS title TEXT,
+            ADD COLUMN IF NOT EXISTS quantity NUMERIC(12,2),
+            ADD COLUMN IF NOT EXISTS unit TEXT,
+            ADD COLUMN IF NOT EXISTS target_price NUMERIC(12,2),
+            ADD COLUMN IF NOT EXISTS requested_moq INTEGER,
+            ADD COLUMN IF NOT EXISTS request_notes TEXT,
+            ADD COLUMN IF NOT EXISTS validity_date TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'sent',
+            ADD COLUMN IF NOT EXISTS vendor_price NUMERIC(12,2),
+            ADD COLUMN IF NOT EXISTS vendor_moq INTEGER,
+            ADD COLUMN IF NOT EXISTS vendor_notes TEXT,
+            ADD COLUMN IF NOT EXISTS admin_signature_data TEXT,
+            ADD COLUMN IF NOT EXISTS vendor_signature_data TEXT,
+            ADD COLUMN IF NOT EXISTS token_hash TEXT,
+            ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS vendor_opened_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS vendor_responded_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS vendor_response_ip TEXT,
+            ADD COLUMN IF NOT EXISTS vendor_response_user_agent TEXT,
+            ADD COLUMN IF NOT EXISTS admin_reviewed_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS reviewed_by_admin_id UUID,
+            ADD COLUMN IF NOT EXISTS admin_review_notes TEXT,
+            ADD COLUMN IF NOT EXISTS vendor_rejection_reason TEXT,
+            ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS email_last_error TEXT,
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
         ALTER TABLE products DROP CONSTRAINT IF EXISTS chk_products_product_type;
+        ALTER TABLE vendor_quotations DROP CONSTRAINT IF EXISTS chk_vendor_quotation_status;
+        ALTER TABLE vendor_quotations
+            ADD CONSTRAINT chk_vendor_quotation_status
+            CHECK (status IN ('sent', 'vendor_opened', 'vendor_approved', 'vendor_rejected', 'admin_approved', 'admin_rejected'));
+        ALTER TABLE vendor_quotations DROP CONSTRAINT IF EXISTS fk_vendor_quotations_reviewed_by_admin;
+        ALTER TABLE vendor_quotations
+            ADD CONSTRAINT fk_vendor_quotations_reviewed_by_admin
+            FOREIGN KEY (reviewed_by_admin_id)
+            REFERENCES users(id)
+            ON DELETE CASCADE;
 
         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_vendors_user_id_unique ON vendors(user_id);
@@ -341,6 +433,18 @@ export async function ensureMarketplaceSchema() {
             ON vendor_chat_messages(vendor_id, created_at ASC);
         CREATE INDEX IF NOT EXISTS idx_vendor_chat_messages_is_read
             ON vendor_chat_messages(vendor_id, is_read);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_vendor_quotations_number_unique
+            ON vendor_quotations(quotation_number);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_vendor_quotations_token_hash_unique
+            ON vendor_quotations(token_hash);
+        CREATE INDEX IF NOT EXISTS idx_vendor_quotations_vendor_id
+            ON vendor_quotations(vendor_id);
+        CREATE INDEX IF NOT EXISTS idx_vendor_quotations_created_by_admin_id
+            ON vendor_quotations(created_by_admin_id);
+        CREATE INDEX IF NOT EXISTS idx_vendor_quotations_reviewed_by_admin_id
+            ON vendor_quotations(reviewed_by_admin_id);
+        CREATE INDEX IF NOT EXISTS idx_vendor_quotations_status
+            ON vendor_quotations(status);
 
         UPDATE products
         SET specifications = jsonb_strip_nulls(
@@ -366,6 +470,28 @@ export async function ensureMarketplaceSchema() {
         UPDATE vendors
         SET approval_status = 'approved'
         WHERE approval_status IS NULL OR approval_status::TEXT = '';
+
+        INSERT INTO vendors (
+            user_id,
+            company_name,
+            is_active,
+            is_blocked,
+            approval_status,
+            approval_notes
+        )
+        SELECT
+            u.id,
+            COALESCE(NULLIF(TRIM(u.name), ''), u.email::text),
+            TRUE,
+            FALSE,
+            'pending',
+            'Backfilled from verified vendor account'
+        FROM users u
+        LEFT JOIN vendors v ON v.user_id = u.id
+        WHERE u.role = 'vendor'
+          AND u.is_verified = TRUE
+          AND v.id IS NULL
+        ON CONFLICT (user_id) DO NOTHING;
 
         UPDATE orders
         SET source = 'client'

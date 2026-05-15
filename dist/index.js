@@ -8,6 +8,7 @@ import productRouter from './Routers/Product.router.js';
 import orderRouter from './Routers/Order.router.js';
 import vendorRouter from './Routers/Vendor.router.js';
 import adminRouter from './Routers/Admin.router.js';
+import vendorQuotationRouter from './Routers/VendorQuotation.router.js';
 import { authMiddleware } from './Middleware/AuthMiddleware.js';
 import { validateEnv } from './lib/env.js';
 import { ensureMarketplaceSchema } from './lib/marketplace.js';
@@ -17,7 +18,14 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 9001;
 //cors configuration
-const allowedOrigins = ['https://vitthal-frontend-admin.vercel.app', 'https://vitthal-frontend.vercel.app', 'http://localhost:5173', 'http://localhost:3000'];
+const allowedOrigins = [
+    'https://vitthal-frontend-admin.vercel.app',
+    'https://vitthal-frontend.vercel.app',
+    'https://vitthal-vendor-frontend.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:4000'
+];
 app.use("/", cors({
     origin: allowedOrigins,
     credentials: true,
@@ -31,6 +39,7 @@ app.use("/api/products", authMiddleware, productRouter);
 app.use("/api/orders", authMiddleware, orderRouter);
 app.use("/api/vendors", authMiddleware, vendorRouter);
 app.use("/api/admin", authMiddleware, adminRouter);
+app.use("/api/quotations", vendorQuotationRouter);
 async function startServer() {
     try {
         await ensureMarketplaceSchema();
