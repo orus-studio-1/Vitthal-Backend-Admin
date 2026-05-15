@@ -1,5 +1,10 @@
 import type { Request, Response } from "express";
 import { marketplacePool } from "../lib/marketplace.js";
+import {
+    getVendorAnalyticsData,
+    getVendorDashboardData,
+    getVendorIdByUserId,
+} from "../services/vendorInsights.service.js";
 
 const adminRoles = ["admin", "super_admin"];
 
@@ -194,6 +199,37 @@ export const getAnalytics = async (req: Request, res: Response): Promise<Respons
     }
 };
 
+export const getMyVendorAnalytics = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res as Response;
+    }
+
+    try {
+        const vendorId = await getVendorIdByUserId(authUser.userId);
+        if (!vendorId) {
+            return res.status(404).json({ message: "Vendor profile not found for this user." });
+        }
+
+        const [dashboard, analytics] = await Promise.all([
+            getVendorDashboardData(vendorId),
+            getVendorAnalyticsData(vendorId, typeof req.query.timeframe === "string" ? req.query.timeframe : undefined),
+        ]);
+
+        return res.status(200).json({
+            message: "Vendor analytics retrieved successfully",
+            data: {
+                vendorId,
+                dashboard,
+                analytics,
+            },
+        });
+    } catch (error) {
+        console.error("Error fetching current admin-linked vendor analytics:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 export const getUserManagement = async (req: Request, res: Response): Promise<Response> => {
     const authUser = ensureAdmin(req, res);
     if (!authUser) {
@@ -221,6 +257,136 @@ export const getUserManagement = async (req: Request, res: Response): Promise<Re
         return res.status(200).json({ message: "User management data retrieved successfully", data: { users, stats } });
     } catch (error) {
         console.error("Error fetching user management data:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getUserDetails = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res as Response;
+    }
+
+    try {
+        const userId = String(req.params.id ?? "");
+
+        const [userResult, ordersResult] = await Promise.all([
+            marketplacePool.query(
+                `
+                    SELECT
+                        u.id,
+                        u.name,
+                        u.email,
+                        u.role::text AS role,
+                        u.is_active,
+                        u.created_at,
+                        u.updated_at,
+                        a.address,
+                        a.city,
+                        a.state,
+                        a.country,
+                        a.pincode,
+                        c.phone AS client_phone,
+                        v.id AS vendor_id,
+                        v.company_name,
+                        v.gst_number,
+                        v.phone AS vendor_phone,
+                        v.approval_status,
+                        v.approval_notes,
+                        v.is_blocked,
+                        COALESCE(vendor_order_stats.order_count, 0) AS vendor_order_count,
+                        COALESCE(vendor_order_stats.total_revenue, 0)::float AS vendor_total_revenue
+                    FROM users u
+                    LEFT JOIN addresses a ON a.user_id = u.id
+                    LEFT JOIN client c ON c.user_id = u.id
+                    LEFT JOIN vendors v ON v.user_id = u.id
+                    LEFT JOIN LATERAL (
+                        SELECT
+                            COUNT(*)::int AS order_count,
+                            COALESCE(SUM(o.total_amount), 0) AS total_revenue
+                        FROM orders o
+                        WHERE o.vendor_id = v.id
+                    ) vendor_order_stats ON true
+                    WHERE u.id = $1
+                `,
+                [userId]
+            ),
+            marketplacePool.query(
+                `
+                    SELECT
+                        o.id,
+                        o.status,
+                        o.total_amount,
+                        o.created_at,
+                        o.order_reference,
+                        v.company_name AS vendor_name
+                    FROM orders o
+                    LEFT JOIN vendors v ON v.id = o.vendor_id
+                    WHERE o.user_id = $1
+                    ORDER BY o.created_at DESC
+                    LIMIT 5
+                `,
+                [userId]
+            ),
+        ]);
+
+        if (!userResult.rows.length) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const row = userResult.rows[0];
+        const totalSpent = ordersResult.rows.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
+
+        return res.status(200).json({
+            message: "User details retrieved successfully",
+            data: {
+                user: {
+                    id: row.id,
+                    name: row.name,
+                    email: row.email,
+                    role: row.role,
+                    is_active: row.is_active,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                },
+                address: row.address ? {
+                    address: row.address,
+                    city: row.city,
+                    state: row.state,
+                    country: row.country,
+                    pincode: row.pincode,
+                } : null,
+                clientProfile: row.client_phone ? {
+                    phone: row.client_phone,
+                } : null,
+                vendorProfile: row.vendor_id ? {
+                    id: row.vendor_id,
+                    company_name: row.company_name,
+                    gst_number: row.gst_number,
+                    phone: row.vendor_phone,
+                    approval_status: row.approval_status,
+                    approval_notes: row.approval_notes,
+                    is_blocked: row.is_blocked,
+                    order_count: Number(row.vendor_order_count || 0),
+                    total_revenue: Number(row.vendor_total_revenue || 0),
+                } : null,
+                customerStats: {
+                    totalOrders: ordersResult.rows.length,
+                    totalSpent,
+                    lastOrderAt: ordersResult.rows[0]?.created_at ?? null,
+                },
+                recentOrders: ordersResult.rows.map((order) => ({
+                    id: order.id,
+                    status: order.status,
+                    total_amount: Number(order.total_amount || 0),
+                    created_at: order.created_at,
+                    order_reference: order.order_reference,
+                    vendor_name: order.vendor_name,
+                })),
+            },
+        });
+    } catch (error) {
+        console.error("Error fetching user details:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };
