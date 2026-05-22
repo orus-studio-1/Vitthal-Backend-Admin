@@ -291,6 +291,8 @@ CREATE TABLE IF NOT EXISTS vendor_products (
     moq INTEGER NOT NULL CHECK (moq > 0),
     stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
     commision_percentage INTEGER DEFAULT 0 CHECK (commision_percentage >= 0 AND commision_percentage <= 100),
+    quotation_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    quotation_min_qty INTEGER,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     status vendor_product_status NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -740,6 +742,8 @@ ALTER TABLE vendors
 ALTER TABLE vendor_products
     ADD COLUMN IF NOT EXISTS stock_quantity INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS commision_percentage INTEGER DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS quotation_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS quotation_min_qty INTEGER,
     ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS status vendor_product_status NOT NULL DEFAULT 'active',
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -831,7 +835,9 @@ CREATE TABLE IF NOT EXISTS vendor_chat_messages (
 CREATE TABLE IF NOT EXISTS vendor_quotations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     quotation_number TEXT NOT NULL UNIQUE,
+    quotation_kind TEXT NOT NULL DEFAULT 'vendor_agreement',
     vendor_id UUID NOT NULL,
+    product_id UUID,
     created_by_admin_id UUID NOT NULL,
     sent_to_email CITEXT NOT NULL,
     title TEXT NOT NULL,
@@ -865,6 +871,10 @@ CREATE TABLE IF NOT EXISTS vendor_quotations (
         FOREIGN KEY (vendor_id)
         REFERENCES vendors(id)
         ON DELETE CASCADE,
+    CONSTRAINT fk_vendor_quotations_product
+        FOREIGN KEY (product_id)
+        REFERENCES products(id)
+        ON DELETE SET NULL,
     CONSTRAINT fk_vendor_quotations_admin
         FOREIGN KEY (created_by_admin_id)
         REFERENCES users(id)
@@ -887,12 +897,66 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_vendor_quotations_token_hash_unique
     ON vendor_quotations(token_hash);
 CREATE INDEX IF NOT EXISTS idx_vendor_quotations_vendor_id
     ON vendor_quotations(vendor_id);
+CREATE INDEX IF NOT EXISTS idx_vendor_quotations_product_id
+    ON vendor_quotations(product_id);
 CREATE INDEX IF NOT EXISTS idx_vendor_quotations_created_by_admin_id
     ON vendor_quotations(created_by_admin_id);
 CREATE INDEX IF NOT EXISTS idx_vendor_quotations_reviewed_by_admin_id
     ON vendor_quotations(reviewed_by_admin_id);
 CREATE INDEX IF NOT EXISTS idx_vendor_quotations_status
     ON vendor_quotations(status);
+
+ALTER TABLE vendor_quotations
+    ADD COLUMN IF NOT EXISTS quotation_number TEXT,
+    ADD COLUMN IF NOT EXISTS quotation_kind TEXT NOT NULL DEFAULT 'vendor_agreement',
+    ADD COLUMN IF NOT EXISTS vendor_id UUID,
+    ADD COLUMN IF NOT EXISTS product_id UUID,
+    ADD COLUMN IF NOT EXISTS created_by_admin_id UUID,
+    ADD COLUMN IF NOT EXISTS sent_to_email CITEXT,
+    ADD COLUMN IF NOT EXISTS title TEXT,
+    ADD COLUMN IF NOT EXISTS quantity NUMERIC(12,2),
+    ADD COLUMN IF NOT EXISTS unit TEXT,
+    ADD COLUMN IF NOT EXISTS target_price NUMERIC(12,2),
+    ADD COLUMN IF NOT EXISTS requested_moq INTEGER,
+    ADD COLUMN IF NOT EXISTS request_notes TEXT,
+    ADD COLUMN IF NOT EXISTS validity_date TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'sent',
+    ADD COLUMN IF NOT EXISTS vendor_price NUMERIC(12,2),
+    ADD COLUMN IF NOT EXISTS vendor_moq INTEGER,
+    ADD COLUMN IF NOT EXISTS vendor_notes TEXT,
+    ADD COLUMN IF NOT EXISTS admin_signature_data TEXT,
+    ADD COLUMN IF NOT EXISTS vendor_signature_data TEXT,
+    ADD COLUMN IF NOT EXISTS token_hash TEXT,
+    ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS vendor_opened_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS vendor_responded_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS vendor_response_ip TEXT,
+    ADD COLUMN IF NOT EXISTS vendor_response_user_agent TEXT,
+    ADD COLUMN IF NOT EXISTS admin_reviewed_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS reviewed_by_admin_id UUID,
+    ADD COLUMN IF NOT EXISTS admin_review_notes TEXT,
+    ADD COLUMN IF NOT EXISTS vendor_rejection_reason TEXT,
+    ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS email_last_error TEXT,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE vendor_quotations DROP CONSTRAINT IF EXISTS chk_vendor_quotation_status;
+ALTER TABLE vendor_quotations
+    ADD CONSTRAINT chk_vendor_quotation_status
+    CHECK (status IN ('sent', 'vendor_opened', 'vendor_approved', 'vendor_rejected', 'admin_approved', 'admin_rejected'));
+ALTER TABLE vendor_quotations DROP CONSTRAINT IF EXISTS fk_vendor_quotations_reviewed_by_admin;
+ALTER TABLE vendor_quotations
+    ADD CONSTRAINT fk_vendor_quotations_reviewed_by_admin
+    FOREIGN KEY (reviewed_by_admin_id)
+    REFERENCES users(id)
+    ON DELETE CASCADE;
+ALTER TABLE vendor_quotations DROP CONSTRAINT IF EXISTS fk_vendor_quotations_product;
+ALTER TABLE vendor_quotations
+    ADD CONSTRAINT fk_vendor_quotations_product
+    FOREIGN KEY (product_id)
+    REFERENCES products(id)
+    ON DELETE SET NULL;
 
         -- Backfill Scripts
         UPDATE products

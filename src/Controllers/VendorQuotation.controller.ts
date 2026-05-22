@@ -1,8 +1,10 @@
 import type { Request, Response } from "express";
+import { verifyToken } from "../helpers/jwt.helper.js";
 import {
     createAndSendVendorQuotation,
     generateVendorQuotationPdf,
     getVendorQuotationById,
+    listVendorQuotationsForEmail,
     listVendorQuotations,
     markQuotationOpened,
     reviewVendorQuotation,
@@ -23,6 +25,35 @@ function ensureAdmin(req: Request, res: Response) {
     return (req as any).user as { userId: string; role: string; email?: string };
 }
 
+function ensureVendorDashboardSession(req: Request, res: Response) {
+    const authorizationHeader = req.headers.authorization;
+    const bearerToken = authorizationHeader?.startsWith("Bearer ")
+        ? authorizationHeader.slice("Bearer ".length).trim()
+        : null;
+    const accessToken = req.cookies?.vendorAccessToken || req.cookies?.accessToken || bearerToken;
+    const refreshToken = req.cookies?.vendorRefreshToken || req.cookies?.refreshToken;
+    const rawToken = accessToken || refreshToken;
+    const tokenType = accessToken ? "access" : "refresh";
+
+    if (!rawToken) {
+        res.status(401).json({ message: "Unauthorized! Vendor session not found." });
+        return null;
+    }
+
+    try {
+        const decoded = verifyToken(rawToken, tokenType);
+        if (!decoded.email) {
+            res.status(401).json({ message: "Unauthorized! Vendor session is missing email details." });
+            return null;
+        }
+
+        return decoded;
+    } catch {
+        res.status(401).json({ message: "Unauthorized! Failed to verify vendor session." });
+        return null;
+    }
+}
+
 export async function createVendorQuotation(req: Request, res: Response): Promise<Response> {
     const authUser = ensureAdmin(req, res);
     if (!authUser) {
@@ -32,6 +63,8 @@ export async function createVendorQuotation(req: Request, res: Response): Promis
     try {
         const result = await createAndSendVendorQuotation({
             vendorId: req.body.vendorId,
+            quotationKind: req.body.quotationKind,
+            productId: req.body.productId,
             createdByAdminId: authUser.userId,
             ...(authUser.email ? { createdByAdminEmail: authUser.email } : {}),
             title: req.body.title,
@@ -45,7 +78,9 @@ export async function createVendorQuotation(req: Request, res: Response): Promis
         });
 
         return res.status(201).json({
-            message: "Quotation created and emailed to vendor successfully.",
+            message: req.body.quotationKind === "order_request"
+                ? "Quotation created and emailed to vendor successfully."
+                : "Agreement created and emailed to vendor successfully.",
             data: {
                 quotation: result.quotation ? serializeAdminQuotation(result.quotation) : null,
                 vendorLink: result.vendorLink,
@@ -73,6 +108,24 @@ export async function getAdminVendorQuotations(req: Request, res: Response): Pro
         });
     } catch (error) {
         console.error("Error fetching vendor quotations:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function getVendorDashboardQuotations(req: Request, res: Response): Promise<Response> {
+    const authUser = ensureVendorDashboardSession(req, res);
+    if (!authUser) {
+        return res as Response;
+    }
+
+    try {
+        const quotations = await listVendorQuotationsForEmail(authUser.email, "order_request");
+        return res.status(200).json({
+            message: "Vendor dashboard quotations fetched successfully.",
+            data: quotations.map(serializeAdminQuotation),
+        });
+    } catch (error) {
+        console.error("Error fetching vendor dashboard quotations:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 }
@@ -160,9 +213,14 @@ export async function getVendorQuotationPublic(req: Request, res: Response): Pro
             data: serializePublicQuotation(quotation),
         });
     } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch quotation.";
+        if (message === "Quotation token has expired.") {
+            return res.status(400).json({ message });
+        }
+
         console.error("Error fetching public quotation:", error);
         return res.status(400).json({
-            message: error instanceof Error ? error.message : "Failed to fetch quotation.",
+            message,
         });
     }
 }

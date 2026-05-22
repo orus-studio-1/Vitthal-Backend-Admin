@@ -1,9 +1,12 @@
 import "dotenv/config";
 export type VendorQuotationStatus = "sent" | "vendor_opened" | "vendor_approved" | "vendor_rejected" | "admin_approved" | "admin_rejected";
+export type VendorQuotationKind = "vendor_agreement" | "order_request";
 type VendorQuotationRow = {
     id: string;
     quotation_number: string;
+    quotation_kind: VendorQuotationKind;
     vendor_id: string;
+    product_id: string | null;
     created_by_admin_id: string;
     sent_to_email: string;
     title: string;
@@ -45,7 +48,9 @@ export declare function listVendorQuotations(): Promise<VendorQuotationRow[]>;
 export declare function serializeAdminQuotation(quotation: VendorQuotationRow): {
     id: string;
     quotation_number: string;
+    quotation_kind: VendorQuotationKind;
     vendor_id: string;
+    product_id: string | null;
     created_by_admin_id: string;
     sent_to_email: string;
     title: string;
@@ -84,7 +89,9 @@ export declare function serializeAdminQuotation(quotation: VendorQuotationRow): 
 export declare function serializePublicQuotation(quotation: VendorQuotationRow): {
     id: string;
     quotation_number: string;
+    quotation_kind: VendorQuotationKind;
     vendor_id: string;
+    product_id: string | null;
     sent_to_email: string;
     title: string;
     quantity: number;
@@ -110,6 +117,8 @@ export declare function serializePublicQuotation(quotation: VendorQuotationRow):
 export declare function generateVendorQuotationPdf(quotation: VendorQuotationRow): Promise<Buffer<ArrayBuffer>>;
 export declare function createAndSendVendorQuotation(input: {
     vendorId: string;
+    quotationKind?: unknown;
+    productId?: unknown;
     createdByAdminId: string;
     createdByAdminEmail?: string;
     title: unknown;

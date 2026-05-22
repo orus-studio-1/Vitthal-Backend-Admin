@@ -33,7 +33,18 @@ const allowedOrigins = [
 ];
 
 app.use("/", cors({
-    origin: allowedOrigins,
+    origin(origin, callback) {
+        if (!origin) {
+            callback(null, true);
+            return;
+        }
+
+        const isAllowedOrigin = allowedOrigins.includes(origin)
+            || /^http:\/\/localhost:\d+$/.test(origin)
+            || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+
+        callback(isAllowedOrigin ? null : new Error("Not allowed by CORS"), isAllowedOrigin);
+    },
     credentials: true,
 }));
 
