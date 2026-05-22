@@ -9,6 +9,7 @@ import orderRouter from './Routers/Order.router.js';
 import vendorRouter from './Routers/Vendor.router.js';
 import adminRouter from './Routers/Admin.router.js';
 import vendorQuotationRouter from './Routers/VendorQuotation.router.js';
+import clientQuotationRouter from './Routers/ClientQuotation.router.js';
 import { authMiddleware } from './Middleware/AuthMiddleware.js';
 import { validateEnv } from './lib/env.js';
 import { ensureMarketplaceSchema } from './lib/marketplace.js';
@@ -27,6 +28,7 @@ const allowedOrigins = [
     'https://vitthal-vendor-frontend.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000',
+    'http://localhost:3001',
     'http://localhost:4000'
 ];
 
@@ -46,6 +48,7 @@ app.use("/api/orders", authMiddleware, orderRouter);
 app.use("/api/vendors", authMiddleware, vendorRouter);
 app.use("/api/admin", authMiddleware, adminRouter);
 app.use("/api/quotations", vendorQuotationRouter);
+app.use("/api/client-quotations", clientQuotationRouter);
 
 async function startServer() {
     try {
