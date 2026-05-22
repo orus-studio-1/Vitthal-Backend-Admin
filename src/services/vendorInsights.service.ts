@@ -15,6 +15,7 @@ type VendorProfile = {
     pincode: string | null;
     approval_status: string;
     approval_notes: string | null;
+    application_number: string | null;
     is_active: boolean;
     is_blocked: boolean;
     created_at: string;
@@ -38,6 +39,7 @@ const vendorProfileSelect = `
         a.pincode,
         v.approval_status,
         v.approval_notes,
+        v.application_number,
         v.is_active,
         v.is_blocked,
         v.created_at,

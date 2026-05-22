@@ -20,6 +20,32 @@ enum UserRole {
   super_admin
 }
 
+enum CartType {
+  direct
+  quotation
+}
+
+enum QuotationStatus {
+  pending_vendor
+  vendor_offered
+  vendor_countered
+  client_countered
+  client_accepted
+  client_rejected
+  vendor_rejected
+  cancelled
+  expired
+}
+
+enum QuotationMessageAction {
+  request
+  offer
+  counter
+  accept
+  reject
+  note
+}
+
 model User {
   id          String   @id @default(uuid()) @db.Uuid
   name        String
@@ -38,12 +64,21 @@ model Product {
   description     String?
   category        String?
   product_type    String?
+  material        String?
+  grade           String?
+  application     String?
+  standard        String?
   specifications  Json     @default("{}")
+  approval_status String   @default("approved")
+  approval_notes  String?
+  created_by_user_id String? @db.Uuid
+  is_active       Boolean  @default(true)
+  rating          Decimal  @default(0) @db.Decimal(2, 1)
+  review_count    Int      @default(0)
   created_at      DateTime @default(now()) @db.Timestamptz
   updated_at      DateTime @default(now()) @db.Timestamptz
 
   products_images ProductImage[]
-  orders          Order[]
 }
 
 model ProductImage {
@@ -52,52 +87,155 @@ model ProductImage {
   image_url      String
   is_primary     Boolean  @default(false)
   display_order  Int      @default(0)
+  is_approved    Boolean  @default(false)
+  approval_status String  @default("pending")
+  created_by_user_id String? @db.Uuid
+  reviewed_by_user_id String? @db.Uuid
   created_at     DateTime @default(now()) @db.Timestamptz
 
   product        Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
 }
 
-enum OrderStatus {
-  placed
-  payment_pending
-  payment_completed
-  processing
-  shipped
-  delivered
-  cancelled
-  refunded
-}
-
 model Vendor {
   id          String   @id @default(uuid()) @db.Uuid
-  name        String
-  email       String   @unique
-  phone       String?
-  address     String?
+  user_id     String   @unique @db.Uuid
+  company_name String
+  gst_number  String?  @unique
+  gst_certificate_link String?
   business_type String?
+  company_website String?
+  phone       String?
+  alternative_number String?
+  designation String?
+  business_description String?
+  credit_cycle String?
+  minimum_commision_percentage Int? @default(0)
+  maximum_commision_percentage Int? @default(0)
+  rating      Decimal  @default(0) @db.Decimal(2, 1)
+  review_count Int     @default(0)
+  is_approved Boolean  @default(false)
   is_active   Boolean  @default(true)
+  is_blocked  Boolean  @default(false)
+  approval_status String @default("pending")
+  approval_notes String?
+  application_number String? @unique
   created_at  DateTime @default(now()) @db.Timestamptz
   updated_at  DateTime @default(now()) @db.Timestamptz
 
   orders      Order[]
+  vendorProducts VendorProduct[]
+  quotationRequests QuotationRequest[]
 }
 
 model Order {
   id              String      @id @default(uuid()) @db.Uuid
-  customer_name   String
-  customer_email  String
-  customer_phone  String?
+  user_id         String      @db.Uuid
   vendor_id       String      @db.Uuid
-  product_id      String      @db.Uuid
-  quantity        Int         @default(1)
-  total_amount    Float
-  status          OrderStatus @default(placed)
-  qr_code         String?     @unique
+  cart_id         String?     @db.Uuid
+  status          String      @default("pending")
+  payment_status  String?     @default("pending")
+  order_type      String      @default("direct")
+  total_amount    Decimal     @db.Decimal(12, 2)
+  source          String      @default("client")
+  order_reference String?
   order_notes     String?
-  delivery_address String?
+  customer_name   String?
+  customer_email  String?
+  customer_phone  String?
+  created_by_admin_id String?
+  address_line    String      @default("")
+  city            String      @default("")
+  state           String      @default("")
+  country         String      @default("")
+  pincode         String      @default("000000")
+  latitude        String      @default("0")
+  langitude       String      @default("0")
   created_at      DateTime    @default(now()) @db.Timestamptz
   updated_at      DateTime    @default(now()) @db.Timestamptz
 
   vendor          Vendor      @relation(fields: [vendor_id], references: [id])
-  product         Product     @relation(fields: [product_id], references: [id])
+  quotationRequests QuotationRequest[]
+}
+
+model VendorProduct {
+  id                String   @id @default(uuid()) @db.Uuid
+  product_id        String   @db.Uuid
+  vendor_id         String   @db.Uuid
+  price             Decimal  @db.Decimal(12, 2)
+  moq               Int
+  stock_quantity    Int      @default(0)
+  quotation_enabled Boolean  @default(false)
+  quotation_min_qty Int?
+  is_active         Boolean  @default(true)
+  status            String   @default("active")
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @default(now()) @db.Timestamptz
+
+  vendor            Vendor   @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+  product           Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([vendor_id, product_id])
+}
+
+model Cart {
+  id          String   @id @default(uuid()) @db.Uuid
+  user_id     String   @db.Uuid
+  cart_type   CartType @default(direct)
+  status      String   @default("active")
+  total_amount Decimal? @db.Decimal(12, 2)
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @default(now()) @db.Timestamptz
+
+  @@index([user_id, cart_type])
+  @@unique([user_id, cart_type, status])
+}
+
+model QuotationRequest {
+  id                    String   @id @default(uuid()) @db.Uuid
+  user_id               String   @db.Uuid
+  vendor_id             String   @db.Uuid
+  product_id            String   @db.Uuid
+  requested_quantity    Int
+  requested_price       Decimal? @db.Decimal(12, 2)
+  status                QuotationStatus @default(pending_vendor)
+  request_note          String?
+  buyer_city            String?
+  buyer_state           String?
+  buyer_country         String?
+  buyer_pincode         String?
+  current_offer_price   Decimal? @db.Decimal(12, 2)
+  current_offer_quantity Int?
+  current_offer_by      String?
+  accepted_price        Decimal? @db.Decimal(12, 2)
+  accepted_quantity     Int?
+  rejection_reason      String?
+  order_id              String?  @db.Uuid
+  created_at            DateTime @default(now()) @db.Timestamptz
+  updated_at            DateTime @default(now()) @db.Timestamptz
+
+  vendor        Vendor  @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+  product       Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  order         Order?  @relation(fields: [order_id], references: [id], onDelete: SetNull)
+  messages      QuotationMessage[]
+
+  @@index([vendor_id])
+  @@index([user_id])
+  @@index([status])
+}
+
+model QuotationMessage {
+  id            String   @id @default(uuid()) @db.Uuid
+  quotation_id  String   @db.Uuid
+  sender_user_id String  @db.Uuid
+  sender_role   String
+  action        QuotationMessageAction
+  offer_price   Decimal? @db.Decimal(12, 2)
+  offer_quantity Int?
+  note          String?
+  reason        String?
+  created_at    DateTime @default(now()) @db.Timestamptz
+
+  quotation     QuotationRequest @relation(fields: [quotation_id], references: [id], onDelete: Cascade)
+
+  @@index([quotation_id])
 }

@@ -36,6 +36,7 @@ const vendorSelect = `
         a.pincode,
         v.approval_status,
         v.approval_notes,
+        v.application_number,
         v.is_active,
         v.is_blocked,
         v.created_at,
@@ -99,6 +100,7 @@ export const createVendor = async (req: Request, res: Response): Promise<Respons
             );
         }
 
+        const appNumber = `APP-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
         const vendorUpsert = await client.query(
             `
                 INSERT INTO vendors (
@@ -109,9 +111,10 @@ export const createVendor = async (req: Request, res: Response): Promise<Respons
                     is_active,
                     is_blocked,
                     approval_status,
-                    approval_notes
+                    approval_notes,
+                    application_number
                 )
-                VALUES ($1, $2, $3, $4, TRUE, FALSE, 'approved', 'Created by admin')
+                VALUES ($1, $2, $3, $4, TRUE, FALSE, 'approved', 'Created by admin', $5)
                 ON CONFLICT (user_id)
                 DO UPDATE SET
                     company_name = EXCLUDED.company_name,
@@ -121,10 +124,11 @@ export const createVendor = async (req: Request, res: Response): Promise<Respons
                     is_blocked = FALSE,
                     approval_status = 'approved',
                     approval_notes = 'Created by admin',
+                    application_number = COALESCE(vendors.application_number, EXCLUDED.application_number),
                     updated_at = NOW()
                 RETURNING id
             `,
-            [userId, String(companyName).trim(), gstNumber?.trim() || null, phone?.trim() || null]
+            [userId, String(companyName).trim(), gstNumber?.trim() || null, phone?.trim() || null, appNumber]
         );
 
         await client.query("COMMIT");
