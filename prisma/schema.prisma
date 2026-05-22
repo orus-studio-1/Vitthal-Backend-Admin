@@ -18,11 +18,15 @@ enum UserRole {
   vendor
   admin
   super_admin
+
+  @@map("user_role")
 }
 
 enum CartType {
   direct
   quotation
+
+  @@map("cart_type")
 }
 
 enum QuotationStatus {
@@ -35,6 +39,8 @@ enum QuotationStatus {
   vendor_rejected
   cancelled
   expired
+
+  @@map("quotation_status")
 }
 
 enum QuotationMessageAction {
@@ -44,6 +50,8 @@ enum QuotationMessageAction {
   accept
   reject
   note
+
+  @@map("quotation_message_action")
 }
 
 model User {
@@ -56,6 +64,8 @@ model User {
   refresh_token String?
   created_at  DateTime @default(now()) @db.Timestamptz
   updated_at  DateTime @default(now()) @db.Timestamptz
+
+  @@map("users")
 }
 
 model Product {
@@ -79,6 +89,10 @@ model Product {
   updated_at      DateTime @default(now()) @db.Timestamptz
 
   products_images ProductImage[]
+  vendorProducts  VendorProduct[]
+  quotationRequests QuotationRequest[]
+
+  @@map("products")
 }
 
 model ProductImage {
@@ -94,6 +108,8 @@ model ProductImage {
   created_at     DateTime @default(now()) @db.Timestamptz
 
   product        Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@map("products_images")
 }
 
 model Vendor {
@@ -125,6 +141,8 @@ model Vendor {
   orders      Order[]
   vendorProducts VendorProduct[]
   quotationRequests QuotationRequest[]
+
+  @@map("vendors")
 }
 
 model Order {
@@ -155,6 +173,8 @@ model Order {
 
   vendor          Vendor      @relation(fields: [vendor_id], references: [id])
   quotationRequests QuotationRequest[]
+
+  @@map("orders")
 }
 
 model VendorProduct {
@@ -175,6 +195,8 @@ model VendorProduct {
   product           Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@unique([vendor_id, product_id])
+
+  @@map("vendor_products")
 }
 
 model Cart {
@@ -188,6 +210,8 @@ model Cart {
 
   @@index([user_id, cart_type])
   @@unique([user_id, cart_type, status])
+
+  @@map("carts")
 }
 
 model QuotationRequest {
@@ -221,6 +245,8 @@ model QuotationRequest {
   @@index([vendor_id])
   @@index([user_id])
   @@index([status])
+
+  @@map("quotation_requests")
 }
 
 model QuotationMessage {
@@ -238,4 +264,6 @@ model QuotationMessage {
   quotation     QuotationRequest @relation(fields: [quotation_id], references: [id], onDelete: Cascade)
 
   @@index([quotation_id])
+
+  @@map("quotation_messages")
 }
