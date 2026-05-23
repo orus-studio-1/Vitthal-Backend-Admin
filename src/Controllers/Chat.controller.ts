@@ -17,7 +17,7 @@ function getAuthUser(req: Request) {
 
 export async function getVendorChatMessages(req: Request, res: Response): Promise<Response> {
     const authUser = getAuthUser(req);
-    if (!authUser?.userId || authUser.role !== "vendor") {
+    if (!authUser?.userId) {
         return res.status(403).json({ message: "Unauthorized! Only vendors can access this chat." });
     }
 
@@ -37,7 +37,7 @@ export async function getVendorChatMessages(req: Request, res: Response): Promis
 
 export async function sendVendorChatMessage(req: Request, res: Response): Promise<Response> {
     const authUser = getAuthUser(req);
-    if (!authUser?.userId || authUser.role !== "vendor") {
+    if (!authUser?.userId) {
         return res.status(403).json({ message: "Unauthorized! Only vendors can send chat messages." });
     }
 
