@@ -91,6 +91,8 @@ export async function ensureMarketplaceSchema() {
             moq INTEGER NOT NULL CHECK (moq > 0),
             stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
             commision_percentage INTEGER DEFAULT 0 CHECK (commision_percentage >= 0 AND commision_percentage <= 100),
+            quotation_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            quotation_min_qty INTEGER,
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -245,7 +247,9 @@ export async function ensureMarketplaceSchema() {
         CREATE TABLE IF NOT EXISTS vendor_quotations (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             quotation_number TEXT NOT NULL UNIQUE,
+            quotation_kind TEXT NOT NULL DEFAULT 'vendor_agreement',
             vendor_id UUID NOT NULL,
+            product_id UUID,
             created_by_admin_id UUID NOT NULL,
             sent_to_email CITEXT NOT NULL,
             title TEXT NOT NULL,
@@ -279,6 +283,10 @@ export async function ensureMarketplaceSchema() {
                 FOREIGN KEY (vendor_id)
                 REFERENCES vendors(id)
                 ON DELETE CASCADE,
+            CONSTRAINT fk_vendor_quotations_product
+                FOREIGN KEY (product_id)
+                REFERENCES products(id)
+                ON DELETE SET NULL,
             CONSTRAINT fk_vendor_quotations_admin
                 FOREIGN KEY (created_by_admin_id)
                 REFERENCES users(id)
@@ -350,6 +358,8 @@ export async function ensureMarketplaceSchema() {
         ALTER TABLE vendor_products
             ADD COLUMN IF NOT EXISTS stock_quantity INTEGER NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS commision_percentage INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS quotation_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS quotation_min_qty INTEGER,
             ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
             ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
@@ -368,7 +378,9 @@ export async function ensureMarketplaceSchema() {
 
         ALTER TABLE vendor_quotations
             ADD COLUMN IF NOT EXISTS quotation_number TEXT,
+            ADD COLUMN IF NOT EXISTS quotation_kind TEXT NOT NULL DEFAULT 'vendor_agreement',
             ADD COLUMN IF NOT EXISTS vendor_id UUID,
+            ADD COLUMN IF NOT EXISTS product_id UUID,
             ADD COLUMN IF NOT EXISTS created_by_admin_id UUID,
             ADD COLUMN IF NOT EXISTS sent_to_email CITEXT,
             ADD COLUMN IF NOT EXISTS title TEXT,
@@ -410,6 +422,12 @@ export async function ensureMarketplaceSchema() {
             FOREIGN KEY (reviewed_by_admin_id)
             REFERENCES users(id)
             ON DELETE CASCADE;
+        ALTER TABLE vendor_quotations DROP CONSTRAINT IF EXISTS fk_vendor_quotations_product;
+        ALTER TABLE vendor_quotations
+            ADD CONSTRAINT fk_vendor_quotations_product
+            FOREIGN KEY (product_id)
+            REFERENCES products(id)
+            ON DELETE SET NULL;
 
         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_vendors_user_id_unique ON vendors(user_id);

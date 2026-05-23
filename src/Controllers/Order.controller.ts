@@ -153,37 +153,48 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
     try {
         await client.query("BEGIN");
 
-        const vendorResult = await client.query(
+        const vendorProductResult = await client.query(
             `
-                SELECT v.id
-                FROM vendors v
+                SELECT
+                    v.id,
+                    vp.price,
+                    vp.quotation_enabled,
+                    vp.quotation_min_qty
+                FROM vendor_products vp
+                JOIN vendors v ON v.id = vp.vendor_id
                 JOIN users u ON u.id = v.user_id
-                WHERE v.id = $1
+                JOIN products p ON p.id = vp.product_id
+                WHERE vp.vendor_id = $1
+                  AND vp.product_id = $2
+                  AND vp.is_active = TRUE
                   AND v.approval_status = 'approved'
                   AND v.is_active = TRUE
                   AND v.is_blocked = FALSE
                   AND u.is_active = TRUE
+                  AND p.approval_status = 'approved'
+                  AND p.is_active = TRUE
             `,
-            [vendor_id]
+            [vendor_id, product_id]
         );
-        if (!vendorResult.rows.length) {
+        if (!vendorProductResult.rows.length) {
             await client.query("ROLLBACK");
-            return res.status(404).json({ message: "Approved vendor not found." });
+            return res.status(404).json({ message: "Selected vendor does not have an active approved listing for this product." });
         }
 
-        const productResult = await client.query(
-            `
-                SELECT id
-                FROM products
-                WHERE id = $1
-                  AND approval_status = 'approved'
-                  AND is_active = TRUE
-            `,
-            [product_id]
-        );
-        if (!productResult.rows.length) {
+        const vendorProduct = vendorProductResult.rows[0] as {
+            id: string;
+            price: string | number;
+            quotation_enabled: boolean;
+            quotation_min_qty: number | null;
+        };
+        const quantityNumber = Number(quantity);
+        const quotationMinQty = vendorProduct.quotation_min_qty === null ? null : Number(vendorProduct.quotation_min_qty);
+
+        if (Boolean(vendorProduct.quotation_enabled) && quotationMinQty !== null && quantityNumber >= quotationMinQty) {
             await client.query("ROLLBACK");
-            return res.status(404).json({ message: "Approved product not found." });
+            return res.status(400).json({
+                message: `This vendor requires a quotation for quantities of ${quotationMinQty} or more. Send a quotation request instead of placing the order directly.`,
+            });
         }
 
         const userId = await ensureClientUser(client, customer_name, customer_email, customer_phone);
@@ -240,7 +251,7 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
                 INSERT INTO order_items (order_id, product_id, vendor_id, quantity, price)
                 VALUES ($1, $2, $3, $4, $5)
             `,
-            [orderResult.rows[0].id, product_id, vendor_id, Number(quantity), Number(total_amount) / Number(quantity)]
+            [orderResult.rows[0].id, product_id, vendor_id, quantityNumber, Number(total_amount) / quantityNumber]
         );
 
         await client.query("COMMIT");
@@ -253,6 +264,55 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
         return res.status(400).json({ message: error instanceof Error ? error.message : "Internal server error" });
     } finally {
         client.release();
+    }
+};
+
+export const getOrderProductVendors = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res as Response;
+    }
+
+    const productId = String(req.params.productId ?? "");
+    if (!productId) {
+        return res.status(400).json({ message: "Product ID is required." });
+    }
+
+    try {
+        const result = await marketplacePool.query(
+            `
+                SELECT
+                    v.id,
+                    v.company_name,
+                    vp.price,
+                    vp.moq,
+                    vp.stock_quantity,
+                    vp.quotation_enabled,
+                    vp.quotation_min_qty
+                FROM vendor_products vp
+                JOIN vendors v ON v.id = vp.vendor_id
+                JOIN users u ON u.id = v.user_id
+                JOIN products p ON p.id = vp.product_id
+                WHERE vp.product_id = $1
+                  AND vp.is_active = TRUE
+                  AND v.approval_status = 'approved'
+                  AND v.is_active = TRUE
+                  AND v.is_blocked = FALSE
+                  AND u.is_active = TRUE
+                  AND p.approval_status = 'approved'
+                  AND p.is_active = TRUE
+                ORDER BY v.company_name ASC
+            `,
+            [productId]
+        );
+
+        return res.status(200).json({
+            message: "Product vendors retrieved successfully",
+            data: result.rows,
+        });
+    } catch (error) {
+        console.error("Error fetching product vendors:", error);
+        return res.status(500).json({ message: "Internal server error" });
     }
 };
 

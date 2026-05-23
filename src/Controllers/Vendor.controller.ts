@@ -253,6 +253,26 @@ export const reviewVendor = async (req: Request, res: Response): Promise<Respons
         const vendor = vendorResult.rows[0];
         const isApproved = decision === "approved";
 
+        if (vendorResult.rows.length) {
+            const agreementResult = await client.query(
+                `
+                    SELECT status
+                    FROM vendor_quotations
+                    WHERE vendor_id = $1
+                      AND quotation_kind = 'vendor_agreement'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                `,
+                [id]
+            );
+
+            const agreementStatus = agreementResult.rows[0]?.status as string | undefined;
+            if (!agreementStatus || !["vendor_approved", "vendor_rejected", "admin_approved", "admin_rejected"].includes(agreementStatus)) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ message: `Vendor can only be ${decision} after the agreement has been sent and the vendor has responded.` });
+            }
+        }
+
         await client.query(
             `
                 UPDATE vendors

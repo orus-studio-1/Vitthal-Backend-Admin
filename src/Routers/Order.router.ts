@@ -5,7 +5,8 @@ import {
     getOrderById,
     updateOrderStatus,
     deleteOrder,
-    getOrdersByStatus
+    getOrdersByStatus,
+    getOrderProductVendors,
 } from "../Controllers/Order.controller.js";
 
 const router = Router();
@@ -13,6 +14,7 @@ const router = Router();
 // Admin-only routes for order management
 router.post("/", createOrder);
 router.get("/", getAllOrders);
+router.get("/products/:productId/vendors", getOrderProductVendors);
 router.get("/status/:status", getOrdersByStatus);
 router.get("/:id", getOrderById);
 router.put("/:id/status", updateOrderStatus);

@@ -7,7 +7,9 @@ const vendorQuotationSelect = `
     SELECT
         q.id,
         q.quotation_number,
+        q.quotation_kind,
         q.vendor_id,
+        q.product_id,
         q.created_by_admin_id,
         q.sent_to_email,
         q.title,
@@ -222,6 +224,9 @@ function formatCurrency(value) {
 function formatStatus(status) {
     return status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
+function formatKindLabel(kind) {
+    return kind === "vendor_agreement" ? "Vendor Agreement" : "Order Quotation";
+}
 function sanitizePdfText(value) {
     return value
         .replace(/₹/g, "INR ")
@@ -281,7 +286,9 @@ export function serializeAdminQuotation(quotation) {
     return {
         id: quotation.id,
         quotation_number: quotation.quotation_number,
+        quotation_kind: quotation.quotation_kind,
         vendor_id: quotation.vendor_id,
+        product_id: quotation.product_id,
         created_by_admin_id: quotation.created_by_admin_id,
         sent_to_email: quotation.sent_to_email,
         title: quotation.title,
@@ -322,7 +329,9 @@ export function serializePublicQuotation(quotation) {
     return {
         id: quotation.id,
         quotation_number: quotation.quotation_number,
+        quotation_kind: quotation.quotation_kind,
         vendor_id: quotation.vendor_id,
+        product_id: quotation.product_id,
         sent_to_email: quotation.sent_to_email,
         title: quotation.title,
         quantity: Number(quotation.quantity),
@@ -353,7 +362,7 @@ export async function generateVendorQuotationPdf(quotation) {
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     page.drawRectangle({ x: 0, y: height - 110, width, height: 110, color: rgb(0.08, 0.2, 0.35) });
-    page.drawText("Vendor Quotation", {
+    page.drawText(formatKindLabel(quotation.quotation_kind), {
         x: 40,
         y: height - 55,
         size: 24,
@@ -466,25 +475,30 @@ export async function generateVendorQuotationPdf(quotation) {
 async function sendQuotationEmail({ quotation, rawToken, pdfBuffer }) {
     const transporter = getMailTransporter();
     const vendorLink = getVendorQuotationAppUrl(rawToken);
+    const isAgreement = quotation.quotation_kind === "vendor_agreement";
+    const documentLabel = isAgreement ? "agreement" : "quotation request";
+    const actionLabel = isAgreement
+        ? "review the attached agreement, sign it, and submit your response"
+        : "review the attached PDF, update pricing, add your notes, sign, and submit";
     await transporter.sendMail({
         from: getMailFrom(),
         to: quotation.sent_to_email,
-        subject: `Quotation ${quotation.quotation_number} from ${quotation.created_by_admin_name}`,
+        subject: `${isAgreement ? "Agreement" : "Quotation"} ${quotation.quotation_number} from ${quotation.created_by_admin_name}`,
         html: `
             <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
-                <h2 style="margin-bottom: 8px;">New Vendor Quotation Request</h2>
+                <h2 style="margin-bottom: 8px;">New ${isAgreement ? "Vendor Agreement" : "Vendor Quotation Request"}</h2>
                 <p>Hello ${quotation.vendor_name},</p>
-                <p>${quotation.created_by_admin_name} has sent you a quotation request for <strong>${quotation.title}</strong>.</p>
+                <p>${quotation.created_by_admin_name} has sent you a ${documentLabel} for <strong>${quotation.title}</strong>.</p>
                 <p>
                     Quantity: <strong>${quotation.quantity} ${quotation.unit}</strong><br />
                     Target price: <strong>${formatCurrency(quotation.target_price)}</strong><br />
                     Requested MOQ: <strong>${quotation.requested_moq ?? "Not specified"}</strong><br />
                     Valid until: <strong>${formatDate(quotation.validity_date)}</strong>
                 </p>
-                <p>Please review the attached PDF, then open the secure quotation page below to update pricing, add your notes, sign, and submit.</p>
+                <p>Please ${actionLabel}.</p>
                 <p>
                     <a href="${vendorLink}" style="display: inline-block; padding: 10px 18px; background: #0f4c81; color: #ffffff; text-decoration: none; border-radius: 6px;">
-                        Open Secure Quotation Page
+                        Open Secure ${isAgreement ? "Agreement" : "Quotation"} Page
                     </a>
                 </p>
                 <p>This secure link expires on <strong>${formatDateTime(quotation.token_expires_at)}</strong>.</p>
@@ -502,25 +516,30 @@ async function sendQuotationEmail({ quotation, rawToken, pdfBuffer }) {
 async function sendAdminNotificationEmail(quotation) {
     const transporter = getMailTransporter();
     const adminLink = getAdminQuotationAppUrl(quotation.id);
+    const documentLabel = quotation.quotation_kind === "vendor_agreement" ? "agreement" : "quotation";
     const vendorSummary = quotation.status === "vendor_rejected"
-        ? `The vendor rejected this quotation. Reason: ${quotation.vendor_rejection_reason || "Not provided"}.`
+        ? `The vendor rejected this ${documentLabel}. Reason: ${quotation.vendor_rejection_reason || "Not provided"}.`
         : `The vendor submitted pricing ${formatCurrency(quotation.vendor_price)} with MOQ ${quotation.vendor_moq ?? "Not specified"}.`;
     await transporter.sendMail({
         from: getMailFrom(),
         to: quotation.created_by_admin_email,
-        subject: `Vendor response for ${quotation.quotation_number}`,
+        subject: `Vendor response for ${documentLabel} ${quotation.quotation_number}`,
         html: `
             <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
                 <h2 style="margin-bottom: 8px;">Vendor Response Received</h2>
                 <p>Hello ${quotation.created_by_admin_name},</p>
-                <p>${quotation.company_name} has responded to quotation <strong>${quotation.quotation_number}</strong>.</p>
+                <p>${quotation.company_name} has responded to ${documentLabel} <strong>${quotation.quotation_number}</strong>.</p>
                 <p>${vendorSummary}</p>
-                ${adminLink ? `<p><a href="${adminLink}" style="display: inline-block; padding: 10px 18px; background: #0f4c81; color: #ffffff; text-decoration: none; border-radius: 6px;">Review Quotation</a></p>` : ""}
+                ${adminLink ? `<p><a href="${adminLink}" style="display: inline-block; padding: 10px 18px; background: #0f4c81; color: #ffffff; text-decoration: none; border-radius: 6px;">Review ${quotation.quotation_kind === "vendor_agreement" ? "Agreement" : "Quotation"}</a></p>` : ""}
             </div>
         `,
     });
 }
 export async function createAndSendVendorQuotation(input) {
+    const quotationKind = (normalizeOptionalText(input.quotationKind) || "vendor_agreement").toLowerCase();
+    if (quotationKind !== "vendor_agreement" && quotationKind !== "order_request") {
+        throw new Error("quotationKind must be either vendor_agreement or order_request.");
+    }
     const title = normalizeRequiredText(input.title, "title");
     const quantity = parsePositiveNumber(input.quantity, "quantity");
     const unit = normalizeRequiredText(input.unit, "unit");
@@ -541,6 +560,7 @@ export async function createAndSendVendorQuotation(input) {
                     v.id,
                     v.company_name,
                     v.phone,
+                    v.approval_status,
                     u.name AS vendor_name,
                     u.email AS vendor_email
                 FROM vendors v
@@ -550,6 +570,59 @@ export async function createAndSendVendorQuotation(input) {
         if (!vendorResult.rows.length) {
             await client.query("ROLLBACK");
             throw new Error("Vendor not found.");
+        }
+        const vendor = vendorResult.rows[0];
+        let productId = null;
+        if (quotationKind === "vendor_agreement") {
+            if (vendor.approval_status !== "pending") {
+                await client.query("ROLLBACK");
+                throw new Error("Agreement can only be sent once while the vendor is pending approval.");
+            }
+            const existingAgreement = await client.query(`
+                    SELECT id
+                    FROM vendor_quotations
+                    WHERE vendor_id = $1
+                      AND quotation_kind = 'vendor_agreement'
+                    LIMIT 1
+                `, [input.vendorId]);
+            if (existingAgreement.rows.length) {
+                await client.query("ROLLBACK");
+                throw new Error("Agreement has already been sent for this vendor.");
+            }
+        }
+        else {
+            productId = normalizeRequiredText(input.productId, "productId");
+            const linkedProduct = await client.query(`
+                    SELECT
+                        p.id,
+                        p.name,
+                        vp.quotation_min_qty
+                    FROM vendor_products vp
+                    JOIN products p ON p.id = vp.product_id
+                    JOIN vendors v ON v.id = vp.vendor_id
+                    JOIN users u ON u.id = v.user_id
+                    WHERE vp.product_id = $1
+                      AND vp.vendor_id = $2
+                      AND vp.is_active = TRUE
+                      AND p.approval_status = 'approved'
+                      AND p.is_active = TRUE
+                      AND v.approval_status = 'approved'
+                      AND v.is_active = TRUE
+                      AND v.is_blocked = FALSE
+                      AND u.is_active = TRUE
+                    LIMIT 1
+                `, [productId, input.vendorId]);
+            if (!linkedProduct.rows.length) {
+                await client.query("ROLLBACK");
+                throw new Error("Selected vendor does not have an active listing for this product.");
+            }
+            const minimumQuotationQty = linkedProduct.rows[0].quotation_min_qty === null
+                ? null
+                : Number(linkedProduct.rows[0].quotation_min_qty);
+            if (minimumQuotationQty !== null && quantity < minimumQuotationQty) {
+                await client.query("ROLLBACK");
+                throw new Error(`Quotation is only required for quantities of ${minimumQuotationQty} or higher for this vendor listing.`);
+            }
         }
         let adminResult = await client.query(`SELECT id, name, email FROM users WHERE id = $1`, [input.createdByAdminId]);
         if (!adminResult.rows.length && input.createdByAdminEmail?.trim()) {
@@ -564,7 +637,9 @@ export async function createAndSendVendorQuotation(input) {
         const inserted = await client.query(`
                 INSERT INTO vendor_quotations (
                     quotation_number,
+                    quotation_kind,
                     vendor_id,
+                    product_id,
                     created_by_admin_id,
                     sent_to_email,
                     title,
@@ -580,14 +655,16 @@ export async function createAndSendVendorQuotation(input) {
                     token_expires_at
                 )
                 VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'sent', $12, $13, $14
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'sent', $13, $14, $15
                 )
                 RETURNING id
             `, [
             quotationNumber,
+            quotationKind,
             input.vendorId,
+            productId,
             resolvedAdmin.id,
-            vendorResult.rows[0].vendor_email,
+            vendor.vendor_email,
             title,
             quantity,
             unit,
@@ -599,6 +676,13 @@ export async function createAndSendVendorQuotation(input) {
             tokenHash,
             tokenExpiry,
         ]);
+        if (quotationKind === "vendor_agreement") {
+            await client.query(`
+                    UPDATE vendors
+                    SET approval_status = 'agreement_sent', approval_notes = 'Agreement sent to vendor', updated_at = NOW()
+                    WHERE id = $1
+                `, [input.vendorId]);
+        }
         await client.query("COMMIT");
         const quotation = await getVendorQuotationById(inserted.rows[0].id);
         if (!quotation) {
@@ -756,6 +840,35 @@ export async function reviewVendorQuotation(input) {
                 updated_at = NOW()
             WHERE id = $1
         `, [input.quotationId, finalStatus, adminReviewNotes, resolvedReviewer.id]);
+    if (quotation.quotation_kind === "vendor_agreement") {
+        const vendorApprovalStatus = decision === "approved" ? "approved" : "rejected";
+        const isApproved = decision === "approved";
+        await marketplacePool.query(`
+                UPDATE vendors
+                SET
+                    approval_status = $2,
+                    approval_notes = $3,
+                    is_active = $4,
+                    is_blocked = $5,
+                    updated_at = NOW()
+                WHERE id = $1
+            `, [
+            quotation.vendor_id,
+            vendorApprovalStatus,
+            adminReviewNotes || (isApproved ? "Agreement approved by admin" : "Agreement rejected by admin"),
+            isApproved,
+            !isApproved,
+        ]);
+        await marketplacePool.query(`
+                UPDATE users
+                SET is_active = $2, updated_at = NOW()
+                WHERE id = (
+                    SELECT user_id
+                    FROM vendors
+                    WHERE id = $1
+                )
+            `, [quotation.vendor_id, isApproved]);
+    }
     return getVendorQuotationById(input.quotationId);
 }
 //# sourceMappingURL=vendorQuotation.service.js.map

@@ -16,6 +16,8 @@ export async function createVendorQuotation(req, res) {
     try {
         const result = await createAndSendVendorQuotation({
             vendorId: req.body.vendorId,
+            quotationKind: req.body.quotationKind,
+            productId: req.body.productId,
             createdByAdminId: authUser.userId,
             ...(authUser.email ? { createdByAdminEmail: authUser.email } : {}),
             title: req.body.title,
@@ -28,7 +30,9 @@ export async function createVendorQuotation(req, res) {
             adminSignatureData: req.body.adminSignatureData,
         });
         return res.status(201).json({
-            message: "Quotation created and emailed to vendor successfully.",
+            message: req.body.quotationKind === "order_request"
+                ? "Quotation created and emailed to vendor successfully."
+                : "Agreement created and emailed to vendor successfully.",
             data: {
                 quotation: result.quotation ? serializeAdminQuotation(result.quotation) : null,
                 vendorLink: result.vendorLink,
