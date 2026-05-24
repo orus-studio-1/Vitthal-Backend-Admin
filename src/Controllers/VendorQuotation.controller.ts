@@ -75,6 +75,7 @@ export async function createVendorQuotation(req: Request, res: Response): Promis
             requestNotes: req.body.requestNotes,
             validityDate: req.body.validityDate,
             adminSignatureData: req.body.adminSignatureData,
+            vendorUpdates: req.body.vendorUpdates,
         });
 
         return res.status(201).json({

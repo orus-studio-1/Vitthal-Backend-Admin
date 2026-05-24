@@ -52,6 +52,15 @@ type VendorQuotationRow = {
     vendor_email: string;
     vendor_phone: string | null;
     company_name: string;
+    business_type?: string;
+    gst_number?: string;
+    company_website?: string;
+    alternative_number?: string;
+    designation?: string;
+    business_description?: string;
+    credit_cycle?: string;
+    minimum_commision_percentage?: number | null;
+    maximum_commision_percentage?: number | null;
     created_by_admin_name: string;
     created_by_admin_email: string;
 };
@@ -101,6 +110,15 @@ const vendorQuotationSelect = `
         vendor_user.email AS vendor_email,
         v.phone AS vendor_phone,
         v.company_name,
+        v.business_type,
+        v.gst_number,
+        v.company_website,
+        v.alternative_number,
+        v.designation,
+        v.business_description,
+        v.credit_cycle,
+        v.minimum_commision_percentage,
+        v.maximum_commision_percentage,
         admin_user.name AS created_by_admin_name,
         admin_user.email AS created_by_admin_email
     FROM vendor_quotations q
@@ -517,6 +535,15 @@ export function serializePublicQuotation(quotation: VendorQuotationRow) {
         vendor_responded_at: quotation.vendor_responded_at,
         company_name: quotation.company_name,
         vendor_name: quotation.vendor_name,
+        business_type: quotation.business_type,
+        gst_number: quotation.gst_number,
+        company_website: quotation.company_website,
+        alternative_number: quotation.alternative_number,
+        designation: quotation.designation,
+        business_description: quotation.business_description,
+        credit_cycle: quotation.credit_cycle,
+        minimum_commision_percentage: quotation.minimum_commision_percentage,
+        maximum_commision_percentage: quotation.maximum_commision_percentage,
         created_by_admin_name: quotation.created_by_admin_name,
         admin_reviewed_at: quotation.admin_reviewed_at,
         admin_review_notes: quotation.admin_review_notes,
@@ -562,34 +589,59 @@ export async function generateVendorQuotationPdf(quotation: VendorQuotationRow) 
     drawWrappedBlock(page, "Validity Date", formatDate(quotation.validity_date), 320, height - 223, 235, boldFont, regularFont);
 
     cursorY -= 8;
-    page.drawRectangle({ x: 40, y: cursorY - 155, width: width - 80, height: 150, borderColor: rgb(0.8, 0.84, 0.9), borderWidth: 1 });
-    page.drawText("Quotation Request", { x: 52, y: cursorY - 20, size: 13, font: boldFont, color: rgb(0.08, 0.2, 0.35) });
-    page.drawText(sanitizePdfText(`Title: ${quotation.title}`), { x: 52, y: cursorY - 42, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText(sanitizePdfText(`Quantity: ${quotation.quantity} ${quotation.unit}`), { x: 52, y: cursorY - 62, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText(sanitizePdfText(`Target Price: ${formatCurrency(quotation.target_price)}`), { x: 52, y: cursorY - 82, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText(sanitizePdfText(`Requested MOQ: ${quotation.requested_moq ?? "Not specified"}`), { x: 52, y: cursorY - 102, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+    if (quotation.quotation_kind === "vendor_agreement") {
+        page.drawRectangle({ x: 40, y: cursorY - 155, width: width - 80, height: 150, borderColor: rgb(0.8, 0.84, 0.9), borderWidth: 1 });
+        page.drawText("Vendor Agreement Profile", { x: 52, y: cursorY - 20, size: 13, font: boldFont, color: rgb(0.08, 0.2, 0.35) });
+        page.drawText(sanitizePdfText(`Business Type: ${quotation.business_type || 'Not specified'}`), { x: 52, y: cursorY - 42, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`GST Number: ${quotation.gst_number || 'Not specified'}`), { x: 52, y: cursorY - 62, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`Credit Cycle: ${quotation.credit_cycle || 'Not specified'}`), { x: 52, y: cursorY - 82, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`Commission: ${quotation.minimum_commision_percentage ?? 0}% - ${quotation.maximum_commision_percentage ?? 0}%`), { x: 52, y: cursorY - 102, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        
+        const descriptionLines = wrapText(quotation.business_description || "No business description provided.", width - 104, regularFont, 10);
+        page.drawText("Description:", { x: 52, y: cursorY - 124, size: 11, font: boldFont, color: rgb(0.12, 0.12, 0.12) });
+        let notesY = cursorY - 140;
+        for (const line of descriptionLines.slice(0, 3)) {
+            page.drawText(sanitizePdfText(line), { x: 52, y: notesY, size: 10, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+            notesY -= 12;
+        }
 
-    const requestLines = wrapText(quotation.request_notes || "No notes provided.", width - 104, regularFont, 10);
-    page.drawText("Admin Notes:", { x: 52, y: cursorY - 124, size: 11, font: boldFont, color: rgb(0.12, 0.12, 0.12) });
-    let notesY = cursorY - 140;
-    for (const line of requestLines.slice(0, 3)) {
-        page.drawText(sanitizePdfText(line), { x: 52, y: notesY, size: 10, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        notesY -= 12;
-    }
+        let responseY = cursorY - 190;
+        page.drawRectangle({ x: 40, y: responseY - 125, width: width - 80, height: 120, borderColor: rgb(0.84, 0.88, 0.93), borderWidth: 1 });
+        page.drawText("Platform Terms & Conditions", { x: 52, y: responseY - 20, size: 13, font: boldFont, color: rgb(0.08, 0.2, 0.35) });
+        page.drawText(sanitizePdfText(`1. The Vendor agrees to supply goods/services as per the terms.`), { x: 52, y: responseY - 42, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`2. The Vendor agrees to pay the stipulated commission percentage.`), { x: 52, y: responseY - 62, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`3. By signing this agreement, the Vendor accepts the platform policies.`), { x: 52, y: responseY - 82, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`Accepted At: ${formatDateTime(quotation.vendor_responded_at)}`), { x: 52, y: responseY - 102, size: 11, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
+    } else {
+        page.drawRectangle({ x: 40, y: cursorY - 155, width: width - 80, height: 150, borderColor: rgb(0.8, 0.84, 0.9), borderWidth: 1 });
+        page.drawText("Quotation Request", { x: 52, y: cursorY - 20, size: 13, font: boldFont, color: rgb(0.08, 0.2, 0.35) });
+        page.drawText(sanitizePdfText(`Title: ${quotation.title}`), { x: 52, y: cursorY - 42, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`Quantity: ${quotation.quantity} ${quotation.unit}`), { x: 52, y: cursorY - 62, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`Target Price: ${formatCurrency(quotation.target_price)}`), { x: 52, y: cursorY - 82, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`Requested MOQ: ${quotation.requested_moq ?? "Not specified"}`), { x: 52, y: cursorY - 102, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
 
-    let responseY = cursorY - 190;
-    page.drawRectangle({ x: 40, y: responseY - 125, width: width - 80, height: 120, borderColor: rgb(0.84, 0.88, 0.93), borderWidth: 1 });
-    page.drawText("Vendor Response", { x: 52, y: responseY - 20, size: 13, font: boldFont, color: rgb(0.08, 0.2, 0.35) });
-    page.drawText(sanitizePdfText(`Vendor Price: ${formatCurrency(quotation.vendor_price)}`), { x: 52, y: responseY - 42, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText(sanitizePdfText(`Vendor MOQ: ${quotation.vendor_moq ?? "Not specified"}`), { x: 52, y: responseY - 62, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText(sanitizePdfText(`Vendor Response At: ${formatDateTime(quotation.vendor_responded_at)}`), { x: 52, y: responseY - 82, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText(sanitizePdfText(`Vendor Rejection Reason: ${quotation.vendor_rejection_reason || "Not rejected"}`), { x: 52, y: responseY - 102, size: 10, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        const requestLines = wrapText(quotation.request_notes || "No notes provided.", width - 104, regularFont, 10);
+        page.drawText("Admin Notes:", { x: 52, y: cursorY - 124, size: 11, font: boldFont, color: rgb(0.12, 0.12, 0.12) });
+        let notesY = cursorY - 140;
+        for (const line of requestLines.slice(0, 3)) {
+            page.drawText(sanitizePdfText(line), { x: 52, y: notesY, size: 10, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+            notesY -= 12;
+        }
 
-    const vendorNotesLines = wrapText(quotation.vendor_notes || "No vendor notes provided.", width - 104, regularFont, 10);
-    let vendorNotesY = responseY - 120;
-    for (const line of vendorNotesLines.slice(0, 2)) {
-        page.drawText(sanitizePdfText(line), { x: 52, y: vendorNotesY, size: 10, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        vendorNotesY -= 12;
+        let responseY = cursorY - 190;
+        page.drawRectangle({ x: 40, y: responseY - 125, width: width - 80, height: 120, borderColor: rgb(0.84, 0.88, 0.93), borderWidth: 1 });
+        page.drawText("Vendor Response", { x: 52, y: responseY - 20, size: 13, font: boldFont, color: rgb(0.08, 0.2, 0.35) });
+        page.drawText(sanitizePdfText(`Vendor Price: ${formatCurrency(quotation.vendor_price)}`), { x: 52, y: responseY - 42, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`Vendor MOQ: ${quotation.vendor_moq ?? "Not specified"}`), { x: 52, y: responseY - 62, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`Vendor Response At: ${formatDateTime(quotation.vendor_responded_at)}`), { x: 52, y: responseY - 82, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(sanitizePdfText(`Vendor Rejection Reason: ${quotation.vendor_rejection_reason || "Not rejected"}`), { x: 52, y: responseY - 102, size: 10, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+
+        const vendorNotesLines = wrapText(quotation.vendor_notes || "No vendor notes provided.", width - 104, regularFont, 10);
+        let vendorNotesY = responseY - 120;
+        for (const line of vendorNotesLines.slice(0, 2)) {
+            page.drawText(sanitizePdfText(line), { x: 52, y: vendorNotesY, size: 10, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+            vendorNotesY -= 12;
+        }
     }
 
     page.drawText("Admin Signature", {
@@ -739,6 +791,7 @@ export async function createAndSendVendorQuotation(input: {
     requestNotes: unknown;
     validityDate: unknown;
     adminSignatureData?: unknown;
+    vendorUpdates?: any;
 }) {
     const quotationKind = (normalizeOptionalText(input.quotationKind) || "vendor_agreement").toLowerCase() as VendorQuotationKind;
     if (quotationKind !== "vendor_agreement" && quotationKind !== "order_request") {
@@ -746,8 +799,8 @@ export async function createAndSendVendorQuotation(input: {
     }
 
     const title = normalizeRequiredText(input.title, "title");
-    const quantity = parsePositiveNumber(input.quantity, "quantity");
-    const unit = normalizeRequiredText(input.unit, "unit");
+    const quantity = quotationKind === "vendor_agreement" ? 1 : parsePositiveNumber(input.quantity, "quantity");
+    const unit = quotationKind === "vendor_agreement" ? "agreement" : normalizeRequiredText(input.unit, "unit");
     const targetPrice = parseOptionalCurrency(input.targetPrice, "targetPrice");
     const requestedMoq = parseOptionalInteger(input.requestedMoq, "requestedMoq");
     const requestNotes = normalizeOptionalText(input.requestNotes);
@@ -814,6 +867,50 @@ export async function createAndSendVendorQuotation(input: {
             if (existingAgreement.rows.length) {
                 await client.query("ROLLBACK");
                 throw new Error("Agreement has already been sent for this vendor.");
+            }
+
+            if (input.vendorUpdates) {
+                const vu = input.vendorUpdates;
+                await client.query(`
+                    UPDATE vendors
+                    SET
+                        company_name = COALESCE($1, company_name),
+                        business_type = COALESCE($2, business_type),
+                        gst_number = COALESCE($3, gst_number),
+                        gst_certificate_link = COALESCE($4, gst_certificate_link),
+                        company_website = COALESCE($5, company_website),
+                        alternative_number = COALESCE($6, alternative_number),
+                        designation = COALESCE($7, designation),
+                        business_description = COALESCE($8, business_description),
+                        credit_cycle = COALESCE($9, credit_cycle),
+                        minimum_commision_percentage = COALESCE($10, minimum_commision_percentage),
+                        maximum_commision_percentage = COALESCE($11, maximum_commision_percentage),
+                        updated_at = NOW()
+                    WHERE id = $12
+                `, [
+                    vu.companyName ?? null, vu.businessType ?? null, vu.gstNumber ?? null, vu.gstCertificateLink ?? null,
+                    vu.companyWebsite ?? null, vu.alternativeNumber ?? null, vu.designation ?? null, vu.businessDescription ?? null,
+                    vu.creditCycle ?? null, vu.minimumCommissionPercentage ?? null, vu.maximumCommissionPercentage ?? null,
+                    input.vendorId
+                ]);
+
+                if (vu.vendorCategories && Array.isArray(vu.vendorCategories)) {
+                    await client.query(`DELETE FROM vendor_categories WHERE vendor_id = $1`, [input.vendorId]);
+                    for (const catCode of vu.vendorCategories) {
+                        if (typeof catCode === 'string' && catCode.trim()) {
+                            const catResult = await client.query(
+                                `SELECT id FROM product_category WHERE code = $1`,
+                                [catCode.trim()]
+                            );
+                            if (catResult.rows.length > 0) {
+                                await client.query(`
+                                    INSERT INTO vendor_categories (vendor_id, category_id)
+                                    VALUES ($1, $2) ON CONFLICT DO NOTHING
+                                `, [input.vendorId, catResult.rows[0].id]);
+                            }
+                        }
+                    }
+                }
             }
         } else {
             productId = normalizeRequiredText(input.productId, "productId");
@@ -1046,11 +1143,14 @@ export async function submitVendorQuotationResponse(input: {
         const vendorSignatureData = normalizeRequiredText(input.vendorSignatureData, "vendorSignatureData");
         dataUrlToBytes(vendorSignatureData);
 
+        const nextStatus = quotation.quotation_kind === "vendor_agreement" ? "admin_approved" : "vendor_approved";
+        const adminReviewUpdate = quotation.quotation_kind === "vendor_agreement" ? ", admin_reviewed_at = NOW(), admin_review_notes = 'Auto-approved by system upon vendor acceptance'" : "";
+
         await marketplacePool.query(
             `
                 UPDATE vendor_quotations
                 SET
-                    status = 'vendor_approved',
+                    status = $8,
                     vendor_price = $2,
                     vendor_moq = $3,
                     vendor_notes = $4,
@@ -1061,10 +1161,15 @@ export async function submitVendorQuotationResponse(input: {
                     vendor_responded_at = NOW(),
                     vendor_opened_at = COALESCE(vendor_opened_at, NOW()),
                     updated_at = NOW()
+                    ${adminReviewUpdate}
                 WHERE id = $1
             `,
-            [quotation.id, vendorPrice, vendorMoq, vendorNotes, vendorSignatureData, input.responseIp ?? null, input.responseUserAgent ?? null]
+            [quotation.id, vendorPrice, vendorMoq, vendorNotes, vendorSignatureData, input.responseIp ?? null, input.responseUserAgent ?? null, nextStatus]
         );
+
+        if (quotation.quotation_kind === "vendor_agreement") {
+            await marketplacePool.query(`UPDATE vendors SET is_active = true WHERE id = $1`, [quotation.vendor_id]);
+        }
     } else {
         const rejectionReason = normalizeRequiredText(input.rejectionReason, "rejectionReason");
         await marketplacePool.query(

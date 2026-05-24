@@ -740,6 +740,7 @@ ALTER TABLE vendors
 
 -- Safely alter vendor_products
 ALTER TABLE vendor_products
+    ADD COLUMN IF NOT EXISTS product_id UUID,
     ADD COLUMN IF NOT EXISTS stock_quantity INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS commision_percentage INTEGER DEFAULT 0,
     ADD COLUMN IF NOT EXISTS quotation_enabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -748,6 +749,16 @@ ALTER TABLE vendor_products
     ADD COLUMN IF NOT EXISTS status vendor_product_status NOT NULL DEFAULT 'active',
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE products_images
+    ADD COLUMN IF NOT EXISTS product_id UUID,
+    ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'pending',
+    ADD COLUMN IF NOT EXISTS created_by_user_id UUID,
+    ADD COLUMN IF NOT EXISTS reviewed_by_user_id UUID,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 -- Safely alter orders
 ALTER TABLE orders
@@ -887,25 +898,6 @@ CREATE TABLE IF NOT EXISTS vendor_quotations (
         CHECK (status IN ('sent', 'vendor_opened', 'vendor_approved', 'vendor_rejected', 'admin_approved', 'admin_rejected'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_vendor_chat_messages_vendor_id
-    ON vendor_chat_messages(vendor_id, created_at ASC);
-CREATE INDEX IF NOT EXISTS idx_vendor_chat_messages_is_read
-    ON vendor_chat_messages(vendor_id, is_read);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_vendor_quotations_number_unique
-    ON vendor_quotations(quotation_number);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_vendor_quotations_token_hash_unique
-    ON vendor_quotations(token_hash);
-CREATE INDEX IF NOT EXISTS idx_vendor_quotations_vendor_id
-    ON vendor_quotations(vendor_id);
-CREATE INDEX IF NOT EXISTS idx_vendor_quotations_product_id
-    ON vendor_quotations(product_id);
-CREATE INDEX IF NOT EXISTS idx_vendor_quotations_created_by_admin_id
-    ON vendor_quotations(created_by_admin_id);
-CREATE INDEX IF NOT EXISTS idx_vendor_quotations_reviewed_by_admin_id
-    ON vendor_quotations(reviewed_by_admin_id);
-CREATE INDEX IF NOT EXISTS idx_vendor_quotations_status
-    ON vendor_quotations(status);
-
 ALTER TABLE vendor_quotations
     ADD COLUMN IF NOT EXISTS quotation_number TEXT,
     ADD COLUMN IF NOT EXISTS quotation_kind TEXT NOT NULL DEFAULT 'vendor_agreement',
@@ -940,6 +932,25 @@ ALTER TABLE vendor_quotations
     ADD COLUMN IF NOT EXISTS email_last_error TEXT,
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_vendor_chat_messages_vendor_id
+    ON vendor_chat_messages(vendor_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_vendor_chat_messages_is_read
+    ON vendor_chat_messages(vendor_id, is_read);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vendor_quotations_number_unique
+    ON vendor_quotations(quotation_number);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vendor_quotations_token_hash_unique
+    ON vendor_quotations(token_hash);
+CREATE INDEX IF NOT EXISTS idx_vendor_quotations_vendor_id
+    ON vendor_quotations(vendor_id);
+CREATE INDEX IF NOT EXISTS idx_vendor_quotations_product_id
+    ON vendor_quotations(product_id);
+CREATE INDEX IF NOT EXISTS idx_vendor_quotations_created_by_admin_id
+    ON vendor_quotations(created_by_admin_id);
+CREATE INDEX IF NOT EXISTS idx_vendor_quotations_reviewed_by_admin_id
+    ON vendor_quotations(reviewed_by_admin_id);
+CREATE INDEX IF NOT EXISTS idx_vendor_quotations_status
+    ON vendor_quotations(status);
 
 ALTER TABLE vendor_quotations DROP CONSTRAINT IF EXISTS chk_vendor_quotation_status;
 ALTER TABLE vendor_quotations
