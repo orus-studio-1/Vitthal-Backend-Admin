@@ -550,164 +550,223 @@ export function serializePublicQuotation(quotation: VendorQuotationRow) {
     };
 }
 
-export async function generateVendorQuotationPdf(quotation: VendorQuotationRow) {
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595, 842]);
-    const { width, height } = page.getSize();
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+export async function generateVendorQuotationPdf(quotation: VendorQuotationRow): Promise<Buffer> {
+    const isAgreement = quotation.quotation_kind === "vendor_agreement";
+    const titleLabel = isAgreement ? "Vendor Agreement" : "Order Quotation";
 
-    page.drawRectangle({ x: 0, y: height - 110, width, height: 110, color: rgb(0.08, 0.2, 0.35) });
-    page.drawText(formatKindLabel(quotation.quotation_kind), {
-        x: 40,
-        y: height - 55,
-        size: 24,
-        font: boldFont,
-        color: rgb(1, 1, 1),
-    });
-    page.drawText(sanitizePdfText(`Quotation No: ${quotation.quotation_number}`), {
-        x: 40,
-        y: height - 80,
-        size: 12,
-        font: regularFont,
-        color: rgb(0.93, 0.96, 1),
-    });
+    const companyName = "MTWO Groups";
+    const companyAddress = "Plot No. 42, Bopodi Industrial Estate, Pune 411003";
+    const logoUrl = "https://res.cloudinary.com/deudvpcgx/image/upload/v1779186769/favicon_somltc.jpg";
 
-    let cursorY = height - 145;
-    page.drawText(sanitizePdfText(`Status: ${formatStatus(quotation.status)}`), {
-        x: 40,
-        y: cursorY,
-        size: 11,
-        font: boldFont,
-        color: rgb(0.12, 0.12, 0.12),
-    });
+    const adminSigHtml = quotation.admin_signature_data === AUTO_SIGNATURE_MARKER
+        ? `<div style="font-size: 10px; color: #4b5563;">Digitally prepared by</div><div style="font-weight: 700; color: #0f4c81; font-size: 14px;">${quotation.created_by_admin_name}</div>`
+        : `<img src="${quotation.admin_signature_data}" style="max-height: 40px; max-width: 150px;" alt="Admin Signature" />`;
 
-    cursorY -= 24;
-    cursorY = drawWrappedBlock(page, "Vendor", `${quotation.company_name} (${quotation.vendor_name})`, 40, cursorY, 240, boldFont, regularFont);
-    cursorY = drawWrappedBlock(page, "Vendor Email", quotation.sent_to_email, 40, cursorY, 240, boldFont, regularFont);
-    cursorY = drawWrappedBlock(page, "Prepared By", `${quotation.created_by_admin_name} (${quotation.created_by_admin_email})`, 320, height - 169, 235, boldFont, regularFont);
-    drawWrappedBlock(page, "Validity Date", formatDate(quotation.validity_date), 320, height - 223, 235, boldFont, regularFont);
+    const vendorSigHtml = quotation.vendor_signature_data
+        ? `<img src="${quotation.vendor_signature_data}" style="max-height: 40px; max-width: 150px;" alt="Vendor Signature" />`
+        : `<div style="font-size: 12px; color: #9ca3af; font-style: italic;">Pending Signature</div>`;
 
-    cursorY -= 8;
-    if (quotation.quotation_kind === "vendor_agreement") {
-        page.drawRectangle({ x: 40, y: cursorY - 155, width: width - 80, height: 150, borderColor: rgb(0.8, 0.84, 0.9), borderWidth: 1 });
-        page.drawText("Vendor Agreement Profile", { x: 52, y: cursorY - 20, size: 13, font: boldFont, color: rgb(0.08, 0.2, 0.35) });
-        page.drawText(sanitizePdfText(`Business Type: ${quotation.business_type || 'Not specified'}`), { x: 52, y: cursorY - 42, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`GST Number: ${quotation.gst_number || 'Not specified'}`), { x: 52, y: cursorY - 62, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`Credit Cycle: ${quotation.credit_cycle || 'Not specified'}`), { x: 52, y: cursorY - 82, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`Commission: ${quotation.minimum_commision_percentage ?? 0}% - ${quotation.maximum_commision_percentage ?? 0}%`), { x: 52, y: cursorY - 102, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        
-        const descriptionLines = wrapText(quotation.business_description || "No business description provided.", width - 104, regularFont, 10);
-        page.drawText("Description:", { x: 52, y: cursorY - 124, size: 11, font: boldFont, color: rgb(0.12, 0.12, 0.12) });
-        let notesY = cursorY - 140;
-        for (const line of descriptionLines.slice(0, 3)) {
-            page.drawText(sanitizePdfText(line), { x: 52, y: notesY, size: 10, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-            notesY -= 12;
-        }
+    let contentHtml = "";
 
-        let responseY = cursorY - 190;
-        page.drawRectangle({ x: 40, y: responseY - 125, width: width - 80, height: 120, borderColor: rgb(0.84, 0.88, 0.93), borderWidth: 1 });
-        page.drawText("Platform Terms & Conditions", { x: 52, y: responseY - 20, size: 13, font: boldFont, color: rgb(0.08, 0.2, 0.35) });
-        page.drawText(sanitizePdfText(`1. The Vendor agrees to supply goods/services as per the terms.`), { x: 52, y: responseY - 42, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`2. The Vendor agrees to pay the stipulated commission percentage.`), { x: 52, y: responseY - 62, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`3. By signing this agreement, the Vendor accepts the platform policies.`), { x: 52, y: responseY - 82, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`Accepted At: ${formatDateTime(quotation.vendor_responded_at)}`), { x: 52, y: responseY - 102, size: 11, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
+    if (isAgreement) {
+        const startDate = formatDate(new Date());
+        contentHtml = `
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h2 style="color: #0f4c81; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; margin: 0;">VENDOR AGREEMENT</h2>
+                <div style="color: #6b7280; font-size: 14px; margin-top: 5px;">Reference: ${quotation.quotation_number} | Date: ${startDate}</div>
+            </div>
+
+            <div class="legal-section">
+                <h3>1. Parties Involved</h3>
+                <p>This Vendor Agreement is made between <strong>${companyName}</strong>, located at ${companyAddress}, and <strong>${quotation.company_name}</strong> (representing ${quotation.vendor_name}), located at the registered address provided during onboarding. Hereinafter referred to collectively as "the Parties".</p>
+            </div>
+
+            <div class="legal-section">
+                <h3>2. Term of Agreement</h3>
+                <p>The Agreement shall commence on <strong>${startDate}</strong> and shall remain in effect for a standard initial term unless terminated earlier in accordance with Section 8.</p>
+            </div>
+
+            <div class="legal-section">
+                <h3>3. Scope of Work & Business Profile</h3>
+                <p>The Vendor agrees to supply products or services matching the following approved profile:</p>
+                <table class="data-table">
+                    <tr><td width="30%"><strong>Business Type</strong></td><td>${quotation.business_type || 'Not specified'}</td></tr>
+                    <tr><td><strong>Description</strong></td><td>${quotation.business_description || 'Not specified'}</td></tr>
+                    <tr><td><strong>GST Number</strong></td><td>${quotation.gst_number || 'Not specified'}</td></tr>
+                </table>
+            </div>
+
+            <div class="legal-section">
+                <h3>4. Pricing and Payment Terms</h3>
+                <p>Transactions will be processed based on the following agreed commercial terms:</p>
+                <ul>
+                    <li><strong>Commission Structure:</strong> ${quotation.minimum_commision_percentage ?? 0}% to ${quotation.maximum_commision_percentage ?? 0}% (depending on category)</li>
+                    <li><strong>Credit Cycle:</strong> ${quotation.credit_cycle || 'Standard Platform Terms'}</li>
+                </ul>
+            </div>
+
+            <div class="legal-section">
+                <h3>5. Delivery and Logistics</h3>
+                <p>Vendor agrees to fulfill orders in a timely manner. Where applicable, inventory must be delivered to ${companyName}'s warehouse located at ${companyAddress}. Delivery schedules will be mutually agreed upon in advance.</p>
+            </div>
+
+            <div class="legal-section">
+                <h3>6. Product Standards and Returns</h3>
+                <p>All products provided must meet the quality and compliance standards set out in the agreed specifications. ${companyName} reserves the right to return any items not meeting these standards within the platform's standard return period from the delivery date.</p>
+            </div>
+
+            <div class="legal-section">
+                <h3>7. Confidentiality</h3>
+                <p>Both Parties agree to maintain strict confidentiality with respect to proprietary information, customer data, and business strategies exchanged during the term of this Agreement.</p>
+            </div>
+
+            <div class="legal-section">
+                <h3>8. Termination</h3>
+                <p>This contract may be terminated by either party providing a 30-day written notice. Grounds for immediate termination include breach of contract, nonperformance, or illegal activity.</p>
+            </div>
+
+            <div class="legal-section">
+                <h3>9. Liability and Insurance</h3>
+                <p>The Vendor shall maintain adequate product liability and business insurance during the term of this Agreement. ${companyName} holds no liability for damages arising from defective products supplied by the Vendor.</p>
+            </div>
+
+            <div class="legal-section">
+                <h3>10. Governing Law</h3>
+                <p>This Agreement shall be governed by the laws of Pune, Maharashtra jurisdiction.</p>
+            </div>
+        `;
     } else {
-        page.drawRectangle({ x: 40, y: cursorY - 155, width: width - 80, height: 150, borderColor: rgb(0.8, 0.84, 0.9), borderWidth: 1 });
-        page.drawText("Quotation Request", { x: 52, y: cursorY - 20, size: 13, font: boldFont, color: rgb(0.08, 0.2, 0.35) });
-        page.drawText(sanitizePdfText(`Title: ${quotation.title}`), { x: 52, y: cursorY - 42, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`Quantity: ${quotation.quantity} ${quotation.unit}`), { x: 52, y: cursorY - 62, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`Target Price: ${formatCurrency(quotation.target_price)}`), { x: 52, y: cursorY - 82, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`Requested MOQ: ${quotation.requested_moq ?? "Not specified"}`), { x: 52, y: cursorY - 102, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+        contentHtml = `
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h2 style="color: #0f4c81; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; margin: 0;">ORDER QUOTATION</h2>
+                <div style="color: #6b7280; font-size: 14px; margin-top: 5px;">Reference: ${quotation.quotation_number}</div>
+            </div>
 
-        const requestLines = wrapText(quotation.request_notes || "No notes provided.", width - 104, regularFont, 10);
-        page.drawText("Admin Notes:", { x: 52, y: cursorY - 124, size: 11, font: boldFont, color: rgb(0.12, 0.12, 0.12) });
-        let notesY = cursorY - 140;
-        for (const line of requestLines.slice(0, 3)) {
-            page.drawText(sanitizePdfText(line), { x: 52, y: notesY, size: 10, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-            notesY -= 12;
-        }
+            <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+                <div style="width: 48%;">
+                    <div style="font-weight: bold; color: #0f4c81; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px;">Request Details</div>
+                    <table style="width: 100%; font-size: 12px; line-height: 1.6;">
+                        <tr><td style="color: #6b7280; width: 100px;">Title:</td><td style="font-weight: 500;">${quotation.title}</td></tr>
+                        <tr><td style="color: #6b7280;">Quantity:</td><td style="font-weight: 500;">${quotation.quantity} ${quotation.unit}</td></tr>
+                        <tr><td style="color: #6b7280;">Target Price:</td><td style="font-weight: 500;">${formatCurrency(quotation.target_price)}</td></tr>
+                        <tr><td style="color: #6b7280;">Requested MOQ:</td><td style="font-weight: 500;">${quotation.requested_moq ?? 'Not specified'}</td></tr>
+                    </table>
+                </div>
+                <div style="width: 48%;">
+                    <div style="font-weight: bold; color: #0f4c81; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px;">Vendor Information</div>
+                    <table style="width: 100%; font-size: 12px; line-height: 1.6;">
+                        <tr><td style="color: #6b7280; width: 100px;">Company:</td><td style="font-weight: 500;">${quotation.company_name}</td></tr>
+                        <tr><td style="color: #6b7280;">Contact:</td><td style="font-weight: 500;">${quotation.vendor_name}</td></tr>
+                        <tr><td style="color: #6b7280;">Email:</td><td style="font-weight: 500;">${quotation.sent_to_email}</td></tr>
+                        <tr><td style="color: #6b7280;">Status:</td><td style="font-weight: 500; color: #0f4c81;">${formatStatus(quotation.status)}</td></tr>
+                    </table>
+                </div>
+            </div>
 
-        let responseY = cursorY - 190;
-        page.drawRectangle({ x: 40, y: responseY - 125, width: width - 80, height: 120, borderColor: rgb(0.84, 0.88, 0.93), borderWidth: 1 });
-        page.drawText("Vendor Response", { x: 52, y: responseY - 20, size: 13, font: boldFont, color: rgb(0.08, 0.2, 0.35) });
-        page.drawText(sanitizePdfText(`Vendor Price: ${formatCurrency(quotation.vendor_price)}`), { x: 52, y: responseY - 42, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`Vendor MOQ: ${quotation.vendor_moq ?? "Not specified"}`), { x: 52, y: responseY - 62, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`Vendor Response At: ${formatDateTime(quotation.vendor_responded_at)}`), { x: 52, y: responseY - 82, size: 11, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-        page.drawText(sanitizePdfText(`Vendor Rejection Reason: ${quotation.vendor_rejection_reason || "Not rejected"}`), { x: 52, y: responseY - 102, size: 10, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
+            <div style="margin-bottom: 30px;">
+                <div style="font-weight: bold; color: #0f4c81; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px;">Admin Notes</div>
+                <div style="background: #f9fafb; padding: 15px; border-radius: 6px; font-size: 13px; border: 1px solid #e5e7eb;">
+                    ${quotation.request_notes || 'No specific notes provided.'}
+                </div>
+            </div>
 
-        const vendorNotesLines = wrapText(quotation.vendor_notes || "No vendor notes provided.", width - 104, regularFont, 10);
-        let vendorNotesY = responseY - 120;
-        for (const line of vendorNotesLines.slice(0, 2)) {
-            page.drawText(sanitizePdfText(line), { x: 52, y: vendorNotesY, size: 10, font: regularFont, color: rgb(0.2, 0.2, 0.2) });
-            vendorNotesY -= 12;
-        }
+            <div style="margin-bottom: 30px;">
+                <div style="font-weight: bold; color: #0f4c81; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px;">Vendor Response</div>
+                <table class="data-table">
+                    <tr><td width="30%"><strong>Vendor Price</strong></td><td>${formatCurrency(quotation.vendor_price)}</td></tr>
+                    <tr><td><strong>Vendor MOQ</strong></td><td>${quotation.vendor_moq ?? 'Not specified'}</td></tr>
+                    <tr><td><strong>Responded At</strong></td><td>${formatDateTime(quotation.vendor_responded_at)}</td></tr>
+                    <tr><td><strong>Vendor Notes</strong></td><td>${quotation.vendor_notes || 'No notes provided.'}</td></tr>
+                    ${quotation.vendor_rejection_reason ? `<tr><td><strong>Rejection Reason</strong></td><td style="color: #ef4444;">${quotation.vendor_rejection_reason}</td></tr>` : ''}
+                </table>
+            </div>
+        `;
     }
 
-    page.drawText("Admin Signature", {
-        x: 40,
-        y: 124,
-        size: 10,
-        font: boldFont,
-        color: rgb(0.12, 0.12, 0.12),
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1f2937; margin: 0; padding: 40px; font-size: 12px; line-height: 1.5; }
+                .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f4c81; padding-bottom: 20px; margin-bottom: 30px; }
+                .logo-container { display: flex; align-items: center; gap: 15px; }
+                .logo { height: 50px; border-radius: 8px; }
+                .company-info h1 { margin: 0; color: #0f4c81; font-size: 24px; letter-spacing: 0.5px; }
+                .company-info p { margin: 2px 0 0 0; color: #6b7280; font-size: 11px; }
+                .legal-section { margin-bottom: 20px; }
+                .legal-section h3 { color: #0f4c81; font-size: 14px; margin: 0 0 8px 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+                .legal-section p, .legal-section ul { margin: 0 0 10px 0; text-align: justify; }
+                .legal-section li { margin-bottom: 4px; }
+                .data-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+                .data-table td { border: 1px solid #e5e7eb; padding: 8px 12px; }
+                .data-table tr:nth-child(even) { background-color: #f9fafb; }
+                .signatures { display: flex; justify-content: space-between; margin-top: 50px; padding-top: 30px; border-top: 1px solid #e5e7eb; }
+                .signature-box { width: 45%; }
+                .signature-line { border-bottom: 1px solid #1f2937; margin-bottom: 5px; min-height: 40px; display: flex; align-items: flex-end; }
+                .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #f3f4f6; padding-top: 15px; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="logo-container">
+                    <img src="${logoUrl}" class="logo" alt="MTWO Groups Logo" />
+                    <div class="company-info">
+                        <h1>${companyName}</h1>
+                        <p>${companyAddress}</p>
+                    </div>
+                </div>
+            </div>
+
+            ${contentHtml}
+
+            <div class="legal-section">
+                <h3>Signatures</h3>
+                <div class="signatures">
+                    <div class="signature-box">
+                        <div style="font-weight: bold; margin-bottom: 10px;">For ${companyName}</div>
+                        <div class="signature-line">${adminSigHtml}</div>
+                        <div>Name: <strong>${quotation.created_by_admin_name}</strong></div>
+                        <div style="font-size: 11px; color: #6b7280;">Date: ${formatDateTime(quotation.created_at)}</div>
+                    </div>
+                    <div class="signature-box">
+                        <div style="font-weight: bold; margin-bottom: 10px;">For ${quotation.company_name}</div>
+                        <div class="signature-line">${vendorSigHtml}</div>
+                        <div>Name: <strong>${quotation.vendor_name}</strong></div>
+                        <div style="font-size: 11px; color: #6b7280;">Date: ${formatDateTime(quotation.vendor_responded_at) || 'Pending'}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+                Document Generated: ${formatDateTime(new Date())} | Ref: ${quotation.quotation_number}<br/>
+                Audit Trail: Sent ${formatDateTime(quotation.email_sent_at)} | IP: ${quotation.vendor_response_ip || 'N/A'}
+            </div>
+        </body>
+        </html>
+    `;
+
+    const puppeteer = await import("puppeteer");
+    const browser = await puppeteer.default.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
-    if (quotation.admin_signature_data === AUTO_SIGNATURE_MARKER) {
-        page.drawText(`Digitally prepared by`, {
-            x: 40,
-            y: 94,
-            size: 10,
-            font: regularFont,
-            color: rgb(0.2, 0.2, 0.2),
+
+    try {
+        const page = await browser.newPage();
+        await page.setContent(html, { waitUntil: "load" });
+
+        const pdfBuffer = await page.pdf({
+            format: "A4",
+            printBackground: true,
+            margin: { top: "0", right: "0", bottom: "0", left: "0" },
         });
-        page.drawText(sanitizePdfText(quotation.created_by_admin_name), {
-            x: 40,
-            y: 80,
-            size: 12,
-            font: boldFont,
-            color: rgb(0.08, 0.2, 0.35),
-        });
-    } else {
-        const adminSignature = await embedSignature(pdfDoc, quotation.admin_signature_data);
-        page.drawImage(adminSignature, { x: 40, y: 70, width: 120, height: 40 });
+
+        return Buffer.from(pdfBuffer);
+    } finally {
+        await browser.close();
     }
-
-    if (quotation.vendor_signature_data) {
-        const vendorSignature = await embedSignature(pdfDoc, quotation.vendor_signature_data);
-        page.drawText("Vendor Signature", {
-            x: 220,
-            y: 124,
-            size: 10,
-            font: boldFont,
-            color: rgb(0.12, 0.12, 0.12),
-        });
-        page.drawImage(vendorSignature, { x: 220, y: 70, width: 120, height: 40 });
-    }
-
-    page.drawText(
-        sanitizePdfText(`Audit: vendor email ${quotation.sent_to_email} | vendor opened ${formatDateTime(quotation.vendor_opened_at)} | admin reviewed ${formatDateTime(quotation.admin_reviewed_at)}`),
-        {
-            x: 40,
-            y: 35,
-            size: 8,
-            font: regularFont,
-            color: rgb(0.4, 0.4, 0.4),
-        }
-    );
-
-    if (quotation.vendor_response_ip || quotation.vendor_response_user_agent) {
-        page.drawText(
-            sanitizePdfText(`Vendor audit: IP ${quotation.vendor_response_ip || "n/a"} | UA ${quotation.vendor_response_user_agent || "n/a"}`),
-            {
-                x: 40,
-                y: 23,
-                size: 8,
-                font: regularFont,
-                color: rgb(0.4, 0.4, 0.4),
-            }
-        );
-    }
-
-    return Buffer.from(await pdfDoc.save());
 }
 
 async function sendQuotationEmail({ quotation, rawToken, pdfBuffer }: SendQuotationEmailInput) {
@@ -1168,7 +1227,31 @@ export async function submitVendorQuotationResponse(input: {
         );
 
         if (quotation.quotation_kind === "vendor_agreement") {
-            await marketplacePool.query(`UPDATE vendors SET is_active = true WHERE id = $1`, [quotation.vendor_id]);
+            // Automatically approve the vendor, mark them active and certified
+            await marketplacePool.query(
+                `
+                    UPDATE vendors
+                    SET
+                        is_active = true,
+                        is_approved = true,
+                        approval_status = 'approved',
+                        approval_notes = 'Approved automatically upon signing the vendor agreement',
+                        updated_at = NOW()
+                    WHERE id = $1
+                `,
+                [quotation.vendor_id]
+            );
+            // Ensure the associated user account is active as well
+            await marketplacePool.query(
+                `
+                    UPDATE users
+                    SET
+                        is_active = true,
+                        updated_at = NOW()
+                    WHERE id = (SELECT user_id FROM vendors WHERE id = $1)
+                `,
+                [quotation.vendor_id]
+            );
         }
     } else {
         const rejectionReason = normalizeRequiredText(input.rejectionReason, "rejectionReason");
@@ -1191,6 +1274,34 @@ export async function submitVendorQuotationResponse(input: {
             `,
             [quotation.id, rejectionReason, input.responseIp ?? null, input.responseUserAgent ?? null]
         );
+
+        if (quotation.quotation_kind === "vendor_agreement") {
+            // Automatically set vendor status to rejected
+            await marketplacePool.query(
+                `
+                    UPDATE vendors
+                    SET
+                        is_active = false,
+                        is_approved = false,
+                        approval_status = 'rejected',
+                        approval_notes = $2,
+                        updated_at = NOW()
+                    WHERE id = $1
+                `,
+                [quotation.vendor_id, rejectionReason]
+            );
+            // Lock/deactivate user account associated with the rejected vendor
+            await marketplacePool.query(
+                `
+                    UPDATE users
+                    SET
+                        is_active = false,
+                        updated_at = NOW()
+                    WHERE id = (SELECT user_id FROM vendors WHERE id = $1)
+                `,
+                [quotation.vendor_id]
+            );
+        }
     }
 
     const updated = await getVendorQuotationById(quotation.id);
