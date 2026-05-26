@@ -267,6 +267,28 @@ export const reviewProduct = async (req: Request, res: Response): Promise<Respon
             return res.status(404).json({ message: "Product not found" });
         }
 
+        if (decision === "approved") {
+            // Auto-approve all pending images
+            await marketplacePool.query(
+                `
+                    UPDATE products_images
+                    SET approval_status = 'approved', is_approved = true, reviewed_by_user_id = $1
+                    WHERE product_id = $2 AND approval_status = 'pending'
+                `,
+                [authUser.userId, id]
+            );
+
+            // Auto-approve all pending specifications
+            await marketplacePool.query(
+                `
+                    UPDATE product_specification
+                    SET approval_status = 'approved', reviewed_by_user_id = $1, reviewed_at = NOW(), updated_at = NOW()
+                    WHERE product_id = $2 AND approval_status = 'pending'
+                `,
+                [authUser.userId, id]
+            );
+        }
+
         const product = await marketplacePool.query(`${productSelect} WHERE p.id = $1`, [id]);
         return res.status(200).json({ message: `Product ${decision} successfully`, data: product.rows[0] });
     } catch (error) {
@@ -295,6 +317,84 @@ export const deleteProduct = async (req: Request, res: Response): Promise<Respon
         return res.status(200).json({ message: "Product deleted successfully" });
     } catch (error) {
         console.error("Error while deleting product:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const reviewProductImage = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res as Response;
+    }
+
+    const { id } = req.params;
+    const { decision } = req.body as { decision?: string };
+
+    if (!decision || !reviewDecisions.includes(decision as (typeof reviewDecisions)[number])) {
+        return res.status(400).json({ message: "Decision must be either approved or rejected." });
+    }
+
+    try {
+        const result = await marketplacePool.query(
+            `
+                UPDATE products_images
+                SET
+                    approval_status = $1,
+                    is_approved = $2,
+                    reviewed_by_user_id = $3
+                WHERE id = $4
+                RETURNING id, product_id, image_url, is_primary, approval_status, is_approved
+            `,
+            [decision, decision === "approved", authUser.userId, id]
+        );
+
+        if (!result.rows.length) {
+            return res.status(404).json({ message: "Product image not found" });
+        }
+
+        return res.status(200).json({ message: `Product image ${decision} successfully`, data: result.rows[0] });
+    } catch (error) {
+        console.error("Error while reviewing product image:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const reviewProductSpecification = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res as Response;
+    }
+
+    const { id } = req.params;
+    const { decision, notes } = req.body as { decision?: string; notes?: string };
+
+    if (!decision || !reviewDecisions.includes(decision as (typeof reviewDecisions)[number])) {
+        return res.status(400).json({ message: "Decision must be either approved or rejected." });
+    }
+
+    try {
+        const result = await marketplacePool.query(
+            `
+                UPDATE product_specification
+                SET
+                    approval_status = $1,
+                    approval_notes = $2,
+                    reviewed_by_user_id = $3,
+                    reviewed_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = $4
+                RETURNING id, product_id, spec_key, spec_value, approval_status, approval_notes
+            `,
+            [decision, notes?.trim() || null, authUser.userId, id]
+        );
+
+        if (!result.rows.length) {
+            return res.status(404).json({ message: "Product specification not found" });
+        }
+
+        return res.status(200).json({ message: `Product specification ${decision} successfully`, data: result.rows[0] });
+    } catch (error) {
+        console.error("Error while reviewing product specification:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };

@@ -5,7 +5,9 @@ import {
     getAllProducts,
     getProductById,
     reviewProduct,
-    updateProduct
+    updateProduct,
+    reviewProductImage,
+    reviewProductSpecification
 } from "../Controllers/Product.controller.js";
 import { authMiddleware } from "../Middleware/AuthMiddleware.js";
 
@@ -17,6 +19,8 @@ productRouter.use(authMiddleware);
 productRouter.get("/", getAllProducts);
 productRouter.get("/:id", getProductById);
 productRouter.put("/:id/review", reviewProduct);
+productRouter.put("/image/:id/review", reviewProductImage);
+productRouter.put("/specification/:id/review", reviewProductSpecification);
 productRouter.post("/addProduct", addProductController);
 productRouter.post("/", addProductController);
 productRouter.delete("/deleteProduct", deleteProduct);
