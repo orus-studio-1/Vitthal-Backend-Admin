@@ -3,7 +3,17 @@ import { COOKIE_OPTIONS } from "../shared/CokkieSetting.shared.js";
 import { prisma } from "../lib/prisma.js";
 export const authMiddleware = async (req, res, next) => {
     try {
-        const { refreshToken, accessToken } = req.cookies;
+        const requestFrom = req.headers["x-request-from"];
+        let accessToken = req.cookies.accessToken;
+        let refreshToken = req.cookies.refreshToken;
+        if (requestFrom === "vendor") {
+            accessToken = req.cookies.vendorAccessToken || accessToken;
+            refreshToken = req.cookies.vendorRefreshToken || refreshToken;
+        }
+        else if (requestFrom === "client") {
+            accessToken = req.cookies.clientAccessToken || accessToken;
+            refreshToken = req.cookies.clientRefreshToken || refreshToken;
+        }
         if (!refreshToken)
             return res.status(401).json({ message: "Unauthorized" });
         const decodedRefreshToken = verifyToken(refreshToken, "refresh");
@@ -23,7 +33,8 @@ export const authMiddleware = async (req, res, next) => {
         }
         if (!accessToken) {
             const newAccessToken = generateNewAccessToken(refreshToken);
-            res.cookie("accessToken", newAccessToken, {
+            const cookieName = requestFrom === "vendor" ? "vendorAccessToken" : requestFrom === "client" ? "clientAccessToken" : "accessToken";
+            res.cookie(cookieName, newAccessToken, {
                 ...COOKIE_OPTIONS,
                 maxAge: 30 * 60 * 1000,
             });

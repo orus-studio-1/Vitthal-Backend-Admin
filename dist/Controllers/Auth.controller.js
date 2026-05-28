@@ -12,6 +12,77 @@ const selectSafeUser = {
     is_active: true,
     created_at: true
 };
+const adminRoles = new Set(["admin", "super_admin"]);
+function normalizeRoleValue(role) {
+    return String(role ?? "").trim().toLowerCase().replace(/-/g, "_");
+}
+function isAdminRole(role) {
+    return adminRoles.has(normalizeRoleValue(role));
+}
+function quoteIdentifier(identifier) {
+    return `"${identifier.replace(/"/g, "\"\"")}"`;
+}
+function pickColumn(columns, candidates) {
+    for (const candidate of candidates) {
+        if (columns.has(candidate)) {
+            return candidate;
+        }
+    }
+    return null;
+}
+async function findLegacyAdminUserByEmail(email) {
+    const tableCheck = await prisma.$queryRawUnsafe(`SELECT to_regclass('public."User"')::text AS table_name`);
+    if (!tableCheck[0]?.table_name) {
+        return null;
+    }
+    const columnRows = await prisma.$queryRawUnsafe(`SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'User'`);
+    const columns = new Set(columnRows.map((row) => row.column_name));
+    const idColumn = pickColumn(columns, ["id"]);
+    const emailColumn = pickColumn(columns, ["email"]);
+    const passwordColumn = pickColumn(columns, ["password_hash", "passwordHash"]);
+    const roleColumn = pickColumn(columns, ["role"]);
+    if (!idColumn || !emailColumn || !passwordColumn || !roleColumn) {
+        return null;
+    }
+    const nameColumn = pickColumn(columns, ["name"]);
+    const isActiveColumn = pickColumn(columns, ["is_active", "isActive"]);
+    const createdAtColumn = pickColumn(columns, ["created_at", "createdAt"]);
+    const sql = `
+        SELECT
+            ${quoteIdentifier(idColumn)}::text AS id,
+            ${nameColumn ? `${quoteIdentifier(nameColumn)}::text` : "''"} AS name,
+            ${quoteIdentifier(emailColumn)}::text AS email,
+            ${quoteIdentifier(passwordColumn)}::text AS password_hash,
+            ${quoteIdentifier(roleColumn)}::text AS role,
+            ${isActiveColumn ? `${quoteIdentifier(isActiveColumn)}::boolean` : "TRUE"} AS is_active,
+            ${createdAtColumn ? `${quoteIdentifier(createdAtColumn)}::text` : "NULL"} AS created_at
+        FROM public."User"
+        WHERE LOWER(${quoteIdentifier(emailColumn)}::text) = LOWER($1)
+        LIMIT 1
+    `;
+    const result = await prisma.$queryRawUnsafe(sql, email);
+    return result[0] ?? null;
+}
+async function ensureSessionUserFromLegacy(legacyUser) {
+    return prisma.user.upsert({
+        where: { email: legacyUser.email.trim().toLowerCase() },
+        update: {
+            name: legacyUser.name || "MTWO Admin",
+            password_hash: legacyUser.password_hash,
+            is_active: legacyUser.is_active,
+        },
+        create: {
+            id: legacyUser.id,
+            name: legacyUser.name || "MTWO Admin",
+            email: legacyUser.email.trim().toLowerCase(),
+            password_hash: legacyUser.password_hash,
+            role: legacyUser.role,
+            is_active: legacyUser.is_active,
+        },
+    });
+}
 export async function registerUser(req, res) {
     const { name, email, password, role: requestedRole } = req.body;
     const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
@@ -69,25 +140,45 @@ export async function registerUser(req, res) {
     }
 }
 export async function loginUser(req, res) {
-    const { email, password } = req.body;
+    const { email, password, role: requestedRole } = req.body;
     const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const normalizedRequestedRole = typeof requestedRole === "string" ? requestedRole.trim().toLowerCase() : "";
     if (!normalizedEmail || !password) {
         return res.status(400).json({ message: 'Email and password are required' });
     }
     try {
-        const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        let user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        let effectiveRole = user?.role;
+        let legacyAdminUser = null;
+        let legacyPasswordValid = false;
+        if (normalizedRequestedRole === "admin" && !isAdminRole(user?.role)) {
+            legacyAdminUser = await findLegacyAdminUserByEmail(normalizedEmail);
+            if (legacyAdminUser && isAdminRole(legacyAdminUser.role)) {
+                legacyPasswordValid = await bcrypt.compare(password, legacyAdminUser.password_hash);
+                if (legacyPasswordValid) {
+                    user = await ensureSessionUserFromLegacy(legacyAdminUser);
+                    effectiveRole = normalizeRoleValue(legacyAdminUser.role);
+                }
+            }
+        }
         if (!user) {
             return res.status(401).json({ message: 'Invalid email' });
+        }
+        if (normalizedRequestedRole === "admin" && !isAdminRole(effectiveRole)) {
+            return res.status(403).json({ message: 'Only admin accounts can access this dashboard' });
         }
         if (!user.is_active) {
             return res.status(403).json({ message: 'User account is inactive' });
         }
-        const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+        const isPasswordValid = legacyPasswordValid || await bcrypt.compare(password, user.password_hash);
         if (!isPasswordValid) {
             return res.status(401).json({ message: 'Invalid password' });
         }
-        const refreshToken = generateRefreshToken(user.id, user.name, user.email, user.role);
-        const accessToken = generateAccessToken(user.id, user.name, user.email, user.role);
+        const sessionRole = effectiveRole ?? user.role;
+        const responseName = legacyAdminUser?.name || user.name;
+        const responseCreatedAt = legacyAdminUser?.created_at || user.created_at;
+        const refreshToken = generateRefreshToken(user.id, responseName, user.email, sessionRole);
+        const accessToken = generateAccessToken(user.id, responseName, user.email, sessionRole);
         // Store refresh token in database for revocation and session tracking
         await prisma.user.update({
             where: { id: user.id },
@@ -105,11 +196,11 @@ export async function loginUser(req, res) {
             message: 'Login successful',
             data: {
                 id: user.id,
-                name: user.name,
+                name: responseName,
                 email: user.email,
-                role: user.role,
+                role: sessionRole,
                 is_active: user.is_active,
-                created_at: user.created_at
+                created_at: responseCreatedAt
             }
         });
     }
@@ -166,7 +257,10 @@ export async function getCurrentUser(req, res) {
         if (!user.is_active) {
             return res.status(403).json({ message: 'User account is inactive' });
         }
-        return res.status(200).json({ message: 'User fetched successfully', data: user });
+        const responseUser = isAdminRole(authUser.role) && !isAdminRole(user.role)
+            ? { ...user, role: authUser.role }
+            : user;
+        return res.status(200).json({ message: 'User fetched successfully', data: responseUser });
     }
     catch (error) {
         const prismaMessage = getPrismaErrorMessage(error);

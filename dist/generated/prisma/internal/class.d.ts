@@ -172,6 +172,50 @@ export interface PrismaClient<in LogOpts extends Prisma.LogLevel = never, in out
     get order(): Prisma.OrderDelegate<ExtArgs, {
         omit: OmitOpts;
     }>;
+    /**
+     * `prisma.vendorProduct`: Exposes CRUD operations for the **VendorProduct** model.
+      * Example usage:
+      * ```ts
+      * // Fetch zero or more VendorProducts
+      * const vendorProducts = await prisma.vendorProduct.findMany()
+      * ```
+      */
+    get vendorProduct(): Prisma.VendorProductDelegate<ExtArgs, {
+        omit: OmitOpts;
+    }>;
+    /**
+     * `prisma.cart`: Exposes CRUD operations for the **Cart** model.
+      * Example usage:
+      * ```ts
+      * // Fetch zero or more Carts
+      * const carts = await prisma.cart.findMany()
+      * ```
+      */
+    get cart(): Prisma.CartDelegate<ExtArgs, {
+        omit: OmitOpts;
+    }>;
+    /**
+     * `prisma.quotationRequest`: Exposes CRUD operations for the **QuotationRequest** model.
+      * Example usage:
+      * ```ts
+      * // Fetch zero or more QuotationRequests
+      * const quotationRequests = await prisma.quotationRequest.findMany()
+      * ```
+      */
+    get quotationRequest(): Prisma.QuotationRequestDelegate<ExtArgs, {
+        omit: OmitOpts;
+    }>;
+    /**
+     * `prisma.quotationMessage`: Exposes CRUD operations for the **QuotationMessage** model.
+      * Example usage:
+      * ```ts
+      * // Fetch zero or more QuotationMessages
+      * const quotationMessages = await prisma.quotationMessage.findMany()
+      * ```
+      */
+    get quotationMessage(): Prisma.QuotationMessageDelegate<ExtArgs, {
+        omit: OmitOpts;
+    }>;
 }
 export declare function getPrismaClientClass(): PrismaClientConstructor;
 //# sourceMappingURL=class.d.ts.map

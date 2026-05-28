@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
+import { getPresignedUrl } from "../services/s3.service.js";
 
 const adminRoles = ["admin", "super_admin"];
 
@@ -37,6 +38,10 @@ export async function getClientQuotations(req: Request, res: Response): Promise<
                 qr.order_id,
                 qr.created_at,
                 qr.updated_at,
+                qr.vendor_document_url,
+                qr.vendor_document_s3_key,
+                qd.document_url AS base_document_url,
+                qd.s3_key AS base_document_s3_key,
                 p.name AS product_name,
                 v.company_name AS vendor_name,
                 u_client.name AS client_name,
@@ -45,6 +50,7 @@ export async function getClientQuotations(req: Request, res: Response): Promise<
             JOIN products p ON qr.product_id = p.id
             JOIN vendors v ON qr.vendor_id = v.id
             JOIN users u_client ON qr.user_id = u_client.id
+            LEFT JOIN quotation_documents qd ON qr.quotation_group_id = qd.quotation_group_id
             WHERE qr.status IN (
                 'client_accepted',
                 'admin_confirmation_pending',
@@ -53,6 +59,23 @@ export async function getClientQuotations(req: Request, res: Response): Promise<
             )
             ORDER BY qr.updated_at DESC
         `);
+
+        for (const row of rows) {
+            if (row.vendor_document_s3_key) {
+                try {
+                    row.vendor_document_url = await getPresignedUrl(row.vendor_document_s3_key);
+                } catch (err) {
+                    console.error(`Error presigning vendor_document S3 key ${row.vendor_document_s3_key}:`, err);
+                }
+            }
+            if (row.base_document_s3_key) {
+                try {
+                    row.base_document_url = await getPresignedUrl(row.base_document_s3_key);
+                } catch (err) {
+                    console.error(`Error presigning base_document S3 key ${row.base_document_s3_key}:`, err);
+                }
+            }
+        }
 
         return res.status(200).json({ message: "Client quotations fetched", data: rows });
     } catch (error) {
@@ -79,6 +102,8 @@ export async function getClientQuotationById(req: Request, res: Response): Promi
         const quotationRows: any[] = await prisma.$queryRawUnsafe(`
             SELECT
                 qr.*,
+                qd.document_url AS base_document_url,
+                qd.s3_key AS base_document_s3_key,
                 p.name AS product_name,
                 v.company_name AS vendor_name,
                 u_client.name AS client_name,
@@ -87,12 +112,29 @@ export async function getClientQuotationById(req: Request, res: Response): Promi
             JOIN products p ON qr.product_id = p.id
             JOIN vendors v ON qr.vendor_id = v.id
             JOIN users u_client ON qr.user_id = u_client.id
+            LEFT JOIN quotation_documents qd ON qr.quotation_group_id = qd.quotation_group_id
             WHERE qr.id = $1::uuid
             LIMIT 1
         `, id);
 
         if (quotationRows.length === 0) {
             return res.status(404).json({ message: "Quotation not found" });
+        }
+
+        const quotation = quotationRows[0];
+        if (quotation.vendor_document_s3_key) {
+            try {
+                quotation.vendor_document_url = await getPresignedUrl(quotation.vendor_document_s3_key);
+            } catch (err) {
+                console.error(`Error presigning vendor_document S3 key ${quotation.vendor_document_s3_key}:`, err);
+            }
+        }
+        if (quotation.base_document_s3_key) {
+            try {
+                quotation.base_document_url = await getPresignedUrl(quotation.base_document_s3_key);
+            } catch (err) {
+                console.error(`Error presigning base_document S3 key ${quotation.base_document_s3_key}:`, err);
+            }
         }
 
         const messagesRows: any[] = await prisma.$queryRawUnsafe(`
@@ -116,7 +158,7 @@ export async function getClientQuotationById(req: Request, res: Response): Promi
         return res.status(200).json({
             message: "Quotation fetched",
             data: {
-                quotation: quotationRows[0],
+                quotation,
                 messages: messagesRows,
             },
         });

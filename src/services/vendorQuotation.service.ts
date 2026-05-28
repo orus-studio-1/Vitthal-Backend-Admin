@@ -566,6 +566,41 @@ export async function generateVendorQuotationPdf(quotation: VendorQuotationRow):
         ? `<img src="${quotation.vendor_signature_data}" style="max-height: 40px; max-width: 150px;" alt="Vendor Signature" />`
         : `<div style="font-size: 12px; color: #9ca3af; font-style: italic;">Pending Signature</div>`;
 
+    // Fetch dynamic approved categories for the vendor
+    let vendorCategoriesStr = "Not specified";
+    try {
+        const categoriesResult = await marketplacePool.query(
+            `SELECT c.label 
+             FROM vendor_categories vc
+             JOIN product_category c ON c.id = vc.category_id
+             WHERE vc.vendor_id = $1`,
+            [quotation.vendor_id]
+        );
+        if (categoriesResult.rows.length > 0) {
+            vendorCategoriesStr = categoriesResult.rows.map((row: any) => row.label).join(", ");
+        }
+    } catch (err) {
+        console.error("Error fetching vendor categories for PDF:", err);
+    }
+
+    // Fetch dynamic registered address for the vendor
+    let vendorAddressStr = "Not specified";
+    try {
+        const addressResult = await marketplacePool.query(
+            `SELECT a.address, a.city, a.state, a.country, a.pincode 
+             FROM addresses a
+             JOIN vendors v ON v.user_id = a.user_id
+             WHERE v.id = $1`,
+            [quotation.vendor_id]
+        );
+        if (addressResult.rows.length > 0) {
+            const addr = addressResult.rows[0];
+            vendorAddressStr = `${addr.address}, ${addr.city}, ${addr.state}, ${addr.country} - ${addr.pincode}`;
+        }
+    } catch (err) {
+        console.error("Error fetching vendor address for PDF:", err);
+    }
+
     let contentHtml = "";
 
     if (isAgreement) {
@@ -578,61 +613,76 @@ export async function generateVendorQuotationPdf(quotation: VendorQuotationRow):
 
             <div class="legal-section">
                 <h3>1. Parties Involved</h3>
-                <p>This Vendor Agreement is made between <strong>${companyName}</strong>, located at ${companyAddress}, and <strong>${quotation.company_name}</strong> (representing ${quotation.vendor_name}), located at the registered address provided during onboarding. Hereinafter referred to collectively as "the Parties".</p>
+                <p>This Vendor Agreement is made between <strong>${companyName}</strong>, located at ${companyAddress}, and <strong>${quotation.company_name}</strong> (Vendor ID: ${quotation.vendor_id}), located at the registered corporate address: <strong>${vendorAddressStr}</strong>. Hereinafter referred to collectively as "the Parties".</p>
             </div>
 
             <div class="legal-section">
                 <h3>2. Term of Agreement</h3>
-                <p>The Agreement shall commence on <strong>${startDate}</strong> and shall remain in effect for a standard initial term unless terminated earlier in accordance with Section 8.</p>
+                <p>The Agreement shall commence on <strong>${startDate}</strong> and shall remain in effect for a standard initial term of twelve (12) months, automatically renewing unless terminated earlier by either party in accordance with Section 8.</p>
             </div>
 
             <div class="legal-section">
-                <h3>3. Scope of Work & Business Profile</h3>
-                <p>The Vendor agrees to supply products or services matching the following approved profile:</p>
+                <h3>3. Scope of Work & Approved Profile</h3>
+                <p>The Vendor is authorized to list, sell, and distribute goods on the platform strictly within the approved categories and business profile detailed below. Please note that platform administration reserves the right to adjust trading categories during verification, and the listed approved categories represent the finalized scope:</p>
                 <table class="data-table">
-                    <tr><td width="30%"><strong>Business Type</strong></td><td>${quotation.business_type || 'Not specified'}</td></tr>
-                    <tr><td><strong>Description</strong></td><td>${quotation.business_description || 'Not specified'}</td></tr>
-                    <tr><td><strong>GST Number</strong></td><td>${quotation.gst_number || 'Not specified'}</td></tr>
+                    <tr><td width="30%"><strong>Approved Trading Categories</strong></td><td><strong style="color: #0f4c81;">${vendorCategoriesStr}</strong></td></tr>
+                    <tr><td><strong>Business Type</strong></td><td>${quotation.business_type || 'Not specified'}</td></tr>
+                    <tr><td><strong>Company Website</strong></td><td>${quotation.company_website ? `<a href="${quotation.company_website}" style="color: #0f4c81; text-decoration: none;">${quotation.company_website}</a>` : 'Not specified'}</td></tr>
+                    <tr><td><strong>Registered Address</strong></td><td>${vendorAddressStr}</td></tr>
+                    <tr><td><strong>GSTIN (Tax Identifier)</strong></td><td>${quotation.gst_number || 'Not specified'}</td></tr>
+                    <tr><td><strong>Business Profile Description</strong></td><td>${quotation.business_description || 'Not specified'}</td></tr>
                 </table>
+                <p style="font-size: 10px; color: #ef4444; margin-top: 5px; font-style: italic;">* Note: The categories above represent the official authorized trading classifications. Initial category selections edited or reassigned by administration are finalized herein to enforce catalog accuracy.</p>
             </div>
 
             <div class="legal-section">
-                <h3>4. Pricing and Payment Terms</h3>
-                <p>Transactions will be processed based on the following agreed commercial terms:</p>
+                <h3>4. Commercial Terms & Commission Structure</h3>
+                <p>Transactions initiated through the platform shall be settled based on the following agreed financial terms:</p>
                 <ul>
-                    <li><strong>Commission Structure:</strong> ${quotation.minimum_commision_percentage ?? 0}% to ${quotation.maximum_commision_percentage ?? 0}% (depending on category)</li>
-                    <li><strong>Credit Cycle:</strong> ${quotation.credit_cycle || 'Standard Platform Terms'}</li>
+                    <li><strong>Platform Commission:</strong> The platform will charge a service fee commission between <strong>${quotation.minimum_commision_percentage ?? 0}%</strong> and <strong>${quotation.maximum_commision_percentage ?? 0}%</strong> of the gross order value, depending on the product category.</li>
+                    <li><strong>Credit Cycle Settlement:</strong> Settlements will be completed according to the agreed credit terms of <strong>${quotation.credit_cycle || 'Standard Platform Terms'}</strong> from the date of successful order delivery.</li>
+                    <li><strong>Price Protection:</strong> The Vendor agrees that prices listed on the B2B marketplace will be competitive and shall not exceed prices offered on other online channels or direct sales.</li>
                 </ul>
             </div>
 
             <div class="legal-section">
-                <h3>5. Delivery and Logistics</h3>
-                <p>Vendor agrees to fulfill orders in a timely manner. Where applicable, inventory must be delivered to ${companyName}'s warehouse located at ${companyAddress}. Delivery schedules will be mutually agreed upon in advance.</p>
+                <h3>5. Fulfillment, Logistics & Product Handovers</h3>
+                <p>To ensure high service standards, the Vendor agrees to adhere to the following fulfillment SLA:</p>
+                <ul>
+                    <li><strong>Order Packaging:</strong> Vendor is responsible for industrial-grade packaging of all products, ensuring compliance with transport regulations.</li>
+                    <li><strong>Dispatch Timeline (SLA):</strong> Vendor must package and mark orders as "Ready for Dispatch" within 48 hours of order confirmation.</li>
+                    <li><strong>Dispatch Origin:</strong> All items must be dispatched from the registered warehouse address: <strong>${vendorAddressStr}</strong>, or an approved fulfillment center.</li>
+                </ul>
             </div>
 
             <div class="legal-section">
-                <h3>6. Product Standards and Returns</h3>
-                <p>All products provided must meet the quality and compliance standards set out in the agreed specifications. ${companyName} reserves the right to return any items not meeting these standards within the platform's standard return period from the delivery date.</p>
+                <h3>6. Quality Assurance, Defect Rate & Returns</h3>
+                <p>The Vendor warrants that all goods supplied are brand new, genuine, and free of defects:</p>
+                <ul>
+                    <li><strong>Quality Standards:</strong> Defect rates exceeding 1.5% in any quarterly period will result in immediate catalog suspension.</li>
+                    <li><strong>Counterfeit Goods:</strong> Listing counterfeit or unauthorized refurbished goods will lead to immediate termination and legal action.</li>
+                    <li><strong>Platform Returns:</strong> MTWO Groups reserves the right to return any damaged, defective, or incorrect items at the Vendor's sole cost, with refunds processed within the standard cycle.</li>
+                </ul>
             </div>
 
             <div class="legal-section">
-                <h3>7. Confidentiality</h3>
-                <p>Both Parties agree to maintain strict confidentiality with respect to proprietary information, customer data, and business strategies exchanged during the term of this Agreement.</p>
+                <h3>7. Intellectual Property & Brand Listing</h3>
+                <p>The Vendor grants MTWO Groups a non-exclusive, worldwide, royalty-free license to display, use, and promote the Vendor's trade names, trademarks, logos, product catalog descriptions, and product images solely for listing and marketing purposes on the B2B marketplace.</p>
             </div>
 
             <div class="legal-section">
-                <h3>8. Termination</h3>
-                <p>This contract may be terminated by either party providing a 30-day written notice. Grounds for immediate termination include breach of contract, nonperformance, or illegal activity.</p>
+                <h3>8. Suspension and Termination</h3>
+                <p>This Agreement can be terminated by either party with a 30-day written notice. However, MTWO Groups reserves the right to immediately suspend or block the Vendor's account without notice in cases of tax non-compliance, severe delivery delays, fraudulent listings, or low quality ratings.</p>
             </div>
 
             <div class="legal-section">
-                <h3>9. Liability and Insurance</h3>
-                <p>The Vendor shall maintain adequate product liability and business insurance during the term of this Agreement. ${companyName} holds no liability for damages arising from defective products supplied by the Vendor.</p>
+                <h3>9. Confidentiality and Customer Data</h3>
+                <p>The Vendor shall protect and keep strictly confidential all customer data, purchase order quantities, special pricing terms, and platform technology details. Under no circumstances shall the Vendor share customer contact info or bypass the platform to trade directly.</p>
             </div>
 
             <div class="legal-section">
-                <h3>10. Governing Law</h3>
-                <p>This Agreement shall be governed by the laws of Pune, Maharashtra jurisdiction.</p>
+                <h3>10. Dispute Resolution & Legal Jurisdiction</h3>
+                <p>In case of disputes, both Parties agree to undergo constructive mediation. If unresolved, disputes will be settled via arbitration under the Arbitration and Conciliation Act. The legal jurisdiction for all proceedings shall lie exclusively in the courts of <strong>Pune, Maharashtra, India</strong>.</p>
             </div>
         `;
     } else {
@@ -783,23 +833,96 @@ async function sendQuotationEmail({ quotation, rawToken, pdfBuffer }: SendQuotat
         to: quotation.sent_to_email,
         subject: `${isAgreement ? "Agreement" : "Quotation"} ${quotation.quotation_number} from ${quotation.created_by_admin_name}`,
         html: `
-            <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
-                <h2 style="margin-bottom: 8px;">New ${isAgreement ? "Vendor Agreement" : "Vendor Quotation Request"}</h2>
-                <p>Hello ${quotation.vendor_name},</p>
-                <p>${quotation.created_by_admin_name} has sent you a ${documentLabel} for <strong>${quotation.title}</strong>.</p>
-                <p>
-                    Quantity: <strong>${quotation.quantity} ${quotation.unit}</strong><br />
-                    Target price: <strong>${formatCurrency(quotation.target_price)}</strong><br />
-                    Requested MOQ: <strong>${quotation.requested_moq ?? "Not specified"}</strong><br />
-                    Valid until: <strong>${formatDate(quotation.validity_date)}</strong>
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
+                <!-- Header with Company Logo -->
+                <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 24px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <img src="https://res.cloudinary.com/deudvpcgx/image/upload/v1779186769/favicon_somltc.jpg" alt="Logo" style="height: 40px; width: 40px; border-radius: 8px; object-fit: cover;" />
+                        <span style="font-size: 18px; font-weight: 700; color: #0f4c81; letter-spacing: 0.5px;">MTWO GROUPS</span>
+                    </div>
+                    <span style="font-size: 12px; font-weight: 600; color: #64748b; background-color: #f1f5f9; padding: 4px 10px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">B2B Marketplace</span>
+                </div>
+
+                <!-- Invitation Context -->
+                <h2 style="font-size: 20px; font-weight: 700; color: #0f4c81; margin-top: 0; margin-bottom: 12px;">
+                    ${isAgreement ? "New B2B Vendor Agreement" : "B2B Quotation Request"}
+                </h2>
+                <p style="font-size: 14px; color: #475569; margin-top: 0; margin-bottom: 20px; line-height: 1.5;">
+                    Dear Partner,
                 </p>
-                <p>Please ${actionLabel}.</p>
-                <p>
-                    <a href="${vendorLink}" style="display: inline-block; padding: 10px 18px; background: #0f4c81; color: #ffffff; text-decoration: none; border-radius: 6px;">
-                        Open Secure ${isAgreement ? "Agreement" : "Quotation"} Page
+                <p style="font-size: 14px; color: #475569; margin-top: 0; margin-bottom: 20px; line-height: 1.5;">
+                    An official ${documentLabel} has been generated by <strong>${quotation.created_by_admin_name}</strong> for your business (<strong>${quotation.company_name}</strong>) regarding the product/scope detailed below.
+                </p>
+
+                <!-- Transaction Details Table -->
+                <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 24px;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                        <thead>
+                            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                                <th style="padding: 10px 14px; font-weight: 600; color: #475569; width: 40%;">Specification</th>
+                                <th style="padding: 10px 14px; font-weight: 600; color: #475569;">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 14px; color: #64748b; font-weight: 500;">Document Ref</td>
+                                <td style="padding: 10px 14px; color: #0f4c81; font-weight: 700; font-family: monospace; font-size: 14px;">${quotation.quotation_number}</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 14px; color: #64748b; font-weight: 500;">Scope / Item</td>
+                                <td style="padding: 10px 14px; color: #1e293b; font-weight: 600;">${quotation.title}</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 14px; color: #64748b; font-weight: 500;">Quantity</td>
+                                <td style="padding: 10px 14px; color: #1e293b; font-weight: 600;">${quotation.quantity} ${quotation.unit}</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 14px; color: #64748b; font-weight: 500;">Target Unit Price</td>
+                                <td style="padding: 10px 14px; color: #16a34a; font-weight: 700;">${formatCurrency(quotation.target_price)}</td>
+                            </tr>
+                            ${quotation.requested_moq ? `
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 14px; color: #64748b; font-weight: 500;">Requested MOQ</td>
+                                <td style="padding: 10px 14px; color: #1e293b; font-weight: 600;">${quotation.requested_moq} units</td>
+                            </tr>` : ''}
+                            <tr>
+                                <td style="padding: 10px 14px; color: #64748b; font-weight: 500;">Valid Until</td>
+                                <td style="padding: 10px 14px; color: #ef4444; font-weight: 600;">${formatDate(quotation.validity_date)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Call to Action -->
+                <p style="font-size: 14px; color: #475569; margin-top: 0; margin-bottom: 20px; line-height: 1.5;">
+                    Please click the button below to access the secure partner portal, review the complete contract terms, and sign/respond electronically.
+                </p>
+                
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <a href="${vendorLink}" style="display: inline-block; padding: 12px 24px; background-color: #0f4c81; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px; border-radius: 8px; transition: background-color 0.2s;">
+                        Access Secure ${isAgreement ? "Agreement" : "Quotation"} Portal
                     </a>
-                </p>
-                <p>This secure link expires on <strong>${formatDateTime(quotation.token_expires_at)}</strong>.</p>
+                </div>
+
+                <!-- Attachment and Link Expiry Notice -->
+                <div style="background-color: #f8fafc; border: 1px dashed #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 24px;">
+                    <p style="font-size: 12px; color: #64748b; margin: 0; line-height: 1.6;">
+                        📌 <strong>Document Attached:</strong> A high-resolution copy of the generated PDF agreement is attached to this email for your local records.
+                    </p>
+                    <p style="font-size: 12px; color: #64748b; margin: 6px 0 0 0; line-height: 1.6;">
+                        ⏳ <strong>Portal Expiry:</strong> The secure portal access link is valid until <strong>${formatDateTime(quotation.token_expires_at)}</strong>.
+                    </p>
+                </div>
+
+                <!-- Professional Footer -->
+                <div style="border-top: 1px solid #f1f5f9; padding-top: 16px; text-align: center;">
+                    <p style="font-size: 11px; color: #94a3b8; margin: 0; line-height: 1.5;">
+                        This is a secure business transaction transmission from MTWO Groups B2B Platform.
+                    </p>
+                    <p style="font-size: 11px; color: #94a3b8; margin: 4px 0 0 0; line-height: 1.5;">
+                        Confidentiality Warning: This transmission contains privileged information intended solely for the recipient partner.
+                    </p>
+                </div>
             </div>
         `,
         attachments: [

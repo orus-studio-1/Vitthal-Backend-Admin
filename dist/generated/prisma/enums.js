@@ -13,14 +13,27 @@ export const UserRole = {
     admin: 'admin',
     super_admin: 'super_admin'
 };
-export const OrderStatus = {
-    placed: 'placed',
-    payment_pending: 'payment_pending',
-    payment_completed: 'payment_completed',
-    processing: 'processing',
-    shipped: 'shipped',
-    delivered: 'delivered',
+export const CartType = {
+    direct: 'direct',
+    quotation: 'quotation'
+};
+export const QuotationStatus = {
+    pending_vendor: 'pending_vendor',
+    vendor_offered: 'vendor_offered',
+    vendor_countered: 'vendor_countered',
+    client_countered: 'client_countered',
+    client_accepted: 'client_accepted',
+    client_rejected: 'client_rejected',
+    vendor_rejected: 'vendor_rejected',
     cancelled: 'cancelled',
-    refunded: 'refunded'
+    expired: 'expired'
+};
+export const QuotationMessageAction = {
+    request: 'request',
+    offer: 'offer',
+    counter: 'counter',
+    accept: 'accept',
+    reject: 'reject',
+    note: 'note'
 };
 //# sourceMappingURL=enums.js.map

@@ -21,11 +21,13 @@ function readSocketUser(req) {
             return verifyToken(tokenFromQuery, "access");
         }
         const cookies = parseCookies(req.headers.cookie);
-        if (cookies.accessToken) {
-            return verifyToken(cookies.accessToken, "access");
+        const accessToken = cookies.vendorAccessToken || cookies.clientAccessToken || cookies.accessToken;
+        if (accessToken) {
+            return verifyToken(accessToken, "access");
         }
-        if (cookies.refreshToken) {
-            return verifyToken(cookies.refreshToken, "refresh");
+        const refreshToken = cookies.vendorRefreshToken || cookies.clientRefreshToken || cookies.refreshToken;
+        if (refreshToken) {
+            return verifyToken(refreshToken, "refresh");
         }
     }
     catch (error) {

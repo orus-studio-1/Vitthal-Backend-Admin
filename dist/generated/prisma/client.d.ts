@@ -46,4 +46,24 @@ export type Vendor = Prisma.VendorModel;
  *
  */
 export type Order = Prisma.OrderModel;
+/**
+ * Model VendorProduct
+ *
+ */
+export type VendorProduct = Prisma.VendorProductModel;
+/**
+ * Model Cart
+ *
+ */
+export type Cart = Prisma.CartModel;
+/**
+ * Model QuotationRequest
+ *
+ */
+export type QuotationRequest = Prisma.QuotationRequestModel;
+/**
+ * Model QuotationMessage
+ *
+ */
+export type QuotationMessage = Prisma.QuotationMessageModel;
 //# sourceMappingURL=client.d.ts.map

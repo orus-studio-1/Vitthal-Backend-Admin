@@ -39,12 +39,23 @@ type VendorQuotationRow = {
     vendor_email: string;
     vendor_phone: string | null;
     company_name: string;
+    business_type?: string;
+    gst_number?: string;
+    company_website?: string;
+    alternative_number?: string;
+    designation?: string;
+    business_description?: string;
+    credit_cycle?: string;
+    minimum_commision_percentage?: number | null;
+    maximum_commision_percentage?: number | null;
     created_by_admin_name: string;
     created_by_admin_email: string;
 };
 export declare function getVendorQuotationById(quotationId: string): Promise<VendorQuotationRow | null>;
 export declare function getVendorQuotationByToken(rawToken: string): Promise<VendorQuotationRow | null>;
 export declare function listVendorQuotations(): Promise<VendorQuotationRow[]>;
+export declare function listVendorQuotationsForUser(userId: string, quotationKind?: VendorQuotationKind): Promise<VendorQuotationRow[]>;
+export declare function listVendorQuotationsForEmail(email: string, quotationKind?: VendorQuotationKind): Promise<VendorQuotationRow[]>;
 export declare function serializeAdminQuotation(quotation: VendorQuotationRow): {
     id: string;
     quotation_number: string;
@@ -110,11 +121,20 @@ export declare function serializePublicQuotation(quotation: VendorQuotationRow):
     vendor_responded_at: string | Date | null;
     company_name: string;
     vendor_name: string;
+    business_type: string | undefined;
+    gst_number: string | undefined;
+    company_website: string | undefined;
+    alternative_number: string | undefined;
+    designation: string | undefined;
+    business_description: string | undefined;
+    credit_cycle: string | undefined;
+    minimum_commision_percentage: number | null | undefined;
+    maximum_commision_percentage: number | null | undefined;
     created_by_admin_name: string;
     admin_reviewed_at: string | Date | null;
     admin_review_notes: string | null;
 };
-export declare function generateVendorQuotationPdf(quotation: VendorQuotationRow): Promise<Buffer<ArrayBuffer>>;
+export declare function generateVendorQuotationPdf(quotation: VendorQuotationRow): Promise<Buffer>;
 export declare function createAndSendVendorQuotation(input: {
     vendorId: string;
     quotationKind?: unknown;
@@ -129,6 +149,7 @@ export declare function createAndSendVendorQuotation(input: {
     requestNotes: unknown;
     validityDate: unknown;
     adminSignatureData?: unknown;
+    vendorUpdates?: any;
 }): Promise<{
     quotation: VendorQuotationRow | null;
     vendorLink: string;

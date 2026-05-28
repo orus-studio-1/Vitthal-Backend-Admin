@@ -19,7 +19,17 @@ const vendorSelect = `
         u.email,
         v.company_name,
         v.gst_number,
+        v.gst_certificate_link,
+        v.business_type,
+        v.company_website,
         v.phone,
+        v.alternative_number,
+        v.designation,
+        v.business_description,
+        v.credit_cycle,
+        v.minimum_commision_percentage,
+        v.maximum_commision_percentage,
+        v.rating,
         a.address,
         a.city,
         a.state,
@@ -27,11 +37,21 @@ const vendorSelect = `
         a.pincode,
         v.approval_status,
         v.approval_notes,
+        v.application_number,
         v.is_active,
         v.is_blocked,
         v.created_at,
         v.updated_at,
-        COALESCE(order_stats.order_count, 0) AS order_count
+        COALESCE(order_stats.order_count, 0) AS order_count,
+        COALESCE(
+            (
+                SELECT json_agg(json_build_object('id', pc.id, 'code', pc.code, 'label', pc.label))
+                FROM vendor_categories vc
+                JOIN product_category pc ON pc.id = vc.category_id
+                WHERE vc.vendor_id = v.id
+            ),
+            '[]'::json
+        ) AS categories
     FROM vendors v
     JOIN users u ON u.id = v.user_id
     LEFT JOIN addresses a ON a.user_id = v.user_id
@@ -74,6 +94,7 @@ export const createVendor = async (req, res) => {
             userId = existingUser.id;
             await client.query(`UPDATE users SET name = $1, is_active = TRUE, updated_at = NOW() WHERE id = $2`, [String(name).trim(), userId]);
         }
+        const appNumber = `APP-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
         const vendorUpsert = await client.query(`
                 INSERT INTO vendors (
                     user_id,
@@ -83,9 +104,10 @@ export const createVendor = async (req, res) => {
                     is_active,
                     is_blocked,
                     approval_status,
-                    approval_notes
+                    approval_notes,
+                    application_number
                 )
-                VALUES ($1, $2, $3, $4, TRUE, FALSE, 'approved', 'Created by admin')
+                VALUES ($1, $2, $3, $4, TRUE, FALSE, 'approved', 'Created by admin', $5)
                 ON CONFLICT (user_id)
                 DO UPDATE SET
                     company_name = EXCLUDED.company_name,
@@ -95,9 +117,10 @@ export const createVendor = async (req, res) => {
                     is_blocked = FALSE,
                     approval_status = 'approved',
                     approval_notes = 'Created by admin',
+                    application_number = COALESCE(vendors.application_number, EXCLUDED.application_number),
                     updated_at = NOW()
                 RETURNING id
-            `, [userId, String(companyName).trim(), gstNumber?.trim() || null, phone?.trim() || null]);
+            `, [userId, String(companyName).trim(), gstNumber?.trim() || null, phone?.trim() || null, appNumber]);
         await client.query("COMMIT");
         const vendor = await marketplacePool.query(`${vendorSelect} WHERE v.id = $1`, [vendorUpsert.rows[0].id]);
         return res.status(201).json({ message: "Vendor created successfully", data: vendor.rows[0] });

@@ -1,4 +1,5 @@
-import { createAndSendVendorQuotation, generateVendorQuotationPdf, getVendorQuotationById, listVendorQuotations, markQuotationOpened, reviewVendorQuotation, serializeAdminQuotation, serializePublicQuotation, submitVendorQuotationResponse, } from "../services/vendorQuotation.service.js";
+import { verifyToken } from "../helpers/jwt.helper.js";
+import { createAndSendVendorQuotation, generateVendorQuotationPdf, getVendorQuotationById, listVendorQuotationsForEmail, listVendorQuotations, markQuotationOpened, reviewVendorQuotation, serializeAdminQuotation, serializePublicQuotation, submitVendorQuotationResponse, } from "../services/vendorQuotation.service.js";
 const adminRoles = ["admin", "super_admin"];
 function ensureAdmin(req, res) {
     const { role } = req.user ?? {};
@@ -7,6 +8,32 @@ function ensureAdmin(req, res) {
         return null;
     }
     return req.user;
+}
+function ensureVendorDashboardSession(req, res) {
+    const authorizationHeader = req.headers.authorization;
+    const bearerToken = authorizationHeader?.startsWith("Bearer ")
+        ? authorizationHeader.slice("Bearer ".length).trim()
+        : null;
+    const accessToken = req.cookies?.vendorAccessToken || req.cookies?.accessToken || bearerToken;
+    const refreshToken = req.cookies?.vendorRefreshToken || req.cookies?.refreshToken;
+    const rawToken = accessToken || refreshToken;
+    const tokenType = accessToken ? "access" : "refresh";
+    if (!rawToken) {
+        res.status(401).json({ message: "Unauthorized! Vendor session not found." });
+        return null;
+    }
+    try {
+        const decoded = verifyToken(rawToken, tokenType);
+        if (!decoded.email) {
+            res.status(401).json({ message: "Unauthorized! Vendor session is missing email details." });
+            return null;
+        }
+        return decoded;
+    }
+    catch {
+        res.status(401).json({ message: "Unauthorized! Failed to verify vendor session." });
+        return null;
+    }
 }
 export async function createVendorQuotation(req, res) {
     const authUser = ensureAdmin(req, res);
@@ -28,6 +55,7 @@ export async function createVendorQuotation(req, res) {
             requestNotes: req.body.requestNotes,
             validityDate: req.body.validityDate,
             adminSignatureData: req.body.adminSignatureData,
+            vendorUpdates: req.body.vendorUpdates,
         });
         return res.status(201).json({
             message: req.body.quotationKind === "order_request"
@@ -60,6 +88,23 @@ export async function getAdminVendorQuotations(req, res) {
     }
     catch (error) {
         console.error("Error fetching vendor quotations:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+}
+export async function getVendorDashboardQuotations(req, res) {
+    const authUser = ensureVendorDashboardSession(req, res);
+    if (!authUser) {
+        return res;
+    }
+    try {
+        const quotations = await listVendorQuotationsForEmail(authUser.email, "order_request");
+        return res.status(200).json({
+            message: "Vendor dashboard quotations fetched successfully.",
+            data: quotations.map(serializeAdminQuotation),
+        });
+    }
+    catch (error) {
+        console.error("Error fetching vendor dashboard quotations:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 }
@@ -140,9 +185,13 @@ export async function getVendorQuotationPublic(req, res) {
         });
     }
     catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch quotation.";
+        if (message === "Quotation token has expired.") {
+            return res.status(400).json({ message });
+        }
         console.error("Error fetching public quotation:", error);
         return res.status(400).json({
-            message: error instanceof Error ? error.message : "Failed to fetch quotation.",
+            message,
         });
     }
 }

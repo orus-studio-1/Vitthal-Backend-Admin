@@ -9,10 +9,12 @@ import orderRouter from './Routers/Order.router.js';
 import vendorRouter from './Routers/Vendor.router.js';
 import adminRouter from './Routers/Admin.router.js';
 import vendorQuotationRouter from './Routers/VendorQuotation.router.js';
+import clientQuotationRouter from './Routers/ClientQuotation.router.js';
 import { authMiddleware } from './Middleware/AuthMiddleware.js';
 import { validateEnv } from './lib/env.js';
 import { ensureMarketplaceSchema } from './lib/marketplace.js';
 import { initSocket } from './lib/socket.js';
+import { initNotificationEmitter } from './lib/notificationEmitter.js';
 validateEnv();
 const app = express();
 const server = http.createServer(app);
@@ -24,10 +26,20 @@ const allowedOrigins = [
     'https://vitthal-vendor-frontend.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000',
+    'http://localhost:3001',
     'http://localhost:4000'
 ];
 app.use("/", cors({
-    origin: allowedOrigins,
+    origin(origin, callback) {
+        if (!origin) {
+            callback(null, true);
+            return;
+        }
+        const isAllowedOrigin = allowedOrigins.includes(origin)
+            || /^http:\/\/localhost:\d+$/.test(origin)
+            || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+        callback(isAllowedOrigin ? null : new Error("Not allowed by CORS"), isAllowedOrigin);
+    },
     credentials: true,
 }));
 //using Middleware
@@ -40,10 +52,12 @@ app.use("/api/orders", authMiddleware, orderRouter);
 app.use("/api/vendors", authMiddleware, vendorRouter);
 app.use("/api/admin", authMiddleware, adminRouter);
 app.use("/api/quotations", vendorQuotationRouter);
+app.use("/api/client-quotations", clientQuotationRouter);
 async function startServer() {
     try {
         await ensureMarketplaceSchema();
         initSocket(server);
+        initNotificationEmitter();
         server.listen(PORT, () => {
             console.log(`Admin Server is running on port ${PORT}`);
         });

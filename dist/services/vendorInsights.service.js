@@ -15,6 +15,7 @@ const vendorProfileSelect = `
         a.pincode,
         v.approval_status,
         v.approval_notes,
+        v.application_number,
         v.is_active,
         v.is_blocked,
         v.created_at,

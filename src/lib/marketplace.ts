@@ -1024,5 +1024,56 @@ ALTER TABLE vendor_quotations
         UPDATE users
         SET is_verified = TRUE
         WHERE role IN ('admin', 'super_admin') AND is_verified = FALSE;
+
+        -- ================================
+        -- NOTIFICATIONS TABLE (shared with Client Backend)
+        -- ================================
+        CREATE TABLE IF NOT EXISTS notifications (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID NOT NULL,
+            type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            reference_type TEXT,
+            reference_id UUID,
+            is_read BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            CONSTRAINT fk_notifications_user
+                FOREIGN KEY (user_id)
+                REFERENCES users(id)
+                ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+        CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read) WHERE is_read = FALSE;
+        CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_notifications_reference ON notifications(reference_type, reference_id);
+
+        -- Expand notification type constraint to include product-related types
+        ALTER TABLE notifications DROP CONSTRAINT IF EXISTS chk_notification_type;
+        ALTER TABLE notifications
+            ADD CONSTRAINT chk_notification_type
+            CHECK (type IN (
+                'quotation_request_received',
+                'quotation_offer_received',
+                'quotation_counter_received',
+                'quotation_accepted',
+                'quotation_rejected',
+                'admin_confirmation_sent',
+                'admin_confirmation_accepted',
+                'admin_confirmation_rejected',
+                'product_approved',
+                'product_rejected',
+                'image_approved',
+                'image_rejected',
+                'vendor_product_approved',
+                'vendor_product_rejected',
+                'general'
+            ));
+
+        ALTER TABLE notifications DROP CONSTRAINT IF EXISTS chk_notification_reference_type;
+        ALTER TABLE notifications
+            ADD CONSTRAINT chk_notification_reference_type
+            CHECK (reference_type IS NULL OR reference_type IN ('quotation', 'order', 'product'));
     `);
 }

@@ -13,6 +13,7 @@ type VendorProfile = {
     pincode: string | null;
     approval_status: string;
     approval_notes: string | null;
+    application_number: string | null;
     is_active: boolean;
     is_blocked: boolean;
     created_at: string;

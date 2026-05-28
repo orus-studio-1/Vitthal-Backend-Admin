@@ -7,7 +7,10 @@ import {
     reviewProduct,
     updateProduct,
     reviewProductImage,
-    reviewProductSpecification
+    reviewProductSpecification,
+    getPendingVendorProducts,
+    reviewVendorProduct,
+    setProductPrimaryImage
 } from "../Controllers/Product.controller.js";
 import { authMiddleware } from "../Middleware/AuthMiddleware.js";
 
@@ -17,6 +20,9 @@ const productRouter = Router();
 productRouter.use(authMiddleware);
 
 productRouter.get("/", getAllProducts);
+productRouter.get("/pending-vendor/all", getPendingVendorProducts);
+productRouter.put("/pending-vendor/:id/review", reviewVendorProduct);
+productRouter.put("/image/set-primary", setProductPrimaryImage);
 productRouter.get("/:id", getProductById);
 productRouter.put("/:id/review", reviewProduct);
 productRouter.put("/image/:id/review", reviewProductImage);

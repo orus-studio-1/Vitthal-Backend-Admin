@@ -2,8 +2,8 @@ import "dotenv/config";
 import { spawnSync } from "node:child_process";
 function resolvePackageRunner() {
     return process.platform === "win32"
-        ? { command: "npm.cmd", args: ["exec", "--"] }
-        : { command: "npm", args: ["exec", "--"] };
+        ? { command: "npx.cmd", args: [] }
+        : { command: "npx", args: [] };
 }
 function runCommand(command, args) {
     const result = spawnSync(command, args, {
@@ -17,8 +17,6 @@ function runCommand(command, args) {
 function main() {
     const forwardedArgs = process.argv.slice(2);
     const packageRunner = resolvePackageRunner();
-    console.log("Pushing Prisma schema to the database...");
-    runCommand(packageRunner.command, [...packageRunner.args, "prisma", "db", "push"]);
     console.log("Creating or updating the admin user...");
     runCommand(packageRunner.command, [...packageRunner.args, "tsx", "src/scripts/create-admin.ts", ...forwardedArgs]);
 }

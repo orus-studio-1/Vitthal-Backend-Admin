@@ -1,12 +1,17 @@
 import { Router } from "express";
-import { addProductController, deleteProduct, getAllProducts, getProductById, reviewProduct, updateProduct } from "../Controllers/Product.controller.js";
+import { addProductController, deleteProduct, getAllProducts, getProductById, reviewProduct, updateProduct, reviewProductImage, reviewProductSpecification, getPendingVendorProducts, reviewVendorProduct, setProductPrimaryImage } from "../Controllers/Product.controller.js";
 import { authMiddleware } from "../Middleware/AuthMiddleware.js";
 const productRouter = Router();
 // Secured routes for admin
 productRouter.use(authMiddleware);
 productRouter.get("/", getAllProducts);
+productRouter.get("/pending-vendor/all", getPendingVendorProducts);
+productRouter.put("/pending-vendor/:id/review", reviewVendorProduct);
+productRouter.put("/image/set-primary", setProductPrimaryImage);
 productRouter.get("/:id", getProductById);
 productRouter.put("/:id/review", reviewProduct);
+productRouter.put("/image/:id/review", reviewProductImage);
+productRouter.put("/specification/:id/review", reviewProductSpecification);
 productRouter.post("/addProduct", addProductController);
 productRouter.post("/", addProductController);
 productRouter.delete("/deleteProduct", deleteProduct);

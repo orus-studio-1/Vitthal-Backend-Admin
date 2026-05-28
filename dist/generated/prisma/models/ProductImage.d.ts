@@ -24,6 +24,10 @@ export type ProductImageMinAggregateOutputType = {
     image_url: string | null;
     is_primary: boolean | null;
     display_order: number | null;
+    is_approved: boolean | null;
+    approval_status: string | null;
+    created_by_user_id: string | null;
+    reviewed_by_user_id: string | null;
     created_at: Date | null;
 };
 export type ProductImageMaxAggregateOutputType = {
@@ -32,6 +36,10 @@ export type ProductImageMaxAggregateOutputType = {
     image_url: string | null;
     is_primary: boolean | null;
     display_order: number | null;
+    is_approved: boolean | null;
+    approval_status: string | null;
+    created_by_user_id: string | null;
+    reviewed_by_user_id: string | null;
     created_at: Date | null;
 };
 export type ProductImageCountAggregateOutputType = {
@@ -40,6 +48,10 @@ export type ProductImageCountAggregateOutputType = {
     image_url: number;
     is_primary: number;
     display_order: number;
+    is_approved: number;
+    approval_status: number;
+    created_by_user_id: number;
+    reviewed_by_user_id: number;
     created_at: number;
     _all: number;
 };
@@ -55,6 +67,10 @@ export type ProductImageMinAggregateInputType = {
     image_url?: true;
     is_primary?: true;
     display_order?: true;
+    is_approved?: true;
+    approval_status?: true;
+    created_by_user_id?: true;
+    reviewed_by_user_id?: true;
     created_at?: true;
 };
 export type ProductImageMaxAggregateInputType = {
@@ -63,6 +79,10 @@ export type ProductImageMaxAggregateInputType = {
     image_url?: true;
     is_primary?: true;
     display_order?: true;
+    is_approved?: true;
+    approval_status?: true;
+    created_by_user_id?: true;
+    reviewed_by_user_id?: true;
     created_at?: true;
 };
 export type ProductImageCountAggregateInputType = {
@@ -71,6 +91,10 @@ export type ProductImageCountAggregateInputType = {
     image_url?: true;
     is_primary?: true;
     display_order?: true;
+    is_approved?: true;
+    approval_status?: true;
+    created_by_user_id?: true;
+    reviewed_by_user_id?: true;
     created_at?: true;
     _all?: true;
 };
@@ -156,6 +180,10 @@ export type ProductImageGroupByOutputType = {
     image_url: string;
     is_primary: boolean;
     display_order: number;
+    is_approved: boolean;
+    approval_status: string;
+    created_by_user_id: string | null;
+    reviewed_by_user_id: string | null;
     created_at: Date;
     _count: ProductImageCountAggregateOutputType | null;
     _avg: ProductImageAvgAggregateOutputType | null;
@@ -175,6 +203,10 @@ export type ProductImageWhereInput = {
     image_url?: Prisma.StringFilter<"ProductImage"> | string;
     is_primary?: Prisma.BoolFilter<"ProductImage"> | boolean;
     display_order?: Prisma.IntFilter<"ProductImage"> | number;
+    is_approved?: Prisma.BoolFilter<"ProductImage"> | boolean;
+    approval_status?: Prisma.StringFilter<"ProductImage"> | string;
+    created_by_user_id?: Prisma.UuidNullableFilter<"ProductImage"> | string | null;
+    reviewed_by_user_id?: Prisma.UuidNullableFilter<"ProductImage"> | string | null;
     created_at?: Prisma.DateTimeFilter<"ProductImage"> | Date | string;
     product?: Prisma.XOR<Prisma.ProductScalarRelationFilter, Prisma.ProductWhereInput>;
 };
@@ -184,6 +216,10 @@ export type ProductImageOrderByWithRelationInput = {
     image_url?: Prisma.SortOrder;
     is_primary?: Prisma.SortOrder;
     display_order?: Prisma.SortOrder;
+    is_approved?: Prisma.SortOrder;
+    approval_status?: Prisma.SortOrder;
+    created_by_user_id?: Prisma.SortOrderInput | Prisma.SortOrder;
+    reviewed_by_user_id?: Prisma.SortOrderInput | Prisma.SortOrder;
     created_at?: Prisma.SortOrder;
     product?: Prisma.ProductOrderByWithRelationInput;
 };
@@ -196,6 +232,10 @@ export type ProductImageWhereUniqueInput = Prisma.AtLeast<{
     image_url?: Prisma.StringFilter<"ProductImage"> | string;
     is_primary?: Prisma.BoolFilter<"ProductImage"> | boolean;
     display_order?: Prisma.IntFilter<"ProductImage"> | number;
+    is_approved?: Prisma.BoolFilter<"ProductImage"> | boolean;
+    approval_status?: Prisma.StringFilter<"ProductImage"> | string;
+    created_by_user_id?: Prisma.UuidNullableFilter<"ProductImage"> | string | null;
+    reviewed_by_user_id?: Prisma.UuidNullableFilter<"ProductImage"> | string | null;
     created_at?: Prisma.DateTimeFilter<"ProductImage"> | Date | string;
     product?: Prisma.XOR<Prisma.ProductScalarRelationFilter, Prisma.ProductWhereInput>;
 }, "id">;
@@ -205,6 +245,10 @@ export type ProductImageOrderByWithAggregationInput = {
     image_url?: Prisma.SortOrder;
     is_primary?: Prisma.SortOrder;
     display_order?: Prisma.SortOrder;
+    is_approved?: Prisma.SortOrder;
+    approval_status?: Prisma.SortOrder;
+    created_by_user_id?: Prisma.SortOrderInput | Prisma.SortOrder;
+    reviewed_by_user_id?: Prisma.SortOrderInput | Prisma.SortOrder;
     created_at?: Prisma.SortOrder;
     _count?: Prisma.ProductImageCountOrderByAggregateInput;
     _avg?: Prisma.ProductImageAvgOrderByAggregateInput;
@@ -221,6 +265,10 @@ export type ProductImageScalarWhereWithAggregatesInput = {
     image_url?: Prisma.StringWithAggregatesFilter<"ProductImage"> | string;
     is_primary?: Prisma.BoolWithAggregatesFilter<"ProductImage"> | boolean;
     display_order?: Prisma.IntWithAggregatesFilter<"ProductImage"> | number;
+    is_approved?: Prisma.BoolWithAggregatesFilter<"ProductImage"> | boolean;
+    approval_status?: Prisma.StringWithAggregatesFilter<"ProductImage"> | string;
+    created_by_user_id?: Prisma.UuidNullableWithAggregatesFilter<"ProductImage"> | string | null;
+    reviewed_by_user_id?: Prisma.UuidNullableWithAggregatesFilter<"ProductImage"> | string | null;
     created_at?: Prisma.DateTimeWithAggregatesFilter<"ProductImage"> | Date | string;
 };
 export type ProductImageCreateInput = {
@@ -228,6 +276,10 @@ export type ProductImageCreateInput = {
     image_url: string;
     is_primary?: boolean;
     display_order?: number;
+    is_approved?: boolean;
+    approval_status?: string;
+    created_by_user_id?: string | null;
+    reviewed_by_user_id?: string | null;
     created_at?: Date | string;
     product: Prisma.ProductCreateNestedOneWithoutProducts_imagesInput;
 };
@@ -237,6 +289,10 @@ export type ProductImageUncheckedCreateInput = {
     image_url: string;
     is_primary?: boolean;
     display_order?: number;
+    is_approved?: boolean;
+    approval_status?: string;
+    created_by_user_id?: string | null;
+    reviewed_by_user_id?: string | null;
     created_at?: Date | string;
 };
 export type ProductImageUpdateInput = {
@@ -244,6 +300,10 @@ export type ProductImageUpdateInput = {
     image_url?: Prisma.StringFieldUpdateOperationsInput | string;
     is_primary?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     display_order?: Prisma.IntFieldUpdateOperationsInput | number;
+    is_approved?: Prisma.BoolFieldUpdateOperationsInput | boolean;
+    approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
+    created_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reviewed_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     product?: Prisma.ProductUpdateOneRequiredWithoutProducts_imagesNestedInput;
 };
@@ -253,6 +313,10 @@ export type ProductImageUncheckedUpdateInput = {
     image_url?: Prisma.StringFieldUpdateOperationsInput | string;
     is_primary?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     display_order?: Prisma.IntFieldUpdateOperationsInput | number;
+    is_approved?: Prisma.BoolFieldUpdateOperationsInput | boolean;
+    approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
+    created_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reviewed_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
 export type ProductImageCreateManyInput = {
@@ -261,6 +325,10 @@ export type ProductImageCreateManyInput = {
     image_url: string;
     is_primary?: boolean;
     display_order?: number;
+    is_approved?: boolean;
+    approval_status?: string;
+    created_by_user_id?: string | null;
+    reviewed_by_user_id?: string | null;
     created_at?: Date | string;
 };
 export type ProductImageUpdateManyMutationInput = {
@@ -268,6 +336,10 @@ export type ProductImageUpdateManyMutationInput = {
     image_url?: Prisma.StringFieldUpdateOperationsInput | string;
     is_primary?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     display_order?: Prisma.IntFieldUpdateOperationsInput | number;
+    is_approved?: Prisma.BoolFieldUpdateOperationsInput | boolean;
+    approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
+    created_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reviewed_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
 export type ProductImageUncheckedUpdateManyInput = {
@@ -276,6 +348,10 @@ export type ProductImageUncheckedUpdateManyInput = {
     image_url?: Prisma.StringFieldUpdateOperationsInput | string;
     is_primary?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     display_order?: Prisma.IntFieldUpdateOperationsInput | number;
+    is_approved?: Prisma.BoolFieldUpdateOperationsInput | boolean;
+    approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
+    created_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reviewed_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
 export type ProductImageListRelationFilter = {
@@ -292,6 +368,10 @@ export type ProductImageCountOrderByAggregateInput = {
     image_url?: Prisma.SortOrder;
     is_primary?: Prisma.SortOrder;
     display_order?: Prisma.SortOrder;
+    is_approved?: Prisma.SortOrder;
+    approval_status?: Prisma.SortOrder;
+    created_by_user_id?: Prisma.SortOrder;
+    reviewed_by_user_id?: Prisma.SortOrder;
     created_at?: Prisma.SortOrder;
 };
 export type ProductImageAvgOrderByAggregateInput = {
@@ -303,6 +383,10 @@ export type ProductImageMaxOrderByAggregateInput = {
     image_url?: Prisma.SortOrder;
     is_primary?: Prisma.SortOrder;
     display_order?: Prisma.SortOrder;
+    is_approved?: Prisma.SortOrder;
+    approval_status?: Prisma.SortOrder;
+    created_by_user_id?: Prisma.SortOrder;
+    reviewed_by_user_id?: Prisma.SortOrder;
     created_at?: Prisma.SortOrder;
 };
 export type ProductImageMinOrderByAggregateInput = {
@@ -311,6 +395,10 @@ export type ProductImageMinOrderByAggregateInput = {
     image_url?: Prisma.SortOrder;
     is_primary?: Prisma.SortOrder;
     display_order?: Prisma.SortOrder;
+    is_approved?: Prisma.SortOrder;
+    approval_status?: Prisma.SortOrder;
+    created_by_user_id?: Prisma.SortOrder;
+    reviewed_by_user_id?: Prisma.SortOrder;
     created_at?: Prisma.SortOrder;
 };
 export type ProductImageSumOrderByAggregateInput = {
@@ -354,18 +442,15 @@ export type ProductImageUncheckedUpdateManyWithoutProductNestedInput = {
     updateMany?: Prisma.ProductImageUpdateManyWithWhereWithoutProductInput | Prisma.ProductImageUpdateManyWithWhereWithoutProductInput[];
     deleteMany?: Prisma.ProductImageScalarWhereInput | Prisma.ProductImageScalarWhereInput[];
 };
-export type IntFieldUpdateOperationsInput = {
-    set?: number;
-    increment?: number;
-    decrement?: number;
-    multiply?: number;
-    divide?: number;
-};
 export type ProductImageCreateWithoutProductInput = {
     id?: string;
     image_url: string;
     is_primary?: boolean;
     display_order?: number;
+    is_approved?: boolean;
+    approval_status?: string;
+    created_by_user_id?: string | null;
+    reviewed_by_user_id?: string | null;
     created_at?: Date | string;
 };
 export type ProductImageUncheckedCreateWithoutProductInput = {
@@ -373,6 +458,10 @@ export type ProductImageUncheckedCreateWithoutProductInput = {
     image_url: string;
     is_primary?: boolean;
     display_order?: number;
+    is_approved?: boolean;
+    approval_status?: string;
+    created_by_user_id?: string | null;
+    reviewed_by_user_id?: string | null;
     created_at?: Date | string;
 };
 export type ProductImageCreateOrConnectWithoutProductInput = {
@@ -405,6 +494,10 @@ export type ProductImageScalarWhereInput = {
     image_url?: Prisma.StringFilter<"ProductImage"> | string;
     is_primary?: Prisma.BoolFilter<"ProductImage"> | boolean;
     display_order?: Prisma.IntFilter<"ProductImage"> | number;
+    is_approved?: Prisma.BoolFilter<"ProductImage"> | boolean;
+    approval_status?: Prisma.StringFilter<"ProductImage"> | string;
+    created_by_user_id?: Prisma.UuidNullableFilter<"ProductImage"> | string | null;
+    reviewed_by_user_id?: Prisma.UuidNullableFilter<"ProductImage"> | string | null;
     created_at?: Prisma.DateTimeFilter<"ProductImage"> | Date | string;
 };
 export type ProductImageCreateManyProductInput = {
@@ -412,6 +505,10 @@ export type ProductImageCreateManyProductInput = {
     image_url: string;
     is_primary?: boolean;
     display_order?: number;
+    is_approved?: boolean;
+    approval_status?: string;
+    created_by_user_id?: string | null;
+    reviewed_by_user_id?: string | null;
     created_at?: Date | string;
 };
 export type ProductImageUpdateWithoutProductInput = {
@@ -419,6 +516,10 @@ export type ProductImageUpdateWithoutProductInput = {
     image_url?: Prisma.StringFieldUpdateOperationsInput | string;
     is_primary?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     display_order?: Prisma.IntFieldUpdateOperationsInput | number;
+    is_approved?: Prisma.BoolFieldUpdateOperationsInput | boolean;
+    approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
+    created_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reviewed_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
 export type ProductImageUncheckedUpdateWithoutProductInput = {
@@ -426,6 +527,10 @@ export type ProductImageUncheckedUpdateWithoutProductInput = {
     image_url?: Prisma.StringFieldUpdateOperationsInput | string;
     is_primary?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     display_order?: Prisma.IntFieldUpdateOperationsInput | number;
+    is_approved?: Prisma.BoolFieldUpdateOperationsInput | boolean;
+    approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
+    created_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reviewed_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
 export type ProductImageUncheckedUpdateManyWithoutProductInput = {
@@ -433,6 +538,10 @@ export type ProductImageUncheckedUpdateManyWithoutProductInput = {
     image_url?: Prisma.StringFieldUpdateOperationsInput | string;
     is_primary?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     display_order?: Prisma.IntFieldUpdateOperationsInput | number;
+    is_approved?: Prisma.BoolFieldUpdateOperationsInput | boolean;
+    approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
+    created_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reviewed_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
 export type ProductImageSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -441,6 +550,10 @@ export type ProductImageSelect<ExtArgs extends runtime.Types.Extensions.Internal
     image_url?: boolean;
     is_primary?: boolean;
     display_order?: boolean;
+    is_approved?: boolean;
+    approval_status?: boolean;
+    created_by_user_id?: boolean;
+    reviewed_by_user_id?: boolean;
     created_at?: boolean;
     product?: boolean | Prisma.ProductDefaultArgs<ExtArgs>;
 }, ExtArgs["result"]["productImage"]>;
@@ -450,6 +563,10 @@ export type ProductImageSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
     image_url?: boolean;
     is_primary?: boolean;
     display_order?: boolean;
+    is_approved?: boolean;
+    approval_status?: boolean;
+    created_by_user_id?: boolean;
+    reviewed_by_user_id?: boolean;
     created_at?: boolean;
     product?: boolean | Prisma.ProductDefaultArgs<ExtArgs>;
 }, ExtArgs["result"]["productImage"]>;
@@ -459,6 +576,10 @@ export type ProductImageSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
     image_url?: boolean;
     is_primary?: boolean;
     display_order?: boolean;
+    is_approved?: boolean;
+    approval_status?: boolean;
+    created_by_user_id?: boolean;
+    reviewed_by_user_id?: boolean;
     created_at?: boolean;
     product?: boolean | Prisma.ProductDefaultArgs<ExtArgs>;
 }, ExtArgs["result"]["productImage"]>;
@@ -468,9 +589,13 @@ export type ProductImageSelectScalar = {
     image_url?: boolean;
     is_primary?: boolean;
     display_order?: boolean;
+    is_approved?: boolean;
+    approval_status?: boolean;
+    created_by_user_id?: boolean;
+    reviewed_by_user_id?: boolean;
     created_at?: boolean;
 };
-export type ProductImageOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "product_id" | "image_url" | "is_primary" | "display_order" | "created_at", ExtArgs["result"]["productImage"]>;
+export type ProductImageOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "product_id" | "image_url" | "is_primary" | "display_order" | "is_approved" | "approval_status" | "created_by_user_id" | "reviewed_by_user_id" | "created_at", ExtArgs["result"]["productImage"]>;
 export type ProductImageInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
     product?: boolean | Prisma.ProductDefaultArgs<ExtArgs>;
 };
@@ -491,6 +616,10 @@ export type $ProductImagePayload<ExtArgs extends runtime.Types.Extensions.Intern
         image_url: string;
         is_primary: boolean;
         display_order: number;
+        is_approved: boolean;
+        approval_status: string;
+        created_by_user_id: string | null;
+        reviewed_by_user_id: string | null;
         created_at: Date;
     }, ExtArgs["result"]["productImage"]>;
     composites: {};
@@ -852,6 +981,10 @@ export interface ProductImageFieldRefs {
     readonly image_url: Prisma.FieldRef<"ProductImage", 'String'>;
     readonly is_primary: Prisma.FieldRef<"ProductImage", 'Boolean'>;
     readonly display_order: Prisma.FieldRef<"ProductImage", 'Int'>;
+    readonly is_approved: Prisma.FieldRef<"ProductImage", 'Boolean'>;
+    readonly approval_status: Prisma.FieldRef<"ProductImage", 'String'>;
+    readonly created_by_user_id: Prisma.FieldRef<"ProductImage", 'String'>;
+    readonly reviewed_by_user_id: Prisma.FieldRef<"ProductImage", 'String'>;
     readonly created_at: Prisma.FieldRef<"ProductImage", 'DateTime'>;
 }
 /**

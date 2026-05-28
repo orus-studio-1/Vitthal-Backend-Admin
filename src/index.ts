@@ -14,6 +14,7 @@ import { authMiddleware } from './Middleware/AuthMiddleware.js';
 import { validateEnv } from './lib/env.js';
 import { ensureMarketplaceSchema } from './lib/marketplace.js';
 import { initSocket } from './lib/socket.js';
+import { initNotificationEmitter } from './lib/notificationEmitter.js';
 
 validateEnv();
 
@@ -65,6 +66,7 @@ async function startServer() {
     try {
         await ensureMarketplaceSchema();
         initSocket(server);
+        initNotificationEmitter();
 
         server.listen(PORT, () => {
             console.log(`Admin Server is running on port ${PORT}`);
