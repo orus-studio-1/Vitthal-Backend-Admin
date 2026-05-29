@@ -88,7 +88,7 @@ export const getAnalytics = async (req, res) => {
     const period = Number(req.query.period || 30);
     const safePeriod = Number.isFinite(period) && period > 0 ? period : 30;
     try {
-        const [ordersOverTime, topProducts, topVendors, statusDistribution] = await Promise.all([
+        const [ordersOverTime, topProducts, topVendors, statusDistribution, topCustomers, topCities, purchaseTimeOfDay, categoryDistribution] = await Promise.all([
             marketplacePool.query(`
                     SELECT
                         DATE(o.created_at)::text AS date,
@@ -132,6 +132,54 @@ export const getAnalytics = async (req, res) => {
                     WHERE created_at >= NOW() - ($1::text || ' days')::interval
                     GROUP BY status
                 `, [safePeriod]),
+            marketplacePool.query(`
+                    SELECT
+                        u.id AS user_id,
+                        u.name,
+                        u.email,
+                        COUNT(o.id)::int AS order_count,
+                        COALESCE(SUM(o.total_amount), 0)::float AS total_spent
+                    FROM orders o
+                    JOIN users u ON u.id = o.user_id
+                    WHERE o.created_at >= NOW() - ($1::text || ' days')::interval
+                    GROUP BY u.id, u.name, u.email
+                    ORDER BY total_spent DESC, order_count DESC
+                    LIMIT 10
+                `, [safePeriod]),
+            marketplacePool.query(`
+                    SELECT
+                        COALESCE(NULLIF(o.city, ''), 'Unknown') AS city,
+                        COUNT(o.id)::int AS order_count,
+                        COALESCE(SUM(o.total_amount), 0)::float AS total_revenue
+                    FROM orders o
+                    WHERE o.created_at >= NOW() - ($1::text || ' days')::interval
+                    GROUP BY o.city
+                    ORDER BY total_revenue DESC, order_count DESC
+                    LIMIT 10
+                `, [safePeriod]),
+            marketplacePool.query(`
+                    SELECT
+                        EXTRACT(HOUR FROM o.created_at)::int AS hour_of_day,
+                        COUNT(o.id)::int AS order_count,
+                        COALESCE(SUM(o.total_amount), 0)::float AS total_revenue
+                    FROM orders o
+                    WHERE o.created_at >= NOW() - ($1::text || ' days')::interval
+                    GROUP BY EXTRACT(HOUR FROM o.created_at)
+                    ORDER BY hour_of_day ASC
+                `, [safePeriod]),
+            marketplacePool.query(`
+                    SELECT
+                        p.category,
+                        COUNT(DISTINCT o.id)::int AS order_count,
+                        COALESCE(SUM(oi.quantity), 0)::int AS total_quantity,
+                        COALESCE(SUM(oi.quantity * oi.price), 0)::float AS total_revenue
+                    FROM order_items oi
+                    JOIN orders o ON o.id = oi.order_id
+                    JOIN products p ON p.id = oi.product_id
+                    WHERE o.created_at >= NOW() - ($1::text || ' days')::interval
+                    GROUP BY p.category
+                    ORDER BY total_revenue DESC, order_count DESC
+                `, [safePeriod]),
         ]);
         const analytics = {
             period: `${safePeriod} days`,
@@ -152,6 +200,10 @@ export const getAnalytics = async (req, res) => {
                 acc[row.status] = row.count;
                 return acc;
             }, {}),
+            topCustomers: topCustomers.rows,
+            topCities: topCities.rows,
+            purchaseTimeOfDay: purchaseTimeOfDay.rows,
+            categoryDistribution: categoryDistribution.rows,
         };
         return res.status(200).json({ message: "Analytics data retrieved successfully", data: analytics });
     }
@@ -197,6 +249,7 @@ export const getUserManagement = async (req, res) => {
         const result = await marketplacePool.query(`
             SELECT id, name, email, role::text AS role, is_active, created_at
             FROM users
+            WHERE role::text = 'client'
             ORDER BY created_at DESC
         `);
         const users = result.rows;
@@ -247,7 +300,9 @@ export const getUserDetails = async (req, res) => {
                         v.approval_notes,
                         v.is_blocked,
                         COALESCE(vendor_order_stats.order_count, 0) AS vendor_order_count,
-                        COALESCE(vendor_order_stats.total_revenue, 0)::float AS vendor_total_revenue
+                        COALESCE(vendor_order_stats.total_revenue, 0)::float AS vendor_total_revenue,
+                        COALESCE(customer_order_stats.order_count, 0) AS customer_order_count,
+                        COALESCE(customer_order_stats.total_spent, 0)::float AS customer_total_spent
                     FROM users u
                     LEFT JOIN addresses a ON a.user_id = u.id
                     LEFT JOIN client c ON c.user_id = u.id
@@ -259,6 +314,13 @@ export const getUserDetails = async (req, res) => {
                         FROM orders o
                         WHERE o.vendor_id = v.id
                     ) vendor_order_stats ON true
+                    LEFT JOIN LATERAL (
+                        SELECT
+                            COUNT(*)::int AS order_count,
+                            COALESCE(SUM(o.total_amount), 0) AS total_spent
+                        FROM orders o
+                        WHERE o.user_id = u.id
+                    ) customer_order_stats ON true
                     WHERE u.id = $1
                 `, [userId]),
             marketplacePool.query(`
@@ -315,8 +377,8 @@ export const getUserDetails = async (req, res) => {
                     total_revenue: Number(row.vendor_total_revenue || 0),
                 } : null,
                 customerStats: {
-                    totalOrders: ordersResult.rows.length,
-                    totalSpent,
+                    totalOrders: Number(row.customer_order_count || 0),
+                    totalSpent: Number(row.customer_total_spent || 0),
                     lastOrderAt: ordersResult.rows[0]?.created_at ?? null,
                 },
                 recentOrders: ordersResult.rows.map((order) => ({
