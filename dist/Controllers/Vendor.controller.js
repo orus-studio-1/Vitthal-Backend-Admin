@@ -220,7 +220,7 @@ export const reviewVendor = async (req, res) => {
         }
         const vendor = vendorResult.rows[0];
         const isApproved = decision === "approved";
-        if (vendorResult.rows.length) {
+        if (decision === "approved" && vendorResult.rows.length) {
             const agreementResult = await client.query(`
                     SELECT status
                     FROM vendor_quotations
@@ -232,7 +232,7 @@ export const reviewVendor = async (req, res) => {
             const agreementStatus = agreementResult.rows[0]?.status;
             if (!agreementStatus || !["vendor_approved", "vendor_rejected", "admin_approved", "admin_rejected"].includes(agreementStatus)) {
                 await client.query("ROLLBACK");
-                return res.status(400).json({ message: `Vendor can only be ${decision} after the agreement has been sent and the vendor has responded.` });
+                return res.status(400).json({ message: `Vendor can only be approved after the agreement has been sent and the vendor has responded.` });
             }
         }
         await client.query(`

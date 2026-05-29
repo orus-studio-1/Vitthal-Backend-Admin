@@ -5,7 +5,16 @@ type VendorProfile = {
     email: string;
     company_name: string;
     gst_number: string | null;
+    gst_certificate_link: string | null;
+    business_type: string | null;
+    company_website: string | null;
     phone: string | null;
+    alternative_number: string | null;
+    designation: string | null;
+    business_description: string | null;
+    credit_cycle: string | null;
+    minimum_commision_percentage: number | null;
+    maximum_commision_percentage: number | null;
     address: string | null;
     city: string | null;
     state: string | null;
@@ -19,6 +28,7 @@ type VendorProfile = {
     created_at: string;
     updated_at: string;
     order_count: number;
+    categories: any[];
 };
 export declare function getVendorProfile(vendorId: string): Promise<VendorProfile | null>;
 export declare function getVendorIdByUserId(userId: string): Promise<string | null>;

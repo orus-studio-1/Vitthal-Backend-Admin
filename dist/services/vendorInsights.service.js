@@ -7,7 +7,16 @@ const vendorProfileSelect = `
         u.email,
         v.company_name,
         v.gst_number,
+        v.gst_certificate_link,
+        v.business_type,
+        v.company_website,
         v.phone,
+        v.alternative_number,
+        v.designation,
+        v.business_description,
+        v.credit_cycle,
+        v.minimum_commision_percentage,
+        v.maximum_commision_percentage,
         a.address,
         a.city,
         a.state,
@@ -20,7 +29,16 @@ const vendorProfileSelect = `
         v.is_blocked,
         v.created_at,
         v.updated_at,
-        COALESCE(order_stats.order_count, 0) AS order_count
+        COALESCE(order_stats.order_count, 0) AS order_count,
+        COALESCE(
+            (
+                SELECT json_agg(json_build_object('id', pc.id, 'code', pc.code, 'label', pc.label))
+                FROM vendor_categories vc
+                JOIN product_category pc ON pc.id = vc.category_id
+                WHERE vc.vendor_id = v.id
+            ),
+            '[]'::json
+        ) AS categories
     FROM vendors v
     JOIN users u ON u.id = v.user_id
     LEFT JOIN addresses a ON a.user_id = v.user_id
