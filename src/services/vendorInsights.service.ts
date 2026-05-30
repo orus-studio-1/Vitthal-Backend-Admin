@@ -1,4 +1,5 @@
 import { marketplacePool } from "../lib/marketplace.js";
+import { getPresignedUrlOrOriginal } from "./s3.service.js";
 
 type VendorProfile = {
     id: string;
@@ -99,7 +100,11 @@ export async function getVendorProfile(vendorId: string): Promise<VendorProfile 
         [vendorId]
     );
 
-    return (result.rows[0] as VendorProfile | undefined) ?? null;
+    const vendor = (result.rows[0] as VendorProfile | undefined) ?? null;
+    if (vendor && vendor.gst_certificate_link) {
+        vendor.gst_certificate_link = await getPresignedUrlOrOriginal(vendor.gst_certificate_link);
+    }
+    return vendor;
 }
 
 export async function getVendorIdByUserId(userId: string): Promise<string | null> {

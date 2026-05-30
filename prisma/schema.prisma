@@ -134,6 +134,7 @@ model Vendor {
   is_blocked  Boolean  @default(false)
   approval_status String @default("pending")
   approval_notes String?
+  reconsideration_notes String?
   application_number String? @unique
   created_at  DateTime @default(now()) @db.Timestamptz
   updated_at  DateTime @default(now()) @db.Timestamptz

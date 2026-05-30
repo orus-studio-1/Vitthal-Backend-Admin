@@ -6,9 +6,19 @@ import {
     getVendorDashboardData,
     getVendorProfile,
 } from "../services/vendorInsights.service.js";
+import { getPresignedUrlOrOriginal } from "../services/s3.service.js";
+import { sendVendorReconsiderationEmail } from "../services/mail.service.js";
+
+async function resolveVendorGstLink(vendor: any) {
+    if (vendor && vendor.gst_certificate_link) {
+        vendor.gst_certificate_link = await getPresignedUrlOrOriginal(vendor.gst_certificate_link);
+    }
+    return vendor;
+}
+
 
 const adminRoles = ["admin", "super_admin"];
-const reviewDecisions = ["approved", "rejected"] as const;
+const reviewDecisions = ["approved", "rejected", "reconsideration"] as const;
 
 function ensureAdmin(req: Request, res: Response) {
     const { role } = (req as any).user ?? {};
@@ -157,7 +167,8 @@ export const createVendor = async (req: Request, res: Response): Promise<Respons
             [vendorUpsert.rows[0].id]
         );
 
-        return res.status(201).json({ message: "Vendor created successfully", data: vendor.rows[0] });
+        const resolvedVendor = await resolveVendorGstLink(vendor.rows[0]);
+        return res.status(201).json({ message: "Vendor created successfully", data: resolvedVendor });
     } catch (error: any) {
         await client.query("ROLLBACK");
         if (error?.code === "23505") {
@@ -184,7 +195,8 @@ export const getAllVendors = async (req: Request, res: Response): Promise<Respon
             `${vendorSelect} ORDER BY v.created_at DESC`
         );
 
-        return res.status(200).json({ message: "Vendors retrieved successfully", data: result.rows });
+        const vendors = await Promise.all(result.rows.map(resolveVendorGstLink));
+        return res.status(200).json({ message: "Vendors retrieved successfully", data: vendors });
     } catch (error) {
         console.error("Error fetching vendors:", error);
         return res.status(500).json({ message: "Internal server error" });
@@ -207,7 +219,8 @@ export const getVendorById = async (req: Request, res: Response): Promise<Respon
             return res.status(404).json({ message: "Vendor not found" });
         }
 
-        return res.status(200).json({ message: "Vendor retrieved successfully", data: result.rows[0] });
+        const resolvedVendor = await resolveVendorGstLink(result.rows[0]);
+        return res.status(200).json({ message: "Vendor retrieved successfully", data: resolvedVendor });
     } catch (error) {
         console.error("Error fetching vendor:", error);
         return res.status(500).json({ message: "Internal server error" });
@@ -256,14 +269,22 @@ export const reviewVendor = async (req: Request, res: Response): Promise<Respons
     const { decision, notes } = req.body as { decision?: string; notes?: string };
 
     if (!decision || !reviewDecisions.includes(decision as (typeof reviewDecisions)[number])) {
-        return res.status(400).json({ message: "Decision must be either approved or rejected." });
+        return res.status(400).json({ message: "Decision must be either approved, rejected, or reconsideration." });
     }
 
     const client = await marketplacePool.connect();
     try {
         await client.query("BEGIN");
 
-        const vendorResult = await client.query(`SELECT id, user_id FROM vendors WHERE id = $1`, [id]);
+        const vendorResult = await client.query(
+            `
+                SELECT v.id, v.user_id, v.company_name, u.name, u.email
+                FROM vendors v
+                JOIN users u ON u.id = v.user_id
+                WHERE v.id = $1
+            `,
+            [id]
+        );
         if (!vendorResult.rows.length) {
             await client.query("ROLLBACK");
             return res.status(404).json({ message: "Vendor not found" });
@@ -271,8 +292,9 @@ export const reviewVendor = async (req: Request, res: Response): Promise<Respons
 
         const vendor = vendorResult.rows[0];
         const isApproved = decision === "approved";
+        const isReconsideration = decision === "reconsideration";
 
-        if (decision === "approved" && vendorResult.rows.length) {
+        if (decision === "approved") {
             const agreementResult = await client.query(
                 `
                     SELECT status
@@ -298,23 +320,45 @@ export const reviewVendor = async (req: Request, res: Response): Promise<Respons
                 SET
                     approval_status = $1,
                     approval_notes = $2,
-                    is_active = $3,
-                    is_blocked = $4,
+                    reconsideration_notes = $3,
+                    is_active = $4,
+                    is_blocked = $5,
                     updated_at = NOW()
-                WHERE id = $5
+                WHERE id = $6
             `,
-            [decision, notes?.trim() || null, isApproved, !isApproved, id]
+            [
+                decision,
+                isReconsideration ? 'Sent back for edits' : (notes?.trim() || null),
+                isReconsideration ? (notes?.trim() || null) : null,
+                isApproved || isReconsideration,
+                false,
+                id
+            ]
         );
 
         await client.query(
             `UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2`,
-            [isApproved, vendor.user_id]
+            [isApproved || isReconsideration, vendor.user_id]
         );
 
         await client.query("COMMIT");
 
+        if (isReconsideration) {
+            try {
+                await sendVendorReconsiderationEmail({
+                    vendorEmail: vendor.email,
+                    vendorName: vendor.name,
+                    companyName: vendor.company_name,
+                    notes: notes?.trim() || "Please review and edit your registration information.",
+                });
+            } catch (emailError) {
+                console.error("Failed to send reconsideration email to vendor:", emailError);
+            }
+        }
+
         const updated = await marketplacePool.query(`${vendorSelect} WHERE v.id = $1`, [id]);
-        return res.status(200).json({ message: `Vendor ${decision} successfully`, data: updated.rows[0] });
+        const resolvedVendor = await resolveVendorGstLink(updated.rows[0]);
+        return res.status(200).json({ message: `Vendor ${decision} successfully`, data: resolvedVendor });
     } catch (error) {
         await client.query("ROLLBACK");
         console.error("Error reviewing vendor:", error);
@@ -370,7 +414,8 @@ export const updateVendorStatus = async (req: Request, res: Response): Promise<R
         await client.query("COMMIT");
 
         const updated = await marketplacePool.query(`${vendorSelect} WHERE v.id = $1`, [id]);
-        return res.status(200).json({ message: "Vendor status updated successfully", data: updated.rows[0] });
+        const resolvedVendor = await resolveVendorGstLink(updated.rows[0]);
+        return res.status(200).json({ message: "Vendor status updated successfully", data: resolvedVendor });
     } catch (error) {
         await client.query("ROLLBACK");
         console.error("Error updating vendor status:", error);
@@ -424,7 +469,8 @@ export const updateVendor = async (req: Request, res: Response): Promise<Respons
         await client.query("COMMIT");
 
         const updated = await marketplacePool.query(`${vendorSelect} WHERE v.id = $1`, [id]);
-        return res.status(200).json({ message: "Vendor updated successfully", data: updated.rows[0] });
+        const resolvedVendor = await resolveVendorGstLink(updated.rows[0]);
+        return res.status(200).json({ message: "Vendor updated successfully", data: resolvedVendor });
     } catch (error) {
         await client.query("ROLLBACK");
         if ((error as { code?: string; constraint?: string }).code === "23505") {
