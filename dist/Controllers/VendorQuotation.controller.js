@@ -165,7 +165,9 @@ export async function downloadAdminVendorQuotationPdf(req, res) {
         }
         const pdfBuffer = await generateVendorQuotationPdf(quotation);
         res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `attachment; filename="${quotation.quotation_number}.pdf"`);
+        res.setHeader("Content-Disposition", `attachment; filename="${quotation.quotation_kind === "vendor_agreement"
+            ? `MTWO_Agreement_${quotation.id}.pdf`
+            : `MTWO_VQ_${quotation.id}.pdf`}"`);
         res.send(pdfBuffer);
     }
     catch (error) {
@@ -228,7 +230,9 @@ export async function downloadVendorQuotationPdfPublic(req, res) {
         }
         const pdfBuffer = await generateVendorQuotationPdf(quotation);
         res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `attachment; filename="${quotation.quotation_number}.pdf"`);
+        res.setHeader("Content-Disposition", `attachment; filename="${quotation.quotation_kind === "vendor_agreement"
+            ? `MTWO_Agreement_${quotation.id}.pdf`
+            : `MTWO_VQ_${quotation.id}.pdf`}"`);
         res.send(pdfBuffer);
     }
     catch (error) {

@@ -57,6 +57,9 @@ BEGIN
     END IF;
 END$$;
 
+ALTER TYPE vendor_approval_status ADD VALUE IF NOT EXISTS 'reconsideration';
+
+
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'order_status') THEN
@@ -731,6 +734,7 @@ ALTER TABLE vendors
     ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS approval_status vendor_approval_status NOT NULL DEFAULT 'pending',
     ADD COLUMN IF NOT EXISTS approval_notes TEXT,
+    ADD COLUMN IF NOT EXISTS reconsideration_notes TEXT,
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 

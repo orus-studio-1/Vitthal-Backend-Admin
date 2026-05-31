@@ -194,7 +194,14 @@ export async function downloadAdminVendorQuotationPdf(req: Request, res: Respons
 
         const pdfBuffer = await generateVendorQuotationPdf(quotation);
         res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `attachment; filename="${quotation.quotation_number}.pdf"`);
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${
+                quotation.quotation_kind === "vendor_agreement"
+                    ? `MTWO_Agreement_${quotation.id}.pdf`
+                    : `MTWO_VQ_${quotation.id}.pdf`
+            }"`
+        );
         res.send(pdfBuffer);
     } catch (error) {
         console.error("Error downloading quotation PDF:", error);
@@ -261,7 +268,14 @@ export async function downloadVendorQuotationPdfPublic(req: Request, res: Respon
 
         const pdfBuffer = await generateVendorQuotationPdf(quotation);
         res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `attachment; filename="${quotation.quotation_number}.pdf"`);
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${
+                quotation.quotation_kind === "vendor_agreement"
+                    ? `MTWO_Agreement_${quotation.id}.pdf`
+                    : `MTWO_VQ_${quotation.id}.pdf`
+            }"`
+        );
         res.send(pdfBuffer);
     } catch (error) {
         console.error("Error downloading public quotation PDF:", error);

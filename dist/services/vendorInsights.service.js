@@ -1,4 +1,5 @@
 import { marketplacePool } from "../lib/marketplace.js";
+import { getPresignedUrlOrOriginal } from "./s3.service.js";
 const vendorProfileSelect = `
     SELECT
         v.id,
@@ -58,7 +59,11 @@ function parseInteger(value) {
 }
 export async function getVendorProfile(vendorId) {
     const result = await marketplacePool.query(`${vendorProfileSelect} WHERE v.id = $1`, [vendorId]);
-    return result.rows[0] ?? null;
+    const vendor = result.rows[0] ?? null;
+    if (vendor && vendor.gst_certificate_link) {
+        vendor.gst_certificate_link = await getPresignedUrlOrOriginal(vendor.gst_certificate_link);
+    }
+    return vendor;
 }
 export async function getVendorIdByUserId(userId) {
     const result = await marketplacePool.query(`SELECT id FROM vendors WHERE user_id = $1`, [userId]);

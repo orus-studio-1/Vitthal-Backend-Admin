@@ -1,7 +1,6 @@
 import "dotenv/config";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { marketplacePool } from "../lib/marketplace.js";
 
 export type VendorQuotationStatus =
@@ -277,15 +276,7 @@ function dataUrlToBytes(dataUrl: string) {
         bytes: Buffer.from(base64, "base64"),
     };
 }
-
-async function embedSignature(pdfDoc: PDFDocument, signatureDataUrl: string) {
-    const { mimeType, bytes } = dataUrlToBytes(signatureDataUrl);
-    if (mimeType === "image/png") {
-        return pdfDoc.embedPng(bytes);
-    }
-
-    return pdfDoc.embedJpg(bytes);
-}
+// embedSignature is no longer needed with pdfmake
 
 function normalizeAdminSignatureData(value: unknown) {
     const normalized = normalizeOptionalText(value);
@@ -328,7 +319,6 @@ function formatDateTime(value: string | Date | null) {
         minute: "2-digit",
     });
 }
-
 function formatCurrency(value: string | number | null) {
     if (value === null || value === undefined || value === "") {
         return "Not specified";
@@ -339,10 +329,11 @@ function formatCurrency(value: string | number | null) {
         return String(value);
     }
 
-    return `INR ${new Intl.NumberFormat("en-IN", {
+    const formatted = new Intl.NumberFormat("en-IN", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-    }).format(numeric)}`;
+    }).format(numeric);
+    return `Rs. ${formatted}`;
 }
 
 function formatStatus(status: VendorQuotationStatus) {
@@ -353,64 +344,7 @@ function formatKindLabel(kind: VendorQuotationKind) {
     return kind === "vendor_agreement" ? "Vendor Agreement" : "Order Quotation";
 }
 
-function sanitizePdfText(value: string) {
-    return value
-        .replace(/₹/g, "INR ")
-        .replace(/[•]/g, "-")
-        .replace(/[–—]/g, "-")
-        .replace(/[“”]/g, "\"")
-        .replace(/[‘’]/g, "'")
-        .replace(/\u00a0/g, " ")
-        .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "?");
-}
-
-function wrapText(text: string, maxWidth: number, font: any, size: number) {
-    const safeText = sanitizePdfText(text);
-    const words = safeText.split(/\s+/);
-    const lines: string[] = [];
-    let currentLine = "";
-
-    for (const word of words) {
-        const candidate = currentLine ? `${currentLine} ${word}` : word;
-        const width = font.widthOfTextAtSize(candidate, size);
-        if (width <= maxWidth) {
-            currentLine = candidate;
-            continue;
-        }
-
-        if (currentLine) {
-            lines.push(currentLine);
-        }
-        currentLine = word;
-    }
-
-    if (currentLine) {
-        lines.push(currentLine);
-    }
-
-    return lines;
-}
-
-function drawWrappedBlock(
-    page: any,
-    label: string,
-    value: string,
-    x: number,
-    y: number,
-    width: number,
-    labelFont: any,
-    valueFont: any
-) {
-    page.drawText(sanitizePdfText(label), { x, y, size: 11, font: labelFont, color: rgb(0.12, 0.12, 0.12) });
-    const lines = wrapText(value, width, valueFont, 11);
-    let nextY = y - 16;
-    for (const line of lines) {
-        page.drawText(sanitizePdfText(line), { x, y: nextY, size: 11, font: valueFont, color: rgb(0.2, 0.2, 0.2) });
-        nextY -= 14;
-    }
-
-    return nextY - 8;
-}
+// Unused pdf-lib helpers removed
 
 export async function getVendorQuotationById(quotationId: string) {
     const result = await marketplacePool.query(`${vendorQuotationSelect} WHERE q.id = $1`, [quotationId]);
@@ -550,23 +484,37 @@ export function serializePublicQuotation(quotation: VendorQuotationRow) {
     };
 }
 
-export async function generateVendorQuotationPdf(quotation: VendorQuotationRow): Promise<Buffer> {
-    const isAgreement = quotation.quotation_kind === "vendor_agreement";
-    const titleLabel = isAgreement ? "Vendor Agreement" : "Order Quotation";
+let logoBase64 = "";
+async function getLogoBase64(): Promise<string> {
+    const logoUrl = "https://res.cloudinary.com/deudvpcgx/image/upload/v1779186769/favicon_somltc.jpg";
+    if (logoBase64) return logoBase64;
+    try {
+        const response = await fetch(logoUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        logoBase64 = `data:image/jpeg;base64,${Buffer.from(arrayBuffer).toString("base64")}`;
+        return logoBase64;
+    } catch (err) {
+        console.error("Failed to fetch company logo:", err);
+        return "";
+    }
+}
 
+export async function generateVendorQuotationPdf(quotation: VendorQuotationRow): Promise<Buffer> {
+    const PdfPrinter = (await import("pdfmake" as any)).default;
+    const fonts = {
+        Helvetica: {
+            normal: "Helvetica",
+            bold: "Helvetica-Bold",
+            italics: "Helvetica-Oblique",
+            bolditalics: "Helvetica-BoldOblique",
+        },
+    };
+    const printer = new PdfPrinter(fonts);
+
+    const isAgreement = quotation.quotation_kind === "vendor_agreement";
     const companyName = "MTWO Groups";
     const companyAddress = "Plot No. 42, Bopodi Industrial Estate, Pune 411003";
-    const logoUrl = "https://res.cloudinary.com/deudvpcgx/image/upload/v1779186769/favicon_somltc.jpg";
 
-    const adminSigHtml = quotation.admin_signature_data === AUTO_SIGNATURE_MARKER
-        ? `<div style="font-size: 10px; color: #4b5563;">Digitally prepared by</div><div style="font-weight: 700; color: #0f4c81; font-size: 14px;">${quotation.created_by_admin_name}</div>`
-        : `<img src="${quotation.admin_signature_data}" style="max-height: 40px; max-width: 150px;" alt="Admin Signature" />`;
-
-    const vendorSigHtml = quotation.vendor_signature_data
-        ? `<img src="${quotation.vendor_signature_data}" style="max-height: 40px; max-width: 150px;" alt="Vendor Signature" />`
-        : `<div style="font-size: 12px; color: #9ca3af; font-style: italic;">Pending Signature</div>`;
-
-    // Fetch dynamic approved categories for the vendor
     let vendorCategoriesStr = "Not specified";
     try {
         const categoriesResult = await marketplacePool.query(
@@ -583,7 +531,6 @@ export async function generateVendorQuotationPdf(quotation: VendorQuotationRow):
         console.error("Error fetching vendor categories for PDF:", err);
     }
 
-    // Fetch dynamic registered address for the vendor
     let vendorAddressStr = "Not specified";
     try {
         const addressResult = await marketplacePool.query(
@@ -601,222 +548,345 @@ export async function generateVendorQuotationPdf(quotation: VendorQuotationRow):
         console.error("Error fetching vendor address for PDF:", err);
     }
 
-    let contentHtml = "";
+    const logo = await getLogoBase64();
+
+    function getSignatureNode(sigData: string | null) {
+        if (!sigData) {
+            return { text: "Pending Signature", italics: true, color: "#9ca3af", margin: [0, 10, 0, 10] };
+        }
+        if (sigData === AUTO_SIGNATURE_MARKER) {
+            return {
+                stack: [
+                    { text: "Digitally prepared by", fontSize: 9, color: "#4b5563" },
+                    { text: quotation.created_by_admin_name, fontSize: 13, bold: true, color: "#0f4c81" }
+                ],
+                margin: [0, 10, 0, 10]
+            };
+        }
+        try {
+            return { image: sigData, fit: [150, 40], margin: [0, 5, 0, 5] };
+        } catch (err) {
+            console.error("Error embedding signature in pdfmake:", err);
+            return { text: "Signature Error", italics: true, color: "red", margin: [0, 10, 0, 10] };
+        }
+    }
+
+    const docContent: any[] = [
+        {
+            columns: [
+                logo ? { image: logo, width: 45, margin: [0, 0, 10, 0] } : {},
+                {
+                    stack: [
+                        { text: companyName, fontSize: 24, bold: true, color: "#0f4c81" },
+                        { text: companyAddress, fontSize: 10, color: "#6b7280", margin: [0, 2, 0, 0] }
+                    ]
+                }
+            ],
+            margin: [0, 0, 0, 10]
+        },
+        { canvas: [{ type: "line", x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 2, lineColor: "#0f4c81" }], margin: [0, 0, 0, 20] }
+    ];
 
     if (isAgreement) {
         const startDate = formatDate(new Date());
-        contentHtml = `
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h2 style="color: #0f4c81; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; margin: 0;">VENDOR AGREEMENT</h2>
-                <div style="color: #6b7280; font-size: 14px; margin-top: 5px;">Reference: ${quotation.quotation_number} | Date: ${startDate}</div>
-            </div>
+        docContent.push(
+            { text: "VENDOR AGREEMENT", fontSize: 20, bold: true, color: "#0f4c81", alignment: "center", margin: [0, 0, 0, 4], characterSpacing: 2 },
+            { text: `Reference: ${quotation.quotation_number} | Date: ${startDate}`, fontSize: 10, color: "#6b7280", alignment: "center", margin: [0, 0, 0, 15] },
 
-            <div class="legal-section">
-                <h3>1. Parties Involved</h3>
-                <p>This Vendor Agreement is made between <strong>${companyName}</strong>, located at ${companyAddress}, and <strong>${quotation.company_name}</strong> (Vendor ID: ${quotation.vendor_id}), located at the registered corporate address: <strong>${vendorAddressStr}</strong>. Hereinafter referred to collectively as "the Parties".</p>
-            </div>
+            { text: "1. Parties Involved", style: "sectionHeader" },
+            { text: `This Vendor Agreement is made between ${companyName}, located at ${companyAddress}, and ${quotation.company_name} (Vendor ID: ${quotation.vendor_id}), located at the registered corporate address: ${vendorAddressStr}. Hereinafter referred to collectively as "the Parties".`, style: "paragraph" },
 
-            <div class="legal-section">
-                <h3>2. Term of Agreement</h3>
-                <p>The Agreement shall commence on <strong>${startDate}</strong> and shall remain in effect for a standard initial term of twelve (12) months, automatically renewing unless terminated earlier by either party in accordance with Section 8.</p>
-            </div>
+            { text: "2. Term of Agreement", style: "sectionHeader" },
+            { text: `The Agreement shall commence on ${startDate} and shall remain in effect for a standard initial term of twelve (12) months, automatically renewing unless terminated earlier by either party in accordance with Section 8.`, style: "paragraph" },
 
-            <div class="legal-section">
-                <h3>3. Scope of Work & Approved Profile</h3>
-                <p>The Vendor is authorized to list, sell, and distribute goods on the platform strictly within the approved categories and business profile detailed below. Please note that platform administration reserves the right to adjust trading categories during verification, and the listed approved categories represent the finalized scope:</p>
-                <table class="data-table">
-                    <tr><td width="30%"><strong>Approved Trading Categories</strong></td><td><strong style="color: #0f4c81;">${vendorCategoriesStr}</strong></td></tr>
-                    <tr><td><strong>Business Type</strong></td><td>${quotation.business_type || 'Not specified'}</td></tr>
-                    <tr><td><strong>Company Website</strong></td><td>${quotation.company_website ? `<a href="${quotation.company_website}" style="color: #0f4c81; text-decoration: none;">${quotation.company_website}</a>` : 'Not specified'}</td></tr>
-                    <tr><td><strong>Registered Address</strong></td><td>${vendorAddressStr}</td></tr>
-                    <tr><td><strong>GSTIN (Tax Identifier)</strong></td><td>${quotation.gst_number || 'Not specified'}</td></tr>
-                    <tr><td><strong>Business Profile Description</strong></td><td>${quotation.business_description || 'Not specified'}</td></tr>
-                </table>
-                <p style="font-size: 10px; color: #ef4444; margin-top: 5px; font-style: italic;">* Note: The categories above represent the official authorized trading classifications. Initial category selections edited or reassigned by administration are finalized herein to enforce catalog accuracy.</p>
-            </div>
+            { text: "3. Scope of Work & Approved Profile", style: "sectionHeader" },
+            { text: "The Vendor is authorized to list, sell, and distribute goods on the platform strictly within the approved categories and business profile detailed below. Please note that platform administration reserves the right to adjust trading categories during verification, and the listed approved categories represent the finalized scope:", style: "paragraph" },
+            {
+                table: {
+                    widths: ["30%", "70%"],
+                    body: [
+                        [{ text: "Approved Trading Categories", bold: true }, { text: vendorCategoriesStr, bold: true, color: "#0f4c81" }],
+                        [{ text: "Business Type", bold: true }, { text: quotation.business_type || "Not specified" }],
+                        [{ text: "Company Website", bold: true }, { text: quotation.company_website || "Not specified", color: "#0f4c81" }],
+                        [{ text: "Registered Address", bold: true }, { text: vendorAddressStr }],
+                        [{ text: "GSTIN (Tax Identifier)", bold: true }, { text: quotation.gst_number || "Not specified" }],
+                        [{ text: "Business Profile Description", bold: true }, { text: quotation.business_description || "Not specified" }]
+                    ]
+                },
+                layout: {
+                    hLineWidth: function () { return 1; },
+                    vLineWidth: function () { return 1; },
+                    hLineColor: function () { return "#e5e7eb"; },
+                    vLineColor: function () { return "#e5e7eb"; },
+                    paddingLeft: function() { return 10; },
+                    paddingRight: function() { return 10; },
+                    paddingTop: function() { return 6; },
+                    paddingBottom: function() { return 6; }
+                },
+                margin: [0, 5, 0, 8]
+            },
+            { text: "* Note: The categories above represent the official authorized trading classifications. Initial category selections edited or reassigned by administration are finalized herein to enforce catalog accuracy.", fontSize: 8, color: "#ef4444", italics: true, margin: [0, 4, 0, 15] },
 
-            <div class="legal-section">
-                <h3>4. Commercial Terms & Commission Structure</h3>
-                <p>Transactions initiated through the platform shall be settled based on the following agreed financial terms:</p>
-                <ul>
-                    <li><strong>Platform Commission:</strong> The platform will charge a service fee commission between <strong>${quotation.minimum_commision_percentage ?? 0}%</strong> and <strong>${quotation.maximum_commision_percentage ?? 0}%</strong> of the gross order value, depending on the product category.</li>
-                    <li><strong>Credit Cycle Settlement:</strong> Settlements will be completed according to the agreed credit terms of <strong>${quotation.credit_cycle || 'Standard Platform Terms'}</strong> from the date of successful order delivery.</li>
-                    <li><strong>Price Protection:</strong> The Vendor agrees that prices listed on the B2B marketplace will be competitive and shall not exceed prices offered on other online channels or direct sales.</li>
-                </ul>
-            </div>
+            { text: "4. Commercial Terms & Commission Structure", style: "sectionHeader" },
+            { text: "Transactions initiated through the platform shall be settled based on the following agreed financial terms:", style: "paragraph" },
+            {
+                ul: [
+                    {
+                        text: [
+                            { text: "Platform Commission: ", bold: true },
+                            `The platform will charge a service fee commission between ${quotation.minimum_commision_percentage ?? 0}% and ${quotation.maximum_commision_percentage ?? 0}% of the gross order value, depending on the product category.`
+                        ],
+                        style: "bulletItem"
+                    },
+                    {
+                        text: [
+                            { text: "Credit Cycle Settlement: ", bold: true },
+                            `Settlements will be completed according to the agreed credit terms of ${quotation.credit_cycle || "Standard Platform Terms"} from the date of successful order delivery.`
+                        ],
+                        style: "bulletItem"
+                    },
+                    {
+                        text: [
+                            { text: "Price Protection: ", bold: true },
+                            "The Vendor agrees that prices listed on the B2B marketplace will be competitive and shall not exceed prices offered on other online channels or direct sales."
+                        ],
+                        style: "bulletItem"
+                    }
+                ],
+                margin: [0, 0, 0, 10]
+            },
 
-            <div class="legal-section">
-                <h3>5. Fulfillment, Logistics & Product Handovers</h3>
-                <p>To ensure high service standards, the Vendor agrees to adhere to the following fulfillment SLA:</p>
-                <ul>
-                    <li><strong>Order Packaging:</strong> Vendor is responsible for industrial-grade packaging of all products, ensuring compliance with transport regulations.</li>
-                    <li><strong>Dispatch Timeline (SLA):</strong> Vendor must package and mark orders as "Ready for Dispatch" within 48 hours of order confirmation.</li>
-                    <li><strong>Dispatch Origin:</strong> All items must be dispatched from the registered warehouse address: <strong>${vendorAddressStr}</strong>, or an approved fulfillment center.</li>
-                </ul>
-            </div>
+            { text: "5. Fulfillment, Logistics & Product Handovers", style: "sectionHeader" },
+            { text: "To ensure high service standards, the Vendor agrees to adhere to the following fulfillment SLA:", style: "paragraph" },
+            {
+                ul: [
+                    {
+                        text: [
+                            { text: "Order Packaging: ", bold: true },
+                            "Vendor is responsible for industrial-grade packaging of all products, ensuring compliance with transport regulations."
+                        ],
+                        style: "bulletItem"
+                    },
+                    {
+                        text: [
+                            { text: "Dispatch Timeline (SLA): ", bold: true },
+                            'Vendor must package and mark orders as "Ready for Dispatch" within 48 hours of order confirmation.'
+                        ],
+                        style: "bulletItem"
+                    },
+                    {
+                        text: [
+                            { text: "Dispatch Origin: ", bold: true },
+                            `All items must be dispatched from the registered warehouse address: ${vendorAddressStr}, or an approved fulfillment center.`
+                        ],
+                        style: "bulletItem"
+                    }
+                ],
+                margin: [0, 0, 0, 10]
+            },
 
-            <div class="legal-section">
-                <h3>6. Quality Assurance, Defect Rate & Returns</h3>
-                <p>The Vendor warrants that all goods supplied are brand new, genuine, and free of defects:</p>
-                <ul>
-                    <li><strong>Quality Standards:</strong> Defect rates exceeding 1.5% in any quarterly period will result in immediate catalog suspension.</li>
-                    <li><strong>Counterfeit Goods:</strong> Listing counterfeit or unauthorized refurbished goods will lead to immediate termination and legal action.</li>
-                    <li><strong>Platform Returns:</strong> MTWO Groups reserves the right to return any damaged, defective, or incorrect items at the Vendor's sole cost, with refunds processed within the standard cycle.</li>
-                </ul>
-            </div>
+            { text: "6. Quality Assurance, Defect Rate & Returns", style: "sectionHeader" },
+            { text: "The Vendor warrants that all goods supplied are brand new, genuine, and free of defects:", style: "paragraph" },
+            {
+                ul: [
+                    {
+                        text: [
+                            { text: "Quality Standards: ", bold: true },
+                            "Defect rates exceeding 1.5% in any quarterly period will result in immediate catalog suspension."
+                        ],
+                        style: "bulletItem"
+                    },
+                    {
+                        text: [
+                            { text: "Counterfeit Goods: ", bold: true },
+                            "Listing counterfeit or unauthorized refurbished goods will lead to immediate termination and legal action."
+                        ],
+                        style: "bulletItem"
+                    },
+                    {
+                        text: [
+                            { text: "Platform Returns: ", bold: true },
+                            "MTWO Groups reserves the right to return any damaged, defective, or incorrect items at the Vendor's sole cost, with refunds processed within the standard cycle."
+                        ],
+                        style: "bulletItem"
+                    }
+                ],
+                margin: [0, 0, 0, 10]
+            },
 
-            <div class="legal-section">
-                <h3>7. Intellectual Property & Brand Listing</h3>
-                <p>The Vendor grants MTWO Groups a non-exclusive, worldwide, royalty-free license to display, use, and promote the Vendor's trade names, trademarks, logos, product catalog descriptions, and product images solely for listing and marketing purposes on the B2B marketplace.</p>
-            </div>
+            { text: "7. Intellectual Property & Brand Listing", style: "sectionHeader" },
+            { text: "The Vendor grants MTWO Groups a non-exclusive, worldwide, royalty-free license to display, use, and promote the Vendor's trade names, trademarks, logos, product catalog descriptions, and product images solely for listing and marketing purposes on the B2B marketplace.", style: "paragraph" },
 
-            <div class="legal-section">
-                <h3>8. Suspension and Termination</h3>
-                <p>This Agreement can be terminated by either party with a 30-day written notice. However, MTWO Groups reserves the right to immediately suspend or block the Vendor's account without notice in cases of tax non-compliance, severe delivery delays, fraudulent listings, or low quality ratings.</p>
-            </div>
+            { text: "8. Suspension and Termination", style: "sectionHeader" },
+            { text: "This Agreement can be terminated by either party with a 30-day written notice. However, MTWO Groups reserves the right to immediately suspend or block the Vendor's account without notice in cases of tax non-compliance, severe delivery delays, fraudulent listings, or low quality ratings.", style: "paragraph" },
 
-            <div class="legal-section">
-                <h3>9. Confidentiality and Customer Data</h3>
-                <p>The Vendor shall protect and keep strictly confidential all customer data, purchase order quantities, special pricing terms, and platform technology details. Under no circumstances shall the Vendor share customer contact info or bypass the platform to trade directly.</p>
-            </div>
+            { text: "9. Confidentiality and Customer Data", style: "sectionHeader" },
+            { text: "The Vendor shall protect and keep strictly confidential all customer data, purchase order quantities, special pricing terms, and platform technology details. Under no circumstances shall the Vendor share customer contact info or bypass the platform to trade directly.", style: "paragraph" },
 
-            <div class="legal-section">
-                <h3>10. Dispute Resolution & Legal Jurisdiction</h3>
-                <p>In case of disputes, both Parties agree to undergo constructive mediation. If unresolved, disputes will be settled via arbitration under the Arbitration and Conciliation Act. The legal jurisdiction for all proceedings shall lie exclusively in the courts of <strong>Pune, Maharashtra, India</strong>.</p>
-            </div>
-        `;
+            { text: "10. Dispute Resolution & Legal Jurisdiction", style: "sectionHeader" },
+            { text: "In case of disputes, both Parties agree to undergo constructive mediation. If unresolved, disputes will be settled via arbitration under the Arbitration and Conciliation Act. The legal jurisdiction for all proceedings shall lie exclusively in the courts of Pune, Maharashtra, India.", style: "paragraph" }
+        );
     } else {
-        contentHtml = `
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h2 style="color: #0f4c81; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; margin: 0;">ORDER QUOTATION</h2>
-                <div style="color: #6b7280; font-size: 14px; margin-top: 5px;">Reference: ${quotation.quotation_number}</div>
-            </div>
+        docContent.push(
+            { text: "ORDER QUOTATION", fontSize: 22, bold: true, color: "#0f4c81", alignment: "center", margin: [0, 0, 0, 5], characterSpacing: 2 },
+            { text: `Reference: ${quotation.quotation_number}`, fontSize: 11, color: "#6b7280", alignment: "center", margin: [0, 0, 0, 20] },
 
-            <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
-                <div style="width: 48%;">
-                    <div style="font-weight: bold; color: #0f4c81; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px;">Request Details</div>
-                    <table style="width: 100%; font-size: 12px; line-height: 1.6;">
-                        <tr><td style="color: #6b7280; width: 100px;">Title:</td><td style="font-weight: 500;">${quotation.title}</td></tr>
-                        <tr><td style="color: #6b7280;">Quantity:</td><td style="font-weight: 500;">${quotation.quantity} ${quotation.unit}</td></tr>
-                        <tr><td style="color: #6b7280;">Target Price:</td><td style="font-weight: 500;">${formatCurrency(quotation.target_price)}</td></tr>
-                        <tr><td style="color: #6b7280;">Requested MOQ:</td><td style="font-weight: 500;">${quotation.requested_moq ?? 'Not specified'}</td></tr>
-                    </table>
-                </div>
-                <div style="width: 48%;">
-                    <div style="font-weight: bold; color: #0f4c81; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px;">Vendor Information</div>
-                    <table style="width: 100%; font-size: 12px; line-height: 1.6;">
-                        <tr><td style="color: #6b7280; width: 100px;">Company:</td><td style="font-weight: 500;">${quotation.company_name}</td></tr>
-                        <tr><td style="color: #6b7280;">Contact:</td><td style="font-weight: 500;">${quotation.vendor_name}</td></tr>
-                        <tr><td style="color: #6b7280;">Email:</td><td style="font-weight: 500;">${quotation.sent_to_email}</td></tr>
-                        <tr><td style="color: #6b7280;">Status:</td><td style="font-weight: 500; color: #0f4c81;">${formatStatus(quotation.status)}</td></tr>
-                    </table>
-                </div>
-            </div>
+            {
+                columns: [
+                    {
+                        width: "48%",
+                        stack: [
+                            { text: "Request Details", bold: true, color: "#0f4c81", margin: [0, 0, 0, 5] },
+                            { canvas: [{ type: "line", x1: 0, y1: 0, x2: 240, y2: 0, lineWidth: 1, lineColor: "#e5e7eb" }], margin: [0, 0, 0, 10] },
+                            {
+                                table: {
+                                    widths: [80, "*"],
+                                    body: [
+                                        [{ text: "Title:", color: "#6b7280", fontSize: 10 }, { text: quotation.title || "", bold: true, fontSize: 10 }],
+                                        [{ text: "Quantity:", color: "#6b7280", fontSize: 10 }, { text: `${quotation.quantity} ${quotation.unit}`, bold: true, fontSize: 10 }],
+                                        [{ text: "Target Price:", color: "#6b7280", fontSize: 10 }, { text: formatCurrency(quotation.target_price), bold: true, fontSize: 10 }],
+                                        [{ text: "Requested MOQ:", color: "#6b7280", fontSize: 10 }, { text: quotation.requested_moq ?? "Not specified", bold: true, fontSize: 10 }]
+                                    ]
+                                },
+                                layout: "noBorders"
+                            }
+                        ]
+                    },
+                    { text: "", width: "4%" },
+                    {
+                        width: "48%",
+                        stack: [
+                            { text: "Vendor Information", bold: true, color: "#0f4c81", margin: [0, 0, 0, 5] },
+                            { canvas: [{ type: "line", x1: 0, y1: 0, x2: 240, y2: 0, lineWidth: 1, lineColor: "#e5e7eb" }], margin: [0, 0, 0, 10] },
+                            {
+                                table: {
+                                    widths: [80, "*"],
+                                    body: [
+                                        [{ text: "Company:", color: "#6b7280", fontSize: 10 }, { text: quotation.company_name || "", bold: true, fontSize: 10 }],
+                                        [{ text: "Contact:", color: "#6b7280", fontSize: 10 }, { text: quotation.vendor_name || "", bold: true, fontSize: 10 }],
+                                        [{ text: "Email:", color: "#6b7280", fontSize: 10 }, { text: quotation.sent_to_email || "", bold: true, fontSize: 10 }],
+                                        [{ text: "Status:", color: "#6b7280", fontSize: 10 }, { text: formatStatus(quotation.status), bold: true, color: "#0f4c81", fontSize: 10 }]
+                                    ]
+                                },
+                                layout: "noBorders"
+                            }
+                        ]
+                    }
+                ],
+                margin: [0, 0, 0, 20]
+            },
 
-            <div style="margin-bottom: 30px;">
-                <div style="font-weight: bold; color: #0f4c81; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px;">Admin Notes</div>
-                <div style="background: #f9fafb; padding: 15px; border-radius: 6px; font-size: 13px; border: 1px solid #e5e7eb;">
-                    ${quotation.request_notes || 'No specific notes provided.'}
-                </div>
-            </div>
+            { text: "Admin Notes", bold: true, color: "#0f4c81", margin: [0, 10, 0, 5] },
+            { canvas: [{ type: "line", x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: "#e5e7eb" }], margin: [0, 0, 0, 10] },
+            {
+                table: {
+                    widths: ["*"],
+                    body: [
+                        [
+                            { text: quotation.request_notes || "No specific notes provided.", fontSize: 10, margin: [10, 10, 10, 10] }
+                        ]
+                    ]
+                },
+                layout: {
+                    hLineWidth: function () { return 1; },
+                    vLineWidth: function () { return 1; },
+                    hLineColor: function () { return "#e5e7eb"; },
+                    vLineColor: function () { return "#e5e7eb"; }
+                },
+                fillColor: "#f9fafb",
+                margin: [0, 0, 0, 20]
+            },
 
-            <div style="margin-bottom: 30px;">
-                <div style="font-weight: bold; color: #0f4c81; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px;">Vendor Response</div>
-                <table class="data-table">
-                    <tr><td width="30%"><strong>Vendor Price</strong></td><td>${formatCurrency(quotation.vendor_price)}</td></tr>
-                    <tr><td><strong>Vendor MOQ</strong></td><td>${quotation.vendor_moq ?? 'Not specified'}</td></tr>
-                    <tr><td><strong>Responded At</strong></td><td>${formatDateTime(quotation.vendor_responded_at)}</td></tr>
-                    <tr><td><strong>Vendor Notes</strong></td><td>${quotation.vendor_notes || 'No notes provided.'}</td></tr>
-                    ${quotation.vendor_rejection_reason ? `<tr><td><strong>Rejection Reason</strong></td><td style="color: #ef4444;">${quotation.vendor_rejection_reason}</td></tr>` : ''}
-                </table>
-            </div>
-        `;
+            { text: "Vendor Response", bold: true, color: "#0f4c81", margin: [0, 10, 0, 5] },
+            { canvas: [{ type: "line", x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: "#e5e7eb" }], margin: [0, 0, 0, 10] },
+            {
+                table: {
+                    widths: ["30%", "70%"],
+                    body: [
+                        [{ text: "Vendor Price", bold: true, fontSize: 10 }, { text: formatCurrency(quotation.vendor_price), fontSize: 10 }],
+                        [{ text: "Vendor MOQ", bold: true, fontSize: 10 }, { text: quotation.vendor_moq ?? "Not specified", fontSize: 10 }],
+                        [{ text: "Responded At", bold: true, fontSize: 10 }, { text: formatDateTime(quotation.vendor_responded_at), fontSize: 10 }],
+                        [{ text: "Vendor Notes", bold: true, fontSize: 10 }, { text: quotation.vendor_notes || "No notes provided.", fontSize: 10 }],
+                        ...(quotation.vendor_rejection_reason ? [
+                            [{ text: "Rejection Reason", bold: true, color: "#ef4444", fontSize: 10 }, { text: quotation.vendor_rejection_reason, color: "#ef4444", fontSize: 10 }]
+                        ] : [])
+                    ]
+                },
+                layout: {
+                    hLineWidth: function () { return 1; },
+                    vLineWidth: function () { return 1; },
+                    hLineColor: function () { return "#e5e7eb"; },
+                    vLineColor: function () { return "#e5e7eb"; }
+                },
+                margin: [0, 0, 0, 20]
+            }
+        );
     }
 
-    const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <style>
-                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1f2937; margin: 0; padding: 40px; font-size: 12px; line-height: 1.5; }
-                .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f4c81; padding-bottom: 20px; margin-bottom: 30px; }
-                .logo-container { display: flex; align-items: center; gap: 15px; }
-                .logo { height: 50px; border-radius: 8px; }
-                .company-info h1 { margin: 0; color: #0f4c81; font-size: 24px; letter-spacing: 0.5px; }
-                .company-info p { margin: 2px 0 0 0; color: #6b7280; font-size: 11px; }
-                .legal-section { margin-bottom: 20px; }
-                .legal-section h3 { color: #0f4c81; font-size: 14px; margin: 0 0 8px 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
-                .legal-section p, .legal-section ul { margin: 0 0 10px 0; text-align: justify; }
-                .legal-section li { margin-bottom: 4px; }
-                .data-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-                .data-table td { border: 1px solid #e5e7eb; padding: 8px 12px; }
-                .data-table tr:nth-child(even) { background-color: #f9fafb; }
-                .signatures { display: flex; justify-content: space-between; margin-top: 50px; padding-top: 30px; border-top: 1px solid #e5e7eb; }
-                .signature-box { width: 45%; }
-                .signature-line { border-bottom: 1px solid #1f2937; margin-bottom: 5px; min-height: 40px; display: flex; align-items: flex-end; }
-                .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #f3f4f6; padding-top: 15px; }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <div class="logo-container">
-                    <img src="${logoUrl}" class="logo" alt="MTWO Groups Logo" />
-                    <div class="company-info">
-                        <h1>${companyName}</h1>
-                        <p>${companyAddress}</p>
-                    </div>
-                </div>
-            </div>
+    docContent.push(
+        { text: "Signatures", style: "sectionHeader" },
+        { canvas: [{ type: "line", x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: "#e5e7eb" }], margin: [0, 0, 0, 15] },
+        {
+            columns: [
+                {
+                    width: "48%",
+                    stack: [
+                        { text: `For ${companyName}`, bold: true, fontSize: 11, color: "#1f2937", margin: [0, 0, 0, 5] },
+                        getSignatureNode(quotation.admin_signature_data),
+                        { canvas: [{ type: "line", x1: 0, y1: 0, x2: 240, y2: 0, lineWidth: 1, lineColor: "#1f2937" }], margin: [0, 5, 0, 5] },
+                        { text: `Name: ${quotation.created_by_admin_name}`, bold: true, fontSize: 10 },
+                        { text: `Date: ${formatDateTime(quotation.created_at)}`, fontSize: 9, color: "#6b7280" }
+                    ]
+                },
+                { text: "", width: "4%" },
+                {
+                    width: "48%",
+                    stack: [
+                        { text: `For ${quotation.company_name}`, bold: true, fontSize: 11, color: "#1f2937", margin: [0, 0, 0, 5] },
+                        getSignatureNode(quotation.vendor_signature_data),
+                        { canvas: [{ type: "line", x1: 0, y1: 0, x2: 240, y2: 0, lineWidth: 1, lineColor: "#1f2937" }], margin: [0, 5, 0, 5] },
+                        { text: `Name: ${quotation.vendor_name || "Pending"}`, bold: true, fontSize: 10 },
+                        { text: `Date: ${quotation.vendor_responded_at ? formatDateTime(quotation.vendor_responded_at) : "Pending"}`, fontSize: 9, color: "#6b7280" }
+                    ]
+                }
+            ],
+            margin: [0, 10, 0, 20]
+        },
 
-            ${contentHtml}
+        { canvas: [{ type: "line", x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: "#f3f4f6" }], margin: [0, 10, 0, 5] },
+        {
+            text: `Document Generated: ${formatDateTime(new Date())} | Ref: ${quotation.quotation_number}\nAudit Trail: Sent ${formatDateTime(quotation.email_sent_at)} | IP: ${quotation.vendor_response_ip || "N/A"}`,
+            fontSize: 9,
+            color: "#9ca3af",
+            alignment: "center"
+        }
+    );
 
-            <div class="legal-section">
-                <h3>Signatures</h3>
-                <div class="signatures">
-                    <div class="signature-box">
-                        <div style="font-weight: bold; margin-bottom: 10px;">For ${companyName}</div>
-                        <div class="signature-line">${adminSigHtml}</div>
-                        <div>Name: <strong>${quotation.created_by_admin_name}</strong></div>
-                        <div style="font-size: 11px; color: #6b7280;">Date: ${formatDateTime(quotation.created_at)}</div>
-                    </div>
-                    <div class="signature-box">
-                        <div style="font-weight: bold; margin-bottom: 10px;">For ${quotation.company_name}</div>
-                        <div class="signature-line">${vendorSigHtml}</div>
-                        <div>Name: <strong>${quotation.vendor_name}</strong></div>
-                        <div style="font-size: 11px; color: #6b7280;">Date: ${formatDateTime(quotation.vendor_responded_at) || 'Pending'}</div>
-                    </div>
-                </div>
-            </div>
+    const docDefinition: any = {
+        defaultStyle: {
+            font: "Helvetica",
+            fontSize: 10,
+            lineHeight: 1.45,
+            color: "#1f2937"
+        },
+        pageMargins: [50, 50, 50, 50],
+        content: docContent,
+        styles: {
+            sectionHeader: { fontSize: 13, bold: true, color: "#0f4c81", margin: [0, 20, 0, 10] },
+            paragraph: { fontSize: 10, color: "#1f2937", margin: [0, 0, 0, 12], alignment: "justify" },
+            bulletItem: { fontSize: 10, color: "#1f2937", margin: [0, 3, 0, 3] }
+        }
+    };
 
-            <div class="footer">
-                Document Generated: ${formatDateTime(new Date())} | Ref: ${quotation.quotation_number}<br/>
-                Audit Trail: Sent ${formatDateTime(quotation.email_sent_at)} | IP: ${quotation.vendor_response_ip || 'N/A'}
-            </div>
-        </body>
-        </html>
-    `;
-
-    const puppeteer = await import("puppeteer");
-    const browser = await puppeteer.default.launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    const pdfDoc = await printer.createPdfKitDocument(docDefinition);
+    
+    return new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        pdfDoc.on("data", (chunk: any) => chunks.push(chunk));
+        pdfDoc.on("end", () => resolve(Buffer.concat(chunks)));
+        pdfDoc.on("error", (err: any) => reject(err));
+        pdfDoc.end();
     });
-
-    try {
-        const page = await browser.newPage();
-        await page.setContent(html, { waitUntil: "load" });
-
-        const pdfBuffer = await page.pdf({
-            format: "A4",
-            printBackground: true,
-            margin: { top: "0", right: "0", bottom: "0", left: "0" },
-        });
-
-        return Buffer.from(pdfBuffer);
-    } finally {
-        await browser.close();
-    }
 }
 
 async function sendQuotationEmail({ quotation, rawToken, pdfBuffer }: SendQuotationEmailInput) {
@@ -927,7 +997,9 @@ async function sendQuotationEmail({ quotation, rawToken, pdfBuffer }: SendQuotat
         `,
         attachments: [
             {
-                filename: `${quotation.quotation_number}.pdf`,
+                filename: quotation.quotation_kind === "vendor_agreement"
+                    ? `MTWO_Agreement_${quotation.id}.pdf`
+                    : `MTWO_VQ_${quotation.id}.pdf`,
                 content: pdfBuffer,
                 contentType: "application/pdf",
             },
