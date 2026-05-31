@@ -24,13 +24,13 @@ const PORT = process.env.PORT || 9001;
 
 //cors configuration
 const allowedOrigins = [
-    'https://vitthal-frontend-admin.vercel.app',
-    'https://vitthal-frontend.vercel.app',
-    'https://vitthal-vendor-frontend.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:3001',
-    'http://localhost:4000'
+    'http://localhost:4000',
+    'https://vendor.mtwo.in',
+    'https://admin.mtwo.in',
+    'https://client.mtwo.in',
 ];
 
 app.use("/", cors({
