@@ -10,4 +10,5 @@ export declare const reviewProductSpecification: (req: Request, res: Response) =
 export declare const getPendingVendorProducts: (req: Request, res: Response) => Promise<Response>;
 export declare const reviewVendorProduct: (req: Request, res: Response) => Promise<Response>;
 export declare const setProductPrimaryImage: (req: Request, res: Response) => Promise<Response>;
+export declare const getCategories: (req: Request, res: Response) => Promise<Response>;
 //# sourceMappingURL=Product.controller.d.ts.map

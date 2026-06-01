@@ -6,11 +6,9 @@ const pool = new Pool({
 
 async function main() {
   try {
-    console.log("=== Product Categories in DB ===");
     const cats = await pool.query("SELECT id, code, label FROM product_category");
     console.table(cats.rows);
 
-    console.log("\n=== Vendor Categories (for all vendors) ===");
     const vendorCats = await pool.query(`
       SELECT vc.vendor_id, v.company_name, pc.code, pc.label
       FROM vendor_categories vc

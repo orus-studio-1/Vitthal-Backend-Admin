@@ -83,7 +83,7 @@ export async function createVendorQuotation(req: Request, res: Response): Promis
                 ? "Quotation created and emailed to vendor successfully."
                 : "Agreement created and emailed to vendor successfully.",
             data: {
-                quotation: result.quotation ? serializeAdminQuotation(result.quotation) : null,
+                quotation: result.quotation ? await serializeAdminQuotation(result.quotation) : null,
                 vendorLink: result.vendorLink,
             },
         });
@@ -103,9 +103,10 @@ export async function getAdminVendorQuotations(req: Request, res: Response): Pro
 
     try {
         const quotations = await listVendorQuotations();
+        const serialized = await Promise.all(quotations.map(serializeAdminQuotation));
         return res.status(200).json({
             message: "Vendor quotations fetched successfully.",
-            data: quotations.map(serializeAdminQuotation),
+            data: serialized,
         });
     } catch (error) {
         console.error("Error fetching vendor quotations:", error);
@@ -121,9 +122,10 @@ export async function getVendorDashboardQuotations(req: Request, res: Response):
 
     try {
         const quotations = await listVendorQuotationsForEmail(authUser.email, "order_request");
+        const serialized = await Promise.all(quotations.map(serializeAdminQuotation));
         return res.status(200).json({
             message: "Vendor dashboard quotations fetched successfully.",
-            data: quotations.map(serializeAdminQuotation),
+            data: serialized,
         });
     } catch (error) {
         console.error("Error fetching vendor dashboard quotations:", error);
@@ -145,7 +147,7 @@ export async function getAdminVendorQuotationById(req: Request, res: Response): 
 
         return res.status(200).json({
             message: "Vendor quotation fetched successfully.",
-            data: serializeAdminQuotation(quotation),
+            data: await serializeAdminQuotation(quotation),
         });
     } catch (error) {
         console.error("Error fetching vendor quotation:", error);
@@ -170,7 +172,7 @@ export async function reviewAdminVendorQuotation(req: Request, res: Response): P
 
         return res.status(200).json({
             message: "Vendor quotation reviewed successfully.",
-            data: quotation ? serializeAdminQuotation(quotation) : null,
+            data: quotation ? await serializeAdminQuotation(quotation) : null,
         });
     } catch (error) {
         console.error("Error reviewing vendor quotation:", error);
@@ -218,7 +220,7 @@ export async function getVendorQuotationPublic(req: Request, res: Response): Pro
 
         return res.status(200).json({
             message: "Quotation fetched successfully.",
-            data: serializePublicQuotation(quotation),
+            data: await serializePublicQuotation(quotation),
         });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch quotation.";
@@ -249,7 +251,7 @@ export async function respondVendorQuotationPublic(req: Request, res: Response):
 
         return res.status(200).json({
             message: "Quotation response submitted successfully.",
-            data: serializePublicQuotation(quotation),
+            data: await serializePublicQuotation(quotation),
         });
     } catch (error) {
         console.error("Error submitting quotation response:", error);

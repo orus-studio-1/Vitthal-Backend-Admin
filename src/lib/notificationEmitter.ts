@@ -29,11 +29,13 @@ const MAX_RECONNECT_ATTEMPTS = 10;
  */
 export function initNotificationEmitter(): void {
     if (socket) {
-        console.log("[NotificationEmitter] Already initialized, skipping.");
+        if (process.env.Production !== 'true' && process.env.NODE_ENV !== 'production') {
+        }
         return;
     }
 
-    console.log(`[NotificationEmitter] Connecting to Client Backend at ${CLIENT_BACKEND_URL}/notifications`);
+    if (process.env.Production !== 'true' && process.env.NODE_ENV !== 'production') {
+    }
 
     socket = io(`${CLIENT_BACKEND_URL}/notifications`, {
         transports: ["websocket", "polling"],
@@ -48,26 +50,21 @@ export function initNotificationEmitter(): void {
     // Join as an admin emitter so the client backend can identify us
     socket.on("connect", () => {
         reconnectAttempts = 0;
-        console.log(`[NotificationEmitter] Connected to Client Backend (socket id: ${socket?.id})`);
         socket?.emit("join_as_admin_emitter");
     });
 
     socket.on("disconnect", (reason) => {
-        console.warn(`[NotificationEmitter] Disconnected from Client Backend: ${reason}`);
     });
 
     socket.on("reconnect_attempt", (attempt) => {
         reconnectAttempts = attempt;
-        console.log(`[NotificationEmitter] Reconnection attempt ${attempt}/${MAX_RECONNECT_ATTEMPTS}`);
     });
 
     socket.on("reconnect_failed", () => {
-        console.error("[NotificationEmitter] Failed to reconnect to Client Backend after max attempts.");
     });
 
     socket.on("connect_error", (err) => {
         if (reconnectAttempts === 0) {
-            console.error(`[NotificationEmitter] Connection error: ${err.message}`);
         }
     });
 }
@@ -101,7 +98,6 @@ export async function createAndEmitNotification(params: {
         );
 
         if (!result.rows.length) {
-            console.error("[NotificationEmitter] Failed to insert notification into DB.");
             return;
         }
 
@@ -113,14 +109,10 @@ export async function createAndEmitNotification(params: {
                 targetUserId: params.userId,
                 notification,
             });
-            console.log(`[NotificationEmitter] Notification forwarded to user ${params.userId}: ${params.title}`);
         } else {
-            console.warn(
-                `[NotificationEmitter] Socket not connected. Notification saved to DB but not delivered in real-time.`
-            );
+
         }
     } catch (error) {
-        console.error("[NotificationEmitter] Error creating notification:", error);
     }
 }
 
@@ -131,6 +123,5 @@ export function disconnectNotificationEmitter(): void {
     if (socket) {
         socket.disconnect();
         socket = null;
-        console.log("[NotificationEmitter] Disconnected.");
     }
 }

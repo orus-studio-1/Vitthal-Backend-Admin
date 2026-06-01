@@ -400,7 +400,21 @@ export async function listVendorQuotationsForEmail(email: string, quotationKind?
     return result.rows as VendorQuotationRow[];
 }
 
-export function serializeAdminQuotation(quotation: VendorQuotationRow) {
+export async function serializeAdminQuotation(quotation: VendorQuotationRow) {
+    let categories: any[] = [];
+    try {
+        const categoriesResult = await marketplacePool.query(
+            `SELECT c.code, c.label, c.min_commision_percentage, c.max_commision_percentage 
+             FROM vendor_categories vc
+             JOIN product_category c ON c.id = vc.category_id
+             WHERE vc.vendor_id = $1`,
+            [quotation.vendor_id]
+        );
+        categories = categoriesResult.rows;
+    } catch (err) {
+        console.error("Error fetching categories for serialization:", err);
+    }
+
     return {
         id: quotation.id,
         quotation_number: quotation.quotation_number,
@@ -441,10 +455,25 @@ export function serializeAdminQuotation(quotation: VendorQuotationRow) {
         company_name: quotation.company_name,
         created_by_admin_name: quotation.created_by_admin_name,
         created_by_admin_email: quotation.created_by_admin_email,
+        categories,
     };
 }
 
-export function serializePublicQuotation(quotation: VendorQuotationRow) {
+export async function serializePublicQuotation(quotation: VendorQuotationRow) {
+    let categories: any[] = [];
+    try {
+        const categoriesResult = await marketplacePool.query(
+            `SELECT c.code, c.label, c.min_commision_percentage, c.max_commision_percentage 
+             FROM vendor_categories vc
+             JOIN product_category c ON c.id = vc.category_id
+             WHERE vc.vendor_id = $1`,
+            [quotation.vendor_id]
+        );
+        categories = categoriesResult.rows;
+    } catch (err) {
+        console.error("Error fetching categories for serialization:", err);
+    }
+
     return {
         id: quotation.id,
         quotation_number: quotation.quotation_number,
@@ -481,6 +510,7 @@ export function serializePublicQuotation(quotation: VendorQuotationRow) {
         created_by_admin_name: quotation.created_by_admin_name,
         admin_reviewed_at: quotation.admin_reviewed_at,
         admin_review_notes: quotation.admin_review_notes,
+        categories,
     };
 }
 
@@ -515,17 +545,19 @@ export async function generateVendorQuotationPdf(quotation: VendorQuotationRow):
     const companyName = "MTWO Groups";
     const companyAddress = "Plot No. 42, Bopodi Industrial Estate, Pune 411003";
 
+    let vendorCategories: Array<{ label: string; min_commision_percentage: number; max_commision_percentage: number }> = [];
     let vendorCategoriesStr = "Not specified";
     try {
         const categoriesResult = await marketplacePool.query(
-            `SELECT c.label 
+            `SELECT c.label, c.min_commision_percentage, c.max_commision_percentage 
              FROM vendor_categories vc
              JOIN product_category c ON c.id = vc.category_id
              WHERE vc.vendor_id = $1`,
             [quotation.vendor_id]
         );
-        if (categoriesResult.rows.length > 0) {
-            vendorCategoriesStr = categoriesResult.rows.map((row: any) => row.label).join(", ");
+        vendorCategories = categoriesResult.rows;
+        if (vendorCategories.length > 0) {
+            vendorCategoriesStr = vendorCategories.map((row: any) => row.label).join(", ");
         }
     } catch (err) {
         console.error("Error fetching vendor categories for PDF:", err);
@@ -570,6 +602,52 @@ export async function generateVendorQuotationPdf(quotation: VendorQuotationRow):
             return { text: "Signature Error", italics: true, color: "red", margin: [0, 10, 0, 10] };
         }
     }
+
+    const bulletList: any[] = [];
+    if (vendorCategories && vendorCategories.length > 0) {
+        const catLines = vendorCategories.map((cat: any) => ({
+            text: `• ${cat.label}: ${cat.min_commision_percentage}% - ${cat.max_commision_percentage}%`,
+            margin: [12, 2, 0, 2],
+            fontSize: 9,
+            color: "#4b5563"
+        }));
+        bulletList.push({
+            stack: [
+                {
+                    text: [
+                        { text: "Platform Commission: ", bold: true },
+                        "The platform will charge a service fee commission based on product category as follows:"
+                    ]
+                },
+                ...catLines
+            ],
+            style: "bulletItem"
+        });
+    } else {
+        bulletList.push({
+            text: [
+                { text: "Platform Commission: ", bold: true },
+                `The platform will charge a service fee commission between ${quotation.minimum_commision_percentage ?? 0}% and ${quotation.maximum_commision_percentage ?? 0}% of the gross order value, depending on the product category.`
+            ],
+            style: "bulletItem"
+        });
+    }
+
+    bulletList.push({
+        text: [
+            { text: "Credit Cycle Settlement: ", bold: true },
+            `Settlements will be completed according to the agreed credit terms of ${quotation.credit_cycle || "Standard Platform Terms"} from the date of successful order delivery.`
+        ],
+        style: "bulletItem"
+    });
+
+    bulletList.push({
+        text: [
+            { text: "Price Protection: ", bold: true },
+            "The Vendor agrees that prices listed on the B2B marketplace will be competitive and shall not exceed prices offered on other online channels or direct sales."
+        ],
+        style: "bulletItem"
+    });
 
     const docContent: any[] = [
         {
@@ -630,29 +708,7 @@ export async function generateVendorQuotationPdf(quotation: VendorQuotationRow):
             { text: "4. Commercial Terms & Commission Structure", style: "sectionHeader" },
             { text: "Transactions initiated through the platform shall be settled based on the following agreed financial terms:", style: "paragraph" },
             {
-                ul: [
-                    {
-                        text: [
-                            { text: "Platform Commission: ", bold: true },
-                            `The platform will charge a service fee commission between ${quotation.minimum_commision_percentage ?? 0}% and ${quotation.maximum_commision_percentage ?? 0}% of the gross order value, depending on the product category.`
-                        ],
-                        style: "bulletItem"
-                    },
-                    {
-                        text: [
-                            { text: "Credit Cycle Settlement: ", bold: true },
-                            `Settlements will be completed according to the agreed credit terms of ${quotation.credit_cycle || "Standard Platform Terms"} from the date of successful order delivery.`
-                        ],
-                        style: "bulletItem"
-                    },
-                    {
-                        text: [
-                            { text: "Price Protection: ", bold: true },
-                            "The Vendor agrees that prices listed on the B2B marketplace will be competitive and shall not exceed prices offered on other online channels or direct sales."
-                        ],
-                        style: "bulletItem"
-                    }
-                ],
+                ul: bulletList,
                 margin: [0, 0, 0, 10]
             },
 

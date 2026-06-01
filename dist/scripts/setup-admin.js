@@ -17,7 +17,6 @@ function runCommand(command, args) {
 function main() {
     const forwardedArgs = process.argv.slice(2);
     const packageRunner = resolvePackageRunner();
-    console.log("Creating or updating the admin user...");
     runCommand(packageRunner.command, [...packageRunner.args, "tsx", "src/scripts/create-admin.ts", ...forwardedArgs]);
 }
 main();

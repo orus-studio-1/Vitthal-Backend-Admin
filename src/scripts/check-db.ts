@@ -2,7 +2,6 @@ import { marketplacePool } from "../lib/marketplace.js";
 
 async function check() {
     try {
-        console.log("Querying pending products...");
         const result = await marketplacePool.query("SELECT id, name, category, product_type, approval_status, is_active, created_by_user_id FROM products WHERE approval_status = 'pending'");
         console.log("Total pending products in database:", result.rows.length);
         console.log(JSON.stringify(result.rows, null, 2));

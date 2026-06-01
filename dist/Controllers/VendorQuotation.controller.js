@@ -62,7 +62,7 @@ export async function createVendorQuotation(req, res) {
                 ? "Quotation created and emailed to vendor successfully."
                 : "Agreement created and emailed to vendor successfully.",
             data: {
-                quotation: result.quotation ? serializeAdminQuotation(result.quotation) : null,
+                quotation: result.quotation ? await serializeAdminQuotation(result.quotation) : null,
                 vendorLink: result.vendorLink,
             },
         });
@@ -81,9 +81,10 @@ export async function getAdminVendorQuotations(req, res) {
     }
     try {
         const quotations = await listVendorQuotations();
+        const serialized = await Promise.all(quotations.map(serializeAdminQuotation));
         return res.status(200).json({
             message: "Vendor quotations fetched successfully.",
-            data: quotations.map(serializeAdminQuotation),
+            data: serialized,
         });
     }
     catch (error) {
@@ -98,9 +99,10 @@ export async function getVendorDashboardQuotations(req, res) {
     }
     try {
         const quotations = await listVendorQuotationsForEmail(authUser.email, "order_request");
+        const serialized = await Promise.all(quotations.map(serializeAdminQuotation));
         return res.status(200).json({
             message: "Vendor dashboard quotations fetched successfully.",
-            data: quotations.map(serializeAdminQuotation),
+            data: serialized,
         });
     }
     catch (error) {
@@ -120,7 +122,7 @@ export async function getAdminVendorQuotationById(req, res) {
         }
         return res.status(200).json({
             message: "Vendor quotation fetched successfully.",
-            data: serializeAdminQuotation(quotation),
+            data: await serializeAdminQuotation(quotation),
         });
     }
     catch (error) {
@@ -143,7 +145,7 @@ export async function reviewAdminVendorQuotation(req, res) {
         });
         return res.status(200).json({
             message: "Vendor quotation reviewed successfully.",
-            data: quotation ? serializeAdminQuotation(quotation) : null,
+            data: quotation ? await serializeAdminQuotation(quotation) : null,
         });
     }
     catch (error) {
@@ -183,7 +185,7 @@ export async function getVendorQuotationPublic(req, res) {
         }
         return res.status(200).json({
             message: "Quotation fetched successfully.",
-            data: serializePublicQuotation(quotation),
+            data: await serializePublicQuotation(quotation),
         });
     }
     catch (error) {
@@ -212,7 +214,7 @@ export async function respondVendorQuotationPublic(req, res) {
         });
         return res.status(200).json({
             message: "Quotation response submitted successfully.",
-            data: serializePublicQuotation(quotation),
+            data: await serializePublicQuotation(quotation),
         });
     }
     catch (error) {

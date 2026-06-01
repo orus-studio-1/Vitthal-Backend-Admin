@@ -56,7 +56,7 @@ export declare function getVendorQuotationByToken(rawToken: string): Promise<Ven
 export declare function listVendorQuotations(): Promise<VendorQuotationRow[]>;
 export declare function listVendorQuotationsForUser(userId: string, quotationKind?: VendorQuotationKind): Promise<VendorQuotationRow[]>;
 export declare function listVendorQuotationsForEmail(email: string, quotationKind?: VendorQuotationKind): Promise<VendorQuotationRow[]>;
-export declare function serializeAdminQuotation(quotation: VendorQuotationRow): {
+export declare function serializeAdminQuotation(quotation: VendorQuotationRow): Promise<{
     id: string;
     quotation_number: string;
     quotation_kind: VendorQuotationKind;
@@ -96,8 +96,9 @@ export declare function serializeAdminQuotation(quotation: VendorQuotationRow): 
     company_name: string;
     created_by_admin_name: string;
     created_by_admin_email: string;
-};
-export declare function serializePublicQuotation(quotation: VendorQuotationRow): {
+    categories: any[];
+}>;
+export declare function serializePublicQuotation(quotation: VendorQuotationRow): Promise<{
     id: string;
     quotation_number: string;
     quotation_kind: VendorQuotationKind;
@@ -133,7 +134,8 @@ export declare function serializePublicQuotation(quotation: VendorQuotationRow):
     created_by_admin_name: string;
     admin_reviewed_at: string | Date | null;
     admin_review_notes: string | null;
-};
+    categories: any[];
+}>;
 export declare function generateVendorQuotationPdf(quotation: VendorQuotationRow): Promise<Buffer>;
 export declare function createAndSendVendorQuotation(input: {
     vendorId: string;

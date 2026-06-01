@@ -16,21 +16,32 @@ function ensureAdmin(req: Request, res: Response) {
     return (req as any).user as { userId: string; role: string };
 }
 
-function normalizeCategory(category: unknown) {
-    if (category === undefined) {
-        return undefined;
-    }
-
-    if (typeof category !== "string" || !category.trim()) {
+async function resolveCategoryId(categoryInput: string): Promise<string> {
+    if (!categoryInput || typeof categoryInput !== "string") {
         throw new Error("Category must be a non-empty string.");
     }
-
-    const normalized = category.trim().toLowerCase();
-    if (normalized === "plastic" || normalized === "metal" || normalized === "steel") {
-        return normalized;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(categoryInput)) {
+        return categoryInput;
     }
 
-    throw new Error("Category must be either plastic, metal, or steel.");
+    const codeQuery = await marketplacePool.query(
+        `SELECT id FROM product_category WHERE LOWER(code) = LOWER($1) AND is_active = TRUE`,
+        [categoryInput.trim()]
+    );
+    if (codeQuery.rows.length > 0) {
+        return codeQuery.rows[0].id;
+    }
+
+    const labelQuery = await marketplacePool.query(
+        `SELECT id FROM product_category WHERE LOWER(label) = LOWER($1) AND is_active = TRUE`,
+        [categoryInput.trim()]
+    );
+    if (labelQuery.rows.length > 0) {
+        return labelQuery.rows[0].id;
+    }
+
+    throw new Error(`Category "${categoryInput}" could not be resolved to a valid active product category.`);
 }
 
 function parseSpecifications(specifications: unknown) {
@@ -56,6 +67,7 @@ const productSelect = `
         p.description,
         p.category,
         p.product_type,
+        p.item_code,
         p.specifications,
         p.approval_status,
         p.approval_notes,
@@ -89,7 +101,8 @@ export const addProductController = async (req: Request, res: Response): Promise
         return res as Response;
     }
 
-    const { name, description, category, productType, specifications } = req.body;
+    const { name, description, category, productType, specifications, itemCode, item_code } = req.body;
+    const finalItemCode = itemCode || item_code || null;
 
     if (!name || !category || !productType) {
         return res.status(400).json({ message: "Name, category, and productType are required." });
@@ -97,7 +110,7 @@ export const addProductController = async (req: Request, res: Response): Promise
 
     try {
         const parsedSpecifications = parseSpecifications(specifications ?? {});
-        const normalizedCategory = normalizeCategory(category);
+        const resolvedCategoryId = await resolveCategoryId(category);
 
         const result = await marketplacePool.query(
             `
@@ -108,12 +121,13 @@ export const addProductController = async (req: Request, res: Response): Promise
                     product_type,
                     specifications,
                     approval_status,
-                    is_active
+                    is_active,
+                    item_code
                 )
-                VALUES ($1, $2, $3, $4, $5::jsonb, 'approved', TRUE)
+                VALUES ($1, $2, $3, $4, $5::jsonb, 'approved', TRUE, $6)
                 RETURNING id
             `,
-            [name.trim(), description ? description.trim() : null, normalizedCategory, String(productType).trim(), JSON.stringify(parsedSpecifications)]
+            [name.trim(), description ? description.trim() : null, resolvedCategoryId, String(productType).trim(), JSON.stringify(parsedSpecifications), finalItemCode]
         );
 
         const product = await marketplacePool.query(
@@ -216,7 +230,8 @@ export const updateProduct = async (req: Request, res: Response): Promise<Respon
         return res.status(400).json({ message: "Product ID is required." });
     }
 
-    const { name, description, category, productType, specifications, is_active } = req.body;
+    const { name, description, category, productType, specifications, is_active, itemCode, item_code } = req.body;
+    const finalItemCode = itemCode !== undefined ? itemCode : item_code;
 
     try {
         const existing = await marketplacePool.query(`SELECT id FROM products WHERE id = $1`, [productId]);
@@ -238,11 +253,15 @@ export const updateProduct = async (req: Request, res: Response): Promise<Respon
         }
         if (category !== undefined) {
             updates.push(`category = $${index++}`);
-            values.push(normalizeCategory(category));
+            values.push(await resolveCategoryId(category));
         }
         if (productType !== undefined) {
             updates.push(`product_type = $${index++}`);
             values.push(String(productType).trim());
+        }
+        if (finalItemCode !== undefined) {
+            updates.push(`item_code = $${index++}`);
+            values.push(finalItemCode ? String(finalItemCode).trim() : null);
         }
         if (specifications !== undefined) {
             updates.push(`specifications = $${index++}::jsonb`);
@@ -404,7 +423,7 @@ export const reviewProduct = async (req: Request, res: Response): Promise<Respon
             `SELECT DISTINCT u.id AS user_id FROM vendor_products vp
              JOIN vendors v ON vp.vendor_id = v.id
              JOIN users u ON v.user_id = u.id
-             WHERE vp.product_id = $1 AND u.id != COALESCE($2, '00000000-0000-0000-0000-000000000000')`,
+             WHERE vp.product_id = $1 AND u.id != COALESCE($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid)`,
             [id, creatorUserId]
         );
         for (const vendor of affectedVendors.rows) {
@@ -705,3 +724,24 @@ export const setProductPrimaryImage = async (req: Request, res: Response): Promi
         return res.status(500).json({ message: "Internal server error" });
     }
 };
+
+export const getCategories = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res as Response;
+    }
+
+    try {
+        const result = await marketplacePool.query(
+            `SELECT id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order
+             FROM product_category
+             WHERE is_active = TRUE
+             ORDER BY sort_order ASC, label ASC`
+        );
+        return res.status(200).json({ message: "Categories fetched successfully", data: result.rows });
+    } catch (e) {
+        console.error("Error while fetching categories: ", e);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+};
+
