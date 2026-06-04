@@ -6,4 +6,6 @@ export declare const getOrderById: (req: Request, res: Response) => Promise<Resp
 export declare const updateOrderStatus: (req: Request, res: Response) => Promise<Response>;
 export declare const deleteOrder: (req: Request, res: Response) => Promise<Response>;
 export declare const getOrdersByStatus: (req: Request, res: Response) => Promise<Response>;
+export declare const getAllPayouts: (req: Request, res: Response) => Promise<Response>;
+export declare const updatePayout: (req: Request, res: Response) => Promise<Response>;
 //# sourceMappingURL=Order.controller.d.ts.map

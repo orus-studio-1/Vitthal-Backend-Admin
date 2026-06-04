@@ -40,6 +40,8 @@ export async function getClientQuotations(req: Request, res: Response): Promise<
                 qr.updated_at,
                 qr.vendor_document_url,
                 qr.vendor_document_s3_key,
+                qr.token_percentage,
+                qr.token_amount,
                 qd.document_url AS base_document_url,
                 qd.s3_key AS base_document_s3_key,
                 p.name AS product_name,

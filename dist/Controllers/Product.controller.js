@@ -563,15 +563,153 @@ export const getCategories = async (req, res) => {
         return res;
     }
     try {
-        const result = await marketplacePool.query(`SELECT id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order
+        const result = await marketplacePool.query(`SELECT id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active
              FROM product_category
-             WHERE is_active = TRUE
              ORDER BY sort_order ASC, label ASC`);
         return res.status(200).json({ message: "Categories fetched successfully", data: result.rows });
     }
     catch (e) {
         console.error("Error while fetching categories: ", e);
         return res.status(500).json({ message: "Internal Server Error" });
+    }
+};
+export const addCategoryController = async (req, res) => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res;
+    }
+    const { code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active } = req.body;
+    if (!code || !label || !image) {
+        return res.status(400).json({ message: "Code, Label, and Image are required." });
+    }
+    try {
+        const codeCheck = await marketplacePool.query(`SELECT id FROM product_category WHERE LOWER(code) = LOWER($1)`, [code.trim()]);
+        if (codeCheck.rows.length > 0) {
+            return res.status(400).json({ message: `Category with code "${code}" already exists.` });
+        }
+        const result = await marketplacePool.query(`
+                INSERT INTO product_category (
+                    code,
+                    label,
+                    description,
+                    image,
+                    min_commision_percentage,
+                    max_commision_percentage,
+                    sort_order,
+                    is_active
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active
+            `, [
+            code.trim().toLowerCase(),
+            label.trim(),
+            description ? description.trim() : null,
+            image.trim(),
+            Number(min_commision_percentage) || 0,
+            max_commision_percentage !== undefined ? Number(max_commision_percentage) : 10,
+            Number(sort_order) || 0,
+            is_active !== undefined ? Boolean(is_active) : true
+        ]);
+        return res.status(201).json({ message: "Category created successfully", data: result.rows[0] });
+    }
+    catch (error) {
+        console.error("Error while creating category:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+export const updateCategoryController = async (req, res) => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res;
+    }
+    const { id } = req.params;
+    const { code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active } = req.body;
+    try {
+        const existing = await marketplacePool.query(`SELECT id FROM product_category WHERE id = $1`, [id]);
+        if (existing.rows.length === 0) {
+            return res.status(404).json({ message: "Category not found." });
+        }
+        if (code) {
+            const codeCheck = await marketplacePool.query(`SELECT id FROM product_category WHERE LOWER(code) = LOWER($1) AND id != $2`, [code.trim(), id]);
+            if (codeCheck.rows.length > 0) {
+                return res.status(400).json({ message: `Category with code "${code}" already exists.` });
+            }
+        }
+        const updates = [];
+        const values = [];
+        let index = 1;
+        if (code !== undefined) {
+            updates.push(`code = $${index++}`);
+            values.push(code.trim().toLowerCase());
+        }
+        if (label !== undefined) {
+            updates.push(`label = $${index++}`);
+            values.push(label.trim());
+        }
+        if (description !== undefined) {
+            updates.push(`description = $${index++}`);
+            values.push(description ? description.trim() : null);
+        }
+        if (image !== undefined) {
+            updates.push(`image = $${index++}`);
+            values.push(image.trim());
+        }
+        if (min_commision_percentage !== undefined) {
+            updates.push(`min_commision_percentage = $${index++}`);
+            values.push(Number(min_commision_percentage));
+        }
+        if (max_commision_percentage !== undefined) {
+            updates.push(`max_commision_percentage = $${index++}`);
+            values.push(Number(max_commision_percentage));
+        }
+        if (sort_order !== undefined) {
+            updates.push(`sort_order = $${index++}`);
+            values.push(Number(sort_order));
+        }
+        if (is_active !== undefined) {
+            updates.push(`is_active = $${index++}`);
+            values.push(Boolean(is_active));
+        }
+        if (updates.length === 0) {
+            return res.status(400).json({ message: "No fields to update." });
+        }
+        updates.push(`updated_at = NOW()`);
+        values.push(id);
+        const query = `
+            UPDATE product_category
+            SET ${updates.join(", ")}
+            WHERE id = $${index}
+            RETURNING id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active
+        `;
+        const result = await marketplacePool.query(query, values);
+        return res.status(200).json({ message: "Category updated successfully", data: result.rows[0] });
+    }
+    catch (error) {
+        console.error("Error while updating category:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+export const deleteCategoryController = async (req, res) => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res;
+    }
+    const { id } = req.params;
+    try {
+        const result = await marketplacePool.query(`DELETE FROM product_category WHERE id = $1 RETURNING id`, [id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Category not found." });
+        }
+        return res.status(200).json({ message: "Category deleted successfully" });
+    }
+    catch (error) {
+        console.error("Error while deleting category:", error);
+        if (error.code === '23503') { // Foreign key constraint violation
+            return res.status(400).json({
+                message: "Cannot delete this category because it has products associated with it. Please delete the products or deactivate the category instead."
+            });
+        }
+        return res.status(500).json({ message: "Internal server error" });
     }
 };
 //# sourceMappingURL=Product.controller.js.map

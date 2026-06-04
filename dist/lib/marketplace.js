@@ -1111,6 +1111,80 @@ ALTER TABLE vendor_quotations
         ALTER TABLE notifications
             ADD CONSTRAINT chk_notification_reference_type
             CHECK (reference_type IS NULL OR reference_type IN ('quotation', 'order', 'product'));
+
+        -- ================================
+        -- VENDOR PAYOUTS TABLE
+        -- ================================
+        CREATE TABLE IF NOT EXISTS vendor_payouts (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            order_id UUID NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
+            vendor_id UUID NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+            payout_percentage NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
+            payout_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+            status VARCHAR(50) NOT NULL DEFAULT 'pending',
+            delivered_at TIMESTAMPTZ,
+            due_date TIMESTAMPTZ,
+            last_paid_at TIMESTAMPTZ,
+            notes TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_vendor_payouts_order_id ON vendor_payouts(order_id);
+        CREATE INDEX IF NOT EXISTS idx_vendor_payouts_vendor_id ON vendor_payouts(vendor_id);
+        CREATE INDEX IF NOT EXISTS idx_vendor_payouts_status ON vendor_payouts(status);
+
+        -- Backfill existing orders that do not have a payout record
+        INSERT INTO vendor_payouts (order_id, vendor_id, status, delivered_at, due_date)
+        SELECT 
+            o.id AS order_id,
+            o.vendor_id AS vendor_id,
+            'pending' AS status,
+            CASE WHEN o.status = 'delivered' THEN COALESCE(
+                (SELECT MIN(created_at) FROM order_status_history WHERE order_id = o.id AND status = 'delivered'),
+                o.updated_at,
+                NOW()
+            ) ELSE NULL END AS delivered_at,
+            CASE WHEN o.status = 'delivered' THEN COALESCE(
+                (SELECT MIN(created_at) FROM order_status_history WHERE order_id = o.id AND status = 'delivered'),
+                o.updated_at,
+                NOW()
+            ) + (
+                COALESCE(
+                    CASE 
+                        WHEN LOWER(v.credit_cycle) LIKE '%immediate%' THEN 0
+                        WHEN substring(v.credit_cycle from '\\d+') IS NOT NULL THEN substring(v.credit_cycle from '\\d+')::integer
+                        ELSE 15
+                    END, 
+                    15
+                ) * INTERVAL '1 day'
+            ) ELSE NULL END AS due_date
+        FROM orders o
+        JOIN vendors v ON o.vendor_id = v.id
+        LEFT JOIN vendor_payouts vp ON vp.order_id = o.id
+        WHERE vp.id IS NULL
+        ON CONFLICT (order_id) DO NOTHING;
+
+        -- Update existing payouts where delivered_at is set but due_date is null
+        UPDATE vendor_payouts vp
+        SET 
+            delivered_at = COALESCE(vp.delivered_at, (SELECT MIN(created_at) FROM order_status_history WHERE order_id = vp.order_id AND status = 'delivered'), NOW()),
+            due_date = COALESCE(vp.delivered_at, (SELECT MIN(created_at) FROM order_status_history WHERE order_id = vp.order_id AND status = 'delivered'), NOW()) + (
+                COALESCE(
+                    CASE 
+                        WHEN LOWER(v.credit_cycle) LIKE '%immediate%' THEN 0
+                        WHEN substring(v.credit_cycle from '\\d+') IS NOT NULL THEN substring(v.credit_cycle from '\\d+')::integer
+                        ELSE 15
+                    END, 
+                    15
+                ) * INTERVAL '1 day'
+            ),
+            updated_at = NOW()
+        FROM orders o
+        JOIN vendors v ON o.vendor_id = v.id
+        WHERE vp.order_id = o.id 
+          AND o.status = 'delivered' 
+          AND vp.due_date IS NULL;
     `);
 }
 //# sourceMappingURL=marketplace.js.map

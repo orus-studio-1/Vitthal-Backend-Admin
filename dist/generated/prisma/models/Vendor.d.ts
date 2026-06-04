@@ -46,6 +46,7 @@ export type VendorMinAggregateOutputType = {
     is_blocked: boolean | null;
     approval_status: string | null;
     approval_notes: string | null;
+    reconsideration_notes: string | null;
     application_number: string | null;
     created_at: Date | null;
     updated_at: Date | null;
@@ -72,6 +73,7 @@ export type VendorMaxAggregateOutputType = {
     is_blocked: boolean | null;
     approval_status: string | null;
     approval_notes: string | null;
+    reconsideration_notes: string | null;
     application_number: string | null;
     created_at: Date | null;
     updated_at: Date | null;
@@ -98,6 +100,7 @@ export type VendorCountAggregateOutputType = {
     is_blocked: number;
     approval_status: number;
     approval_notes: number;
+    reconsideration_notes: number;
     application_number: number;
     created_at: number;
     updated_at: number;
@@ -137,6 +140,7 @@ export type VendorMinAggregateInputType = {
     is_blocked?: true;
     approval_status?: true;
     approval_notes?: true;
+    reconsideration_notes?: true;
     application_number?: true;
     created_at?: true;
     updated_at?: true;
@@ -163,6 +167,7 @@ export type VendorMaxAggregateInputType = {
     is_blocked?: true;
     approval_status?: true;
     approval_notes?: true;
+    reconsideration_notes?: true;
     application_number?: true;
     created_at?: true;
     updated_at?: true;
@@ -189,6 +194,7 @@ export type VendorCountAggregateInputType = {
     is_blocked?: true;
     approval_status?: true;
     approval_notes?: true;
+    reconsideration_notes?: true;
     application_number?: true;
     created_at?: true;
     updated_at?: true;
@@ -292,6 +298,7 @@ export type VendorGroupByOutputType = {
     is_blocked: boolean;
     approval_status: string;
     approval_notes: string | null;
+    reconsideration_notes: string | null;
     application_number: string | null;
     created_at: Date;
     updated_at: Date;
@@ -329,6 +336,7 @@ export type VendorWhereInput = {
     is_blocked?: Prisma.BoolFilter<"Vendor"> | boolean;
     approval_status?: Prisma.StringFilter<"Vendor"> | string;
     approval_notes?: Prisma.StringNullableFilter<"Vendor"> | string | null;
+    reconsideration_notes?: Prisma.StringNullableFilter<"Vendor"> | string | null;
     application_number?: Prisma.StringNullableFilter<"Vendor"> | string | null;
     created_at?: Prisma.DateTimeFilter<"Vendor"> | Date | string;
     updated_at?: Prisma.DateTimeFilter<"Vendor"> | Date | string;
@@ -358,6 +366,7 @@ export type VendorOrderByWithRelationInput = {
     is_blocked?: Prisma.SortOrder;
     approval_status?: Prisma.SortOrder;
     approval_notes?: Prisma.SortOrderInput | Prisma.SortOrder;
+    reconsideration_notes?: Prisma.SortOrderInput | Prisma.SortOrder;
     application_number?: Prisma.SortOrderInput | Prisma.SortOrder;
     created_at?: Prisma.SortOrder;
     updated_at?: Prisma.SortOrder;
@@ -391,6 +400,7 @@ export type VendorWhereUniqueInput = Prisma.AtLeast<{
     is_blocked?: Prisma.BoolFilter<"Vendor"> | boolean;
     approval_status?: Prisma.StringFilter<"Vendor"> | string;
     approval_notes?: Prisma.StringNullableFilter<"Vendor"> | string | null;
+    reconsideration_notes?: Prisma.StringNullableFilter<"Vendor"> | string | null;
     created_at?: Prisma.DateTimeFilter<"Vendor"> | Date | string;
     updated_at?: Prisma.DateTimeFilter<"Vendor"> | Date | string;
     orders?: Prisma.OrderListRelationFilter;
@@ -419,6 +429,7 @@ export type VendorOrderByWithAggregationInput = {
     is_blocked?: Prisma.SortOrder;
     approval_status?: Prisma.SortOrder;
     approval_notes?: Prisma.SortOrderInput | Prisma.SortOrder;
+    reconsideration_notes?: Prisma.SortOrderInput | Prisma.SortOrder;
     application_number?: Prisma.SortOrderInput | Prisma.SortOrder;
     created_at?: Prisma.SortOrder;
     updated_at?: Prisma.SortOrder;
@@ -453,6 +464,7 @@ export type VendorScalarWhereWithAggregatesInput = {
     is_blocked?: Prisma.BoolWithAggregatesFilter<"Vendor"> | boolean;
     approval_status?: Prisma.StringWithAggregatesFilter<"Vendor"> | string;
     approval_notes?: Prisma.StringNullableWithAggregatesFilter<"Vendor"> | string | null;
+    reconsideration_notes?: Prisma.StringNullableWithAggregatesFilter<"Vendor"> | string | null;
     application_number?: Prisma.StringNullableWithAggregatesFilter<"Vendor"> | string | null;
     created_at?: Prisma.DateTimeWithAggregatesFilter<"Vendor"> | Date | string;
     updated_at?: Prisma.DateTimeWithAggregatesFilter<"Vendor"> | Date | string;
@@ -479,6 +491,7 @@ export type VendorCreateInput = {
     is_blocked?: boolean;
     approval_status?: string;
     approval_notes?: string | null;
+    reconsideration_notes?: string | null;
     application_number?: string | null;
     created_at?: Date | string;
     updated_at?: Date | string;
@@ -508,6 +521,7 @@ export type VendorUncheckedCreateInput = {
     is_blocked?: boolean;
     approval_status?: string;
     approval_notes?: string | null;
+    reconsideration_notes?: string | null;
     application_number?: string | null;
     created_at?: Date | string;
     updated_at?: Date | string;
@@ -537,6 +551,7 @@ export type VendorUpdateInput = {
     is_blocked?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
     approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reconsideration_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     application_number?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -566,6 +581,7 @@ export type VendorUncheckedUpdateInput = {
     is_blocked?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
     approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reconsideration_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     application_number?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -595,6 +611,7 @@ export type VendorCreateManyInput = {
     is_blocked?: boolean;
     approval_status?: string;
     approval_notes?: string | null;
+    reconsideration_notes?: string | null;
     application_number?: string | null;
     created_at?: Date | string;
     updated_at?: Date | string;
@@ -621,6 +638,7 @@ export type VendorUpdateManyMutationInput = {
     is_blocked?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
     approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reconsideration_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     application_number?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -647,6 +665,7 @@ export type VendorUncheckedUpdateManyInput = {
     is_blocked?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
     approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reconsideration_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     application_number?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -673,6 +692,7 @@ export type VendorCountOrderByAggregateInput = {
     is_blocked?: Prisma.SortOrder;
     approval_status?: Prisma.SortOrder;
     approval_notes?: Prisma.SortOrder;
+    reconsideration_notes?: Prisma.SortOrder;
     application_number?: Prisma.SortOrder;
     created_at?: Prisma.SortOrder;
     updated_at?: Prisma.SortOrder;
@@ -705,6 +725,7 @@ export type VendorMaxOrderByAggregateInput = {
     is_blocked?: Prisma.SortOrder;
     approval_status?: Prisma.SortOrder;
     approval_notes?: Prisma.SortOrder;
+    reconsideration_notes?: Prisma.SortOrder;
     application_number?: Prisma.SortOrder;
     created_at?: Prisma.SortOrder;
     updated_at?: Prisma.SortOrder;
@@ -731,6 +752,7 @@ export type VendorMinOrderByAggregateInput = {
     is_blocked?: Prisma.SortOrder;
     approval_status?: Prisma.SortOrder;
     approval_notes?: Prisma.SortOrder;
+    reconsideration_notes?: Prisma.SortOrder;
     application_number?: Prisma.SortOrder;
     created_at?: Prisma.SortOrder;
     updated_at?: Prisma.SortOrder;
@@ -810,6 +832,7 @@ export type VendorCreateWithoutOrdersInput = {
     is_blocked?: boolean;
     approval_status?: string;
     approval_notes?: string | null;
+    reconsideration_notes?: string | null;
     application_number?: string | null;
     created_at?: Date | string;
     updated_at?: Date | string;
@@ -838,6 +861,7 @@ export type VendorUncheckedCreateWithoutOrdersInput = {
     is_blocked?: boolean;
     approval_status?: string;
     approval_notes?: string | null;
+    reconsideration_notes?: string | null;
     application_number?: string | null;
     created_at?: Date | string;
     updated_at?: Date | string;
@@ -879,6 +903,7 @@ export type VendorUpdateWithoutOrdersInput = {
     is_blocked?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
     approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reconsideration_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     application_number?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -907,6 +932,7 @@ export type VendorUncheckedUpdateWithoutOrdersInput = {
     is_blocked?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
     approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reconsideration_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     application_number?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -935,6 +961,7 @@ export type VendorCreateWithoutVendorProductsInput = {
     is_blocked?: boolean;
     approval_status?: string;
     approval_notes?: string | null;
+    reconsideration_notes?: string | null;
     application_number?: string | null;
     created_at?: Date | string;
     updated_at?: Date | string;
@@ -963,6 +990,7 @@ export type VendorUncheckedCreateWithoutVendorProductsInput = {
     is_blocked?: boolean;
     approval_status?: string;
     approval_notes?: string | null;
+    reconsideration_notes?: string | null;
     application_number?: string | null;
     created_at?: Date | string;
     updated_at?: Date | string;
@@ -1004,6 +1032,7 @@ export type VendorUpdateWithoutVendorProductsInput = {
     is_blocked?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
     approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reconsideration_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     application_number?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1032,6 +1061,7 @@ export type VendorUncheckedUpdateWithoutVendorProductsInput = {
     is_blocked?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
     approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reconsideration_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     application_number?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1060,6 +1090,7 @@ export type VendorCreateWithoutQuotationRequestsInput = {
     is_blocked?: boolean;
     approval_status?: string;
     approval_notes?: string | null;
+    reconsideration_notes?: string | null;
     application_number?: string | null;
     created_at?: Date | string;
     updated_at?: Date | string;
@@ -1088,6 +1119,7 @@ export type VendorUncheckedCreateWithoutQuotationRequestsInput = {
     is_blocked?: boolean;
     approval_status?: string;
     approval_notes?: string | null;
+    reconsideration_notes?: string | null;
     application_number?: string | null;
     created_at?: Date | string;
     updated_at?: Date | string;
@@ -1129,6 +1161,7 @@ export type VendorUpdateWithoutQuotationRequestsInput = {
     is_blocked?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
     approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reconsideration_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     application_number?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1157,6 +1190,7 @@ export type VendorUncheckedUpdateWithoutQuotationRequestsInput = {
     is_blocked?: Prisma.BoolFieldUpdateOperationsInput | boolean;
     approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
     approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    reconsideration_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     application_number?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1225,6 +1259,7 @@ export type VendorSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     is_blocked?: boolean;
     approval_status?: boolean;
     approval_notes?: boolean;
+    reconsideration_notes?: boolean;
     application_number?: boolean;
     created_at?: boolean;
     updated_at?: boolean;
@@ -1255,6 +1290,7 @@ export type VendorSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extens
     is_blocked?: boolean;
     approval_status?: boolean;
     approval_notes?: boolean;
+    reconsideration_notes?: boolean;
     application_number?: boolean;
     created_at?: boolean;
     updated_at?: boolean;
@@ -1281,6 +1317,7 @@ export type VendorSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extens
     is_blocked?: boolean;
     approval_status?: boolean;
     approval_notes?: boolean;
+    reconsideration_notes?: boolean;
     application_number?: boolean;
     created_at?: boolean;
     updated_at?: boolean;
@@ -1307,11 +1344,12 @@ export type VendorSelectScalar = {
     is_blocked?: boolean;
     approval_status?: boolean;
     approval_notes?: boolean;
+    reconsideration_notes?: boolean;
     application_number?: boolean;
     created_at?: boolean;
     updated_at?: boolean;
 };
-export type VendorOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "user_id" | "company_name" | "gst_number" | "gst_certificate_link" | "business_type" | "company_website" | "phone" | "alternative_number" | "designation" | "business_description" | "credit_cycle" | "minimum_commision_percentage" | "maximum_commision_percentage" | "rating" | "review_count" | "is_approved" | "is_active" | "is_blocked" | "approval_status" | "approval_notes" | "application_number" | "created_at" | "updated_at", ExtArgs["result"]["vendor"]>;
+export type VendorOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "user_id" | "company_name" | "gst_number" | "gst_certificate_link" | "business_type" | "company_website" | "phone" | "alternative_number" | "designation" | "business_description" | "credit_cycle" | "minimum_commision_percentage" | "maximum_commision_percentage" | "rating" | "review_count" | "is_approved" | "is_active" | "is_blocked" | "approval_status" | "approval_notes" | "reconsideration_notes" | "application_number" | "created_at" | "updated_at", ExtArgs["result"]["vendor"]>;
 export type VendorInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
     orders?: boolean | Prisma.Vendor$ordersArgs<ExtArgs>;
     vendorProducts?: boolean | Prisma.Vendor$vendorProductsArgs<ExtArgs>;
@@ -1349,6 +1387,7 @@ export type $VendorPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs
         is_blocked: boolean;
         approval_status: string;
         approval_notes: string | null;
+        reconsideration_notes: string | null;
         application_number: string | null;
         created_at: Date;
         updated_at: Date;
@@ -1730,6 +1769,7 @@ export interface VendorFieldRefs {
     readonly is_blocked: Prisma.FieldRef<"Vendor", 'Boolean'>;
     readonly approval_status: Prisma.FieldRef<"Vendor", 'String'>;
     readonly approval_notes: Prisma.FieldRef<"Vendor", 'String'>;
+    readonly reconsideration_notes: Prisma.FieldRef<"Vendor", 'String'>;
     readonly application_number: Prisma.FieldRef<"Vendor", 'String'>;
     readonly created_at: Prisma.FieldRef<"Vendor", 'DateTime'>;
     readonly updated_at: Prisma.FieldRef<"Vendor", 'DateTime'>;

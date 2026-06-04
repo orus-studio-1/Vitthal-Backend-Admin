@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addProductController, deleteProduct, getAllProducts, getProductById, reviewProduct, updateProduct, reviewProductImage, reviewProductSpecification, getPendingVendorProducts, reviewVendorProduct, setProductPrimaryImage, getCategories } from "../Controllers/Product.controller.js";
+import { addProductController, deleteProduct, getAllProducts, getProductById, reviewProduct, updateProduct, reviewProductImage, reviewProductSpecification, getPendingVendorProducts, reviewVendorProduct, setProductPrimaryImage, getCategories, addCategoryController, updateCategoryController, deleteCategoryController } from "../Controllers/Product.controller.js";
 import { authMiddleware } from "../Middleware/AuthMiddleware.js";
 const productRouter = Router();
 // Secured routes for admin
@@ -9,6 +9,9 @@ productRouter.get("/pending-vendor/all", getPendingVendorProducts);
 productRouter.put("/pending-vendor/:id/review", reviewVendorProduct);
 productRouter.put("/image/set-primary", setProductPrimaryImage);
 productRouter.get("/getCategories", getCategories);
+productRouter.post("/categories/add", addCategoryController);
+productRouter.put("/categories/:id", updateCategoryController);
+productRouter.delete("/categories/:id", deleteCategoryController);
 productRouter.get("/:id", getProductById);
 productRouter.put("/:id/review", reviewProduct);
 productRouter.put("/image/:id/review", reviewProductImage);

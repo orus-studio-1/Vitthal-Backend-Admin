@@ -35,6 +35,7 @@ export declare const ModelName: {
     readonly Cart: "Cart";
     readonly QuotationRequest: "QuotationRequest";
     readonly QuotationMessage: "QuotationMessage";
+    readonly Payment: "Payment";
 };
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
 export declare const TransactionIsolationLevel: {
@@ -112,6 +113,7 @@ export declare const VendorScalarFieldEnum: {
     readonly is_blocked: "is_blocked";
     readonly approval_status: "approval_status";
     readonly approval_notes: "approval_notes";
+    readonly reconsideration_notes: "reconsideration_notes";
     readonly application_number: "application_number";
     readonly created_at: "created_at";
     readonly updated_at: "updated_at";
@@ -206,6 +208,24 @@ export declare const QuotationMessageScalarFieldEnum: {
     readonly created_at: "created_at";
 };
 export type QuotationMessageScalarFieldEnum = (typeof QuotationMessageScalarFieldEnum)[keyof typeof QuotationMessageScalarFieldEnum];
+export declare const PaymentScalarFieldEnum: {
+    readonly id: "id";
+    readonly user_id: "user_id";
+    readonly amount: "amount";
+    readonly currency: "currency";
+    readonly status: "status";
+    readonly payment_method: "payment_method";
+    readonly razorpay_order_id: "razorpay_order_id";
+    readonly razorpay_payment_id: "razorpay_payment_id";
+    readonly razorpay_signature: "razorpay_signature";
+    readonly order_ids: "order_ids";
+    readonly quotation_request_id: "quotation_request_id";
+    readonly split_number: "split_number";
+    readonly split_percentage: "split_percentage";
+    readonly created_at: "created_at";
+    readonly updated_at: "updated_at";
+};
+export type PaymentScalarFieldEnum = (typeof PaymentScalarFieldEnum)[keyof typeof PaymentScalarFieldEnum];
 export declare const SortOrder: {
     readonly asc: "asc";
     readonly desc: "desc";

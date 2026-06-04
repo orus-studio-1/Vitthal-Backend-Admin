@@ -7,5 +7,6 @@ export type * from './models/VendorProduct.js';
 export type * from './models/Cart.js';
 export type * from './models/QuotationRequest.js';
 export type * from './models/QuotationMessage.js';
+export type * from './models/Payment.js';
 export type * from './commonInputTypes.js';
 //# sourceMappingURL=models.d.ts.map

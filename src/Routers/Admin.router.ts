@@ -5,7 +5,8 @@ import {
     getMyVendorAnalytics,
     getUserDetails,
     getUserManagement,
-    updateUserStatus
+    updateUserStatus,
+    getAllPayments
 } from "../Controllers/Admin.controller.js";
 import {
     getAdminVendorConversation,
@@ -25,5 +26,6 @@ router.post("/vendor-chats/:vendorId", sendAdminVendorMessage);
 router.get("/users", getUserManagement);
 router.get("/users/:id", getUserDetails);
 router.put("/users/:id/status", updateUserStatus);
+router.get("/payments", getAllPayments);
 
 export default router;

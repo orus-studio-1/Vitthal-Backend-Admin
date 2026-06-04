@@ -216,6 +216,17 @@ export interface PrismaClient<in LogOpts extends Prisma.LogLevel = never, in out
     get quotationMessage(): Prisma.QuotationMessageDelegate<ExtArgs, {
         omit: OmitOpts;
     }>;
+    /**
+     * `prisma.payment`: Exposes CRUD operations for the **Payment** model.
+      * Example usage:
+      * ```ts
+      * // Fetch zero or more Payments
+      * const payments = await prisma.payment.findMany()
+      * ```
+      */
+    get payment(): Prisma.PaymentDelegate<ExtArgs, {
+        omit: OmitOpts;
+    }>;
 }
 export declare function getPrismaClientClass(): PrismaClientConstructor;
 //# sourceMappingURL=class.d.ts.map

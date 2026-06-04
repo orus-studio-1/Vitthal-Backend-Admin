@@ -7,6 +7,8 @@ import {
     deleteOrder,
     getOrdersByStatus,
     getOrderProductVendors,
+    getAllPayouts,
+    updatePayout,
 } from "../Controllers/Order.controller.js";
 
 const router = Router();
@@ -14,6 +16,8 @@ const router = Router();
 // Admin-only routes for order management
 router.post("/", createOrder);
 router.get("/", getAllOrders);
+router.get("/payouts", getAllPayouts);
+router.put("/payouts/:orderId", updatePayout);
 router.get("/products/:productId/vendors", getOrderProductVendors);
 router.get("/status/:status", getOrdersByStatus);
 router.get("/:id", getOrderById);

@@ -506,3 +506,44 @@ export const updateUserStatus = async (req: Request, res: Response): Promise<Res
         return res.status(500).json({ message: "Internal server error" });
     }
 };
+
+export const getAllPayments = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res as Response;
+    }
+
+    try {
+        const result = await marketplacePool.query(`
+            SELECT
+                p.id,
+                p.user_id,
+                p.amount,
+                p.currency,
+                p.status,
+                p.payment_method,
+                p.razorpay_order_id,
+                p.razorpay_payment_id,
+                p.razorpay_signature,
+                p.order_ids,
+                p.quotation_request_id,
+                p.split_number,
+                p.split_percentage,
+                p.created_at,
+                p.updated_at,
+                u.name AS user_name,
+                u.email AS user_email
+            FROM payments p
+            JOIN users u ON u.id = p.user_id
+            ORDER BY p.created_at DESC
+        `);
+
+        return res.status(200).json({
+            message: "Payments retrieved successfully",
+            data: result.rows,
+        });
+    } catch (error) {
+        console.error("Error fetching payments:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};

@@ -47,7 +47,8 @@ export const ModelName = {
     VendorProduct: 'VendorProduct',
     Cart: 'Cart',
     QuotationRequest: 'QuotationRequest',
-    QuotationMessage: 'QuotationMessage'
+    QuotationMessage: 'QuotationMessage',
+    Payment: 'Payment'
 };
 /*
  * Enums
@@ -123,6 +124,7 @@ export const VendorScalarFieldEnum = {
     is_blocked: 'is_blocked',
     approval_status: 'approval_status',
     approval_notes: 'approval_notes',
+    reconsideration_notes: 'reconsideration_notes',
     application_number: 'application_number',
     created_at: 'created_at',
     updated_at: 'updated_at'
@@ -210,6 +212,23 @@ export const QuotationMessageScalarFieldEnum = {
     note: 'note',
     reason: 'reason',
     created_at: 'created_at'
+};
+export const PaymentScalarFieldEnum = {
+    id: 'id',
+    user_id: 'user_id',
+    amount: 'amount',
+    currency: 'currency',
+    status: 'status',
+    payment_method: 'payment_method',
+    razorpay_order_id: 'razorpay_order_id',
+    razorpay_payment_id: 'razorpay_payment_id',
+    razorpay_signature: 'razorpay_signature',
+    order_ids: 'order_ids',
+    quotation_request_id: 'quotation_request_id',
+    split_number: 'split_number',
+    split_percentage: 'split_percentage',
+    created_at: 'created_at',
+    updated_at: 'updated_at'
 };
 export const SortOrder = {
     asc: 'asc',

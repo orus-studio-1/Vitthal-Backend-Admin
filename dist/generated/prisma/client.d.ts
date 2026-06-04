@@ -66,4 +66,9 @@ export type QuotationRequest = Prisma.QuotationRequestModel;
  *
  */
 export type QuotationMessage = Prisma.QuotationMessageModel;
+/**
+ * Model Payment
+ *
+ */
+export type Payment = Prisma.PaymentModel;
 //# sourceMappingURL=client.d.ts.map

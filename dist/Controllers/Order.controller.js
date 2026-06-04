@@ -192,6 +192,9 @@ export const createOrder = async (req, res) => {
                 INSERT INTO order_items (order_id, product_id, vendor_id, quantity, price)
                 VALUES ($1, $2, $3, $4, $5)
             `, [orderResult.rows[0].id, product_id, vendor_id, quantityNumber, Number(total_amount) / quantityNumber]);
+        await client.query(`INSERT INTO vendor_payouts (order_id, vendor_id, status)
+             VALUES ($1, $2, 'pending')
+             ON CONFLICT (order_id) DO NOTHING`, [orderResult.rows[0].id, vendor_id]);
         await client.query("COMMIT");
         const created = await marketplacePool.query(`${orderSelect} WHERE o.id = $1`, [orderResult.rows[0].id]);
         return res.status(201).json({ message: "Order created successfully", data: created.rows[0] });
@@ -293,6 +296,31 @@ export const updateOrderStatus = async (req, res) => {
         if (!result.rows.length) {
             return res.status(404).json({ message: "Order not found" });
         }
+        if (mappedStatus === "delivered") {
+            await marketplacePool.query(`INSERT INTO vendor_payouts (order_id, vendor_id, status, delivered_at, due_date)
+                 SELECT 
+                     o.id,
+                     o.vendor_id,
+                     'pending',
+                     NOW(),
+                     NOW() + (
+                         COALESCE(
+                             CASE 
+                                 WHEN LOWER(v.credit_cycle) LIKE '%immediate%' THEN 0
+                                 WHEN substring(v.credit_cycle from '\\d+') IS NOT NULL THEN substring(v.credit_cycle from '\\d+')::integer
+                                 ELSE 15
+                             END, 
+                             15
+                         ) * INTERVAL '1 day'
+                     )
+                 FROM orders o
+                 JOIN vendors v ON o.vendor_id = v.id
+                 WHERE o.id = $1
+                 ON CONFLICT (order_id) DO UPDATE SET
+                     delivered_at = EXCLUDED.delivered_at,
+                     due_date = EXCLUDED.due_date,
+                     updated_at = NOW()`, [req.params.id]);
+        }
         const updated = await marketplacePool.query(`${orderSelect} WHERE o.id = $1`, [req.params.id]);
         return res.status(200).json({ message: "Order status updated successfully", data: updated.rows[0] });
     }
@@ -335,6 +363,116 @@ export const getOrdersByStatus = async (req, res) => {
     catch (error) {
         console.error("Error fetching orders by status:", error);
         return res.status(500).json({ message: "Internal server error" });
+    }
+};
+export const getAllPayouts = async (req, res) => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res;
+    }
+    try {
+        const query = `
+            SELECT 
+                vp.id AS payout_id,
+                vp.order_id,
+                vp.vendor_id,
+                vp.payout_percentage,
+                vp.payout_amount,
+                vp.status AS payout_status,
+                vp.delivered_at,
+                vp.due_date,
+                vp.last_paid_at,
+                vp.notes AS payout_notes,
+                o.total_amount AS order_total_amount,
+                o.status AS order_status,
+                o.payment_status AS client_payment_status,
+                COALESCE(o.customer_name, u.name) AS customer_name,
+                v.company_name AS vendor_name,
+                v.credit_cycle AS vendor_credit_cycle,
+                -- Successful client payments total
+                COALESCE((
+                    SELECT SUM(p.amount)
+                    FROM payments p
+                    WHERE p.status = 'successful'
+                      AND (
+                          vp.order_id = ANY(p.order_ids) 
+                          OR p.quotation_request_id = (SELECT id FROM quotation_requests WHERE order_id = vp.order_id LIMIT 1)
+                      )
+                ), 0) AS client_paid_amount,
+                -- Successful client payments split percentage sum
+                COALESCE((
+                    SELECT SUM(p.split_percentage)
+                    FROM payments p
+                    WHERE p.status = 'successful'
+                      AND (
+                          vp.order_id = ANY(p.order_ids) 
+                          OR p.quotation_request_id = (SELECT id FROM quotation_requests WHERE order_id = vp.order_id LIMIT 1)
+                      )
+                ), 0) AS client_paid_percentage
+            FROM vendor_payouts vp
+            JOIN orders o ON o.id = vp.order_id
+            JOIN vendors v ON v.id = vp.vendor_id
+            LEFT JOIN users u ON u.id = o.user_id
+            ORDER BY vp.created_at DESC
+        `;
+        const result = await marketplacePool.query(query);
+        return res.status(200).json({ message: "Vendor payouts retrieved successfully", data: result.rows });
+    }
+    catch (error) {
+        console.error("Error fetching vendor payouts:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+export const updatePayout = async (req, res) => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res;
+    }
+    const { orderId } = req.params;
+    const { payoutPercentage, notes } = req.body;
+    if (payoutPercentage == null || payoutPercentage < 0 || payoutPercentage > 100) {
+        return res.status(400).json({ message: "payoutPercentage must be between 0 and 100" });
+    }
+    const client = await marketplacePool.connect();
+    try {
+        await client.query("BEGIN");
+        // Fetch payout and order total amount
+        const payoutQ = await client.query(`SELECT vp.id, o.total_amount 
+             FROM vendor_payouts vp 
+             JOIN orders o ON o.id = vp.order_id 
+             WHERE vp.order_id = $1`, [orderId]);
+        if (payoutQ.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ message: "Payout record not found for this order" });
+        }
+        const payout = payoutQ.rows[0];
+        const amount = (Number(payoutPercentage) / 100) * Number(payout.total_amount);
+        let status = "pending";
+        if (Number(payoutPercentage) >= 100) {
+            status = "paid";
+        }
+        else if (Number(payoutPercentage) > 0) {
+            status = "partially_paid";
+        }
+        const updateQ = await client.query(`UPDATE vendor_payouts 
+             SET payout_percentage = $1,
+                 payout_amount = $2,
+                 status = $3,
+                 notes = $4,
+                 last_paid_at = NOW(),
+                 updated_at = NOW()
+             WHERE order_id = $5
+             RETURNING *`, [payoutPercentage, amount, status, notes || null, orderId]);
+        await client.query("COMMIT");
+        return res.status(200).json({ message: "Payout updated successfully", data: updateQ.rows[0] });
+    }
+    catch (error) {
+        await client.query("ROLLBACK");
+        console.error("Error updating vendor payout:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+    finally {
+        client.release();
     }
 };
 //# sourceMappingURL=Order.controller.js.map
