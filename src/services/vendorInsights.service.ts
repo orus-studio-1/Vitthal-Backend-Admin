@@ -300,14 +300,15 @@ export async function getVendorAnalyticsData(vendorId: string, rawTimeframe?: st
         marketplacePool.query(
             `
                 SELECT
-                    p.category,
+                    pc.label AS category,
                     COALESCE(SUM(oi.quantity), 0) AS total_quantity,
                     COALESCE(SUM(oi.quantity * oi.price), 0) AS total_revenue
                 FROM order_items oi
                 JOIN orders o ON oi.order_id = o.id
                 JOIN products p ON oi.product_id = p.id
+                JOIN product_category pc ON p.category = pc.id
                 WHERE oi.vendor_id = $1 ${dateFilter}
-                GROUP BY p.category
+                GROUP BY pc.label
                 ORDER BY total_quantity DESC
             `,
             [vendorId]

@@ -143,75 +143,43 @@ CREATE TABLE IF NOT EXISTS product_category (
             ADD COLUMN IF NOT EXISTS min_commision_percentage INTEGER NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS max_commision_percentage INTEGER NOT NULL DEFAULT 10;
 
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, created_at, updated_at)
-        SELECT 'plastic', 'Plastic', 'Polymers, granules, and molded plastic goods', '/Landing/PlasticManufacturing.webp', 2, 5, 1, TRUE, NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM product_category WHERE code = 'plastic');
-        UPDATE product_category 
-        SET image = '/Landing/PlasticManufacturing.webp', min_commision_percentage = 2, max_commision_percentage = 5
-        WHERE code = 'plastic' AND (image = '' OR min_commision_percentage = 0);
+        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active) VALUES
+        ('metal_fabrication_parts', 'Metal & Fabrication Products', 'Sheet metal, structural parts, and custom fabricated components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780292933/Metal_Fabricated_n51kin.jpg', 0, 10, 1, true),
+        ('electrical_automation_components', 'Electrical & Electronics Manufacturing', 'Industrial panels, sensors, and automation hardware.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780293409/Electrical_Electronics_twuwgm.jpg', 0, 10, 2, true),
+        ('industrial_machinery_equipment', 'Machinery & Industrial Equipment', 'Pumps, compressors, conveyor systems, and packaging machines.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780293705/Industrial_Machinery_jubodl.jpg', 0, 10, 3, true),
+        ('construction_building_materials', 'Construction & Building Material', 'Hardware, roofing, flooring, and structural materials.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294255/Construction_zozolo.jpg', 0, 10, 4, true),
+        ('automotive_spare_parts', 'Automobile & Auto Parts', 'Engine parts, braking systems, and EV components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294268/Automative_part_tusmob.jpg', 0, 10, 5, true),
+        ('plastic_polymer_components', 'Plastic & Polymer Products', 'Injection molded parts and industrial plastic components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294480/Plastic_polymer_ysm22x.jpg', 0, 10, 6, true),
+        ('food_agriculture_supplies', 'Food & Agriculture Processing', 'Agro-equipment, processing inputs, and organic supplies.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294555/Food_Agriculture_heawd4.jpg', 0, 10, 7, true),
+        ('laboratory_pharma_consumables', 'Chemical & Pharma Manufacturing', 'Chemicals, additives, and medical consumables.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294629/Pharamas_labs_nigahy.jpg', 0, 10, 8, true),
+        ('modular_furniture_wood', 'Furniture & Wood Products', 'Office, kitchen, and interior decorative products.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294735/Furniture_uig7s6.jpg', 0, 10, 9, true),
+        ('renewable_energy_systems', 'Renewable Energy Products', 'Solar panels, inverters, and energy storage solutions.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294829/Renewable_Energy_piev0o.jpg', 0, 10, 10, true),
+        ('packaging_logistics_supplies', 'Packaging Industry', 'Corrugated boxes, labels, and industrial pallets.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294984/Packaging_boxes_mivqtz.jpg', 0, 10, 11, true),
+        ('textile_garment_materials', 'Textile & Garments', 'Fabrics, yarns, and industrial safety apparel.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780295062/Textile_gqybcg.jpg', 0, 10, 12, true),
+        ('cnc_industrial_tooling', 'CNC & VMC Tooling Product Categories', 'Precision cutting tools, holders, and inserts for CNC machines.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780295138/CNCC_Industrial_Tooling_vqipnh.jpg', 0, 10, 13, true)
+        ON CONFLICT (code) DO UPDATE 
+        SET label = EXCLUDED.label,
+            description = EXCLUDED.description,
+            image = EXCLUDED.image,
+            sort_order = EXCLUDED.sort_order,
+            is_active = EXCLUDED.is_active;
 
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, created_at, updated_at)
-        SELECT 'metal', 'Metal', 'Steel, aluminium, copper, and alloy products', '/Landing/MetalManufacturing.jpg', 1, 3, 2, TRUE, NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM product_category WHERE code = 'metal');
-        UPDATE product_category 
-        SET image = '/Landing/MetalManufacturing.jpg', min_commision_percentage = 1, max_commision_percentage = 3
-        WHERE code = 'metal' AND (image = '' OR min_commision_percentage = 0);
-
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, created_at, updated_at)
-        SELECT 'chemicals', 'Chemicals', 'Industrial chemicals, additives, and solvents', 'https://images.unsplash.com/photo-1603126857599-f6e157fa2fe6?w=600&auto=format&fit=crop&q=80', 3, 7, 3, TRUE, NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM product_category WHERE code = 'chemicals');
-        UPDATE product_category 
-        SET image = 'https://images.unsplash.com/photo-1603126857599-f6e157fa2fe6?w=600&auto=format&fit=crop&q=80', min_commision_percentage = 3, max_commision_percentage = 7
-        WHERE code = 'chemicals' AND (image = '' OR min_commision_percentage = 0);
-
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, created_at, updated_at)
-        SELECT 'construction', 'Construction', 'Cement, tiles, bricks, and building materials', 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=600&auto=format&fit=crop&q=80', 2, 6, 4, TRUE, NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM product_category WHERE code = 'construction');
-        UPDATE product_category 
-        SET image = 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=600&auto=format&fit=crop&q=80', min_commision_percentage = 2, max_commision_percentage = 6
-        WHERE code = 'construction' AND (image = '' OR min_commision_percentage = 0);
-
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, created_at, updated_at)
-        SELECT 'machinery', 'Machinery', 'Industrial equipment, tools, and machine parts', 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&auto=format&fit=crop&q=80', 2, 8, 5, TRUE, NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM product_category WHERE code = 'machinery');
-        UPDATE product_category 
-        SET image = 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&auto=format&fit=crop&q=80', min_commision_percentage = 2, max_commision_percentage = 8
-        WHERE code = 'machinery' AND (image = '' OR min_commision_percentage = 0);
-
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, created_at, updated_at)
-        SELECT 'packaging', 'Packaging', 'Boxes, containers, films, and packing supplies', 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=600&auto=format&fit=crop&q=80', 2, 4, 6, TRUE, NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM product_category WHERE code = 'packaging');
-        UPDATE product_category 
-        SET image = 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=600&auto=format&fit=crop&q=80', min_commision_percentage = 2, max_commision_percentage = 4
-        WHERE code = 'packaging' AND (image = '' OR min_commision_percentage = 0);
-
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, created_at, updated_at)
-        SELECT 'textiles', 'Textiles', 'Fabrics, yarns, and textile supplies', 'https://images.unsplash.com/photo-1558271821-39729b8f2204?w=600&auto=format&fit=crop&q=80', 3, 8, 7, TRUE, NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM product_category WHERE code = 'textiles');
-        UPDATE product_category 
-        SET image = 'https://images.unsplash.com/photo-1558271821-39729b8f2204?w=600&auto=format&fit=crop&q=80', min_commision_percentage = 3, max_commision_percentage = 8
-        WHERE code = 'textiles' AND (image = '' OR min_commision_percentage = 0);
-
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, created_at, updated_at)
-        SELECT 'automotive', 'Automotive', 'Vehicle parts and transport components', 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=600&auto=format&fit=crop&q=80', 2, 5, 8, TRUE, NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM product_category WHERE code = 'automotive');
-        UPDATE product_category 
-        SET image = 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=600&auto=format&fit=crop&q=80', min_commision_percentage = 2, max_commision_percentage = 5
-        WHERE code = 'automotive' AND (image = '' OR min_commision_percentage = 0);
-
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, created_at, updated_at)
-        SELECT 'agriculture', 'Agriculture', 'Seeds, fertilizers, and farm inputs', 'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=600&auto=format&fit=crop&q=80', 1, 4, 9, TRUE, NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM product_category WHERE code = 'agriculture');
-        UPDATE product_category 
-        SET image = 'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=600&auto=format&fit=crop&q=80', min_commision_percentage = 1, max_commision_percentage = 4
-        WHERE code = 'agriculture' AND (image = '' OR min_commision_percentage = 0);
-
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, created_at, updated_at)
-        SELECT 'electrical', 'Electrical', 'Cables, switches, wiring, and fittings', 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=600&auto=format&fit=crop&q=80', 2, 6, 10, TRUE, NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM product_category WHERE code = 'electrical');
-        UPDATE product_category 
-        SET image = 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=600&auto=format&fit=crop&q=80', min_commision_percentage = 2, max_commision_percentage = 6
-        WHERE code = 'electrical' AND (image = '' OR min_commision_percentage = 0);
+        DELETE FROM product_category 
+        WHERE code NOT IN (
+            'metal_fabrication_parts',
+            'electrical_automation_components',
+            'industrial_machinery_equipment',
+            'construction_building_materials',
+            'automotive_spare_parts',
+            'plastic_polymer_components',
+            'food_agriculture_supplies',
+            'laboratory_pharma_consumables',
+            'modular_furniture_wood',
+            'renewable_energy_systems',
+            'packaging_logistics_supplies',
+            'textile_garment_materials',
+            'cnc_industrial_tooling'
+        );
 
 CREATE TABLE IF NOT EXISTS vendor_categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -266,10 +234,8 @@ CREATE TABLE IF NOT EXISTS products (
     description TEXT,
     category UUID NOT NULL,
     product_type TEXT,
-    material TEXT,
-    grade TEXT,
-    application TEXT,
-    standard TEXT,
+    specifications JSONB NOT NULL DEFAULT '{}'::jsonb,
+    attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
     approval_status TEXT NOT NULL DEFAULT 'approved',
     approval_notes TEXT,
     created_by_user_id UUID,
@@ -735,11 +701,9 @@ ALTER TABLE users
 
 -- Safely alter products
 ALTER TABLE products
-    ADD COLUMN IF NOT EXISTS material TEXT,
+    ADD COLUMN IF NOT EXISTS specifications JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS item_code TEXT,
-    ADD COLUMN IF NOT EXISTS grade TEXT,
-    ADD COLUMN IF NOT EXISTS application TEXT,
-    ADD COLUMN IF NOT EXISTS standard TEXT,
     ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'approved',
     ADD COLUMN IF NOT EXISTS approval_notes TEXT,
     ADD COLUMN IF NOT EXISTS created_by_user_id UUID,
@@ -1004,24 +968,8 @@ ALTER TABLE vendor_quotations
     FOREIGN KEY (product_id)
     REFERENCES products(id)
     ON DELETE SET NULL;
-
         -- Backfill Scripts
-        UPDATE products
-        SET specifications = jsonb_strip_nulls(
-            jsonb_build_object(
-                'material', material,
-                'grade', grade,
-                'application', application,
-                'standard', standard
-            )
-        )
-        WHERE specifications = '{}'::jsonb
-          AND (
-              material IS NOT NULL
-              OR grade IS NOT NULL
-              OR application IS NOT NULL
-              OR standard IS NOT NULL
-          );
+
 
         UPDATE products
         SET approval_status = 'approved'

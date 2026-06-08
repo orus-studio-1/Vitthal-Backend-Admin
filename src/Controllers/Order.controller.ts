@@ -331,7 +331,7 @@ export const getAllOrders = async (req: Request, res: Response): Promise<Respons
 
     try {
         const result = await marketplacePool.query(
-            `${orderSelect} ORDER BY o.created_at DESC`
+            `${orderSelect} WHERE NOT (o.status = 'pending' AND o.payment_status = 'pending' AND o.source IN ('client', 'quotation')) ORDER BY o.created_at DESC`
         );
 
         return res.status(200).json({ message: "Orders retrieved successfully", data: result.rows });
@@ -348,10 +348,62 @@ export const getOrderById = async (req: Request, res: Response): Promise<Respons
     }
 
     try {
-        const result = await marketplacePool.query(
-            `${orderSelect} WHERE o.id = $1`,
-            [req.params.id]
-        );
+        const query = `
+            SELECT 
+                o.id AS id,
+                o.status,
+                o.payment_status,
+                o.total_amount,
+                o.created_at,
+                o.updated_at,
+                o.address_line,
+                o.city,
+                o.state,
+                o.country,
+                o.pincode,
+                o.order_reference,
+                o.order_notes,
+                COALESCE(o.customer_name, u.name) AS customer_name,
+                COALESCE(o.customer_email, u.email) AS customer_email,
+                COALESCE(o.customer_phone, c.phone) AS customer_phone,
+                v.company_name AS vendor_name,
+                v.id AS vendor_id,
+                (
+                    SELECT json_agg(
+                        json_build_object(
+                            'product_id', oi.product_id,
+                            'product_name', p.name,
+                            'product_description', p.description,
+                            'image_url', (SELECT image_url FROM products_images pi WHERE pi.product_id = p.id AND pi.is_primary = true LIMIT 1),
+                            'quantity', oi.quantity,
+                            'price', oi.price
+                        ) ORDER BY oi.created_at
+                    )
+                    FROM order_items oi
+                    JOIN products p ON oi.product_id = p.id
+                    WHERE oi.order_id = o.id
+                ) AS items,
+                (
+                    SELECT json_agg(
+                        json_build_object(
+                            'id', osh.id,
+                            'status', osh.status,
+                            'note', osh.note,
+                            'created_at', osh.created_at
+                        ) ORDER BY osh.created_at DESC
+                    )
+                    FROM order_status_history osh
+                    WHERE osh.order_id = o.id
+                ) AS status_history
+            FROM orders o
+            LEFT JOIN users u ON u.id = o.user_id
+            LEFT JOIN client c ON c.user_id = o.user_id
+            JOIN vendors v ON v.id = o.vendor_id
+            WHERE o.id = $1
+              AND NOT (o.status = 'pending' AND o.payment_status = 'pending' AND o.source IN ('client', 'quotation'))
+            LIMIT 1;
+        `;
+        const result = await marketplacePool.query(query, [req.params.id]);
 
         if (!result.rows.length) {
             return res.status(404).json({ message: "Order not found" });
@@ -515,6 +567,8 @@ export const getAllPayouts = async (req: Request, res: Response): Promise<Respon
             JOIN orders o ON o.id = vp.order_id
             JOIN vendors v ON v.id = vp.vendor_id
             LEFT JOIN users u ON u.id = o.user_id
+            WHERE o.status NOT IN ('pending', 'cancelled')
+              AND (o.source = 'admin' OR o.payment_status = 'paid')
             ORDER BY vp.created_at DESC
         `;
         const result = await marketplacePool.query(query);

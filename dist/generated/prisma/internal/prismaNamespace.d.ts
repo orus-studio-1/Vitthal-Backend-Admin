@@ -1049,11 +1049,8 @@ export declare const ProductScalarFieldEnum: {
     readonly description: "description";
     readonly category: "category";
     readonly product_type: "product_type";
-    readonly material: "material";
-    readonly grade: "grade";
-    readonly application: "application";
-    readonly standard: "standard";
     readonly specifications: "specifications";
+    readonly attributes: "attributes";
     readonly approval_status: "approval_status";
     readonly approval_notes: "approval_notes";
     readonly created_by_user_id: "created_by_user_id";

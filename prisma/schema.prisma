@@ -76,11 +76,8 @@ model Product {
   description     String?
   category        String?
   product_type    String?
-  material        String?
-  grade           String?
-  application     String?
-  standard        String?
   specifications  Json     @default("{}")
+  attributes      Json     @default("{}")
   approval_status String   @default("pending")
   approval_notes  String?
   created_by_user_id String? @db.Uuid

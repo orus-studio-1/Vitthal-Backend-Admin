@@ -14,4 +14,5 @@ export declare const getCategories: (req: Request, res: Response) => Promise<Res
 export declare const addCategoryController: (req: Request, res: Response) => Promise<Response>;
 export declare const updateCategoryController: (req: Request, res: Response) => Promise<Response>;
 export declare const deleteCategoryController: (req: Request, res: Response) => Promise<Response>;
+export declare const uploadProductImagesController: (req: Request, res: Response) => Promise<Response>;
 //# sourceMappingURL=Product.controller.d.ts.map

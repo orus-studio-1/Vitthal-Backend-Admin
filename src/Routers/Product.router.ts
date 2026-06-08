@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import {
     addProductController,
     deleteProduct,
@@ -14,11 +15,19 @@ import {
     getCategories,
     addCategoryController,
     updateCategoryController,
-    deleteCategoryController
+    deleteCategoryController,
+    uploadProductImagesController
 } from "../Controllers/Product.controller.js";
 import { authMiddleware } from "../Middleware/AuthMiddleware.js";
 
 const productRouter = Router();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5 MB limit
+  },
+});
 
 // Secured routes for admin
 productRouter.use(authMiddleware);
@@ -37,6 +46,7 @@ productRouter.put("/image/:id/review", reviewProductImage);
 productRouter.put("/specification/:id/review", reviewProductSpecification);
 productRouter.post("/addProduct", addProductController);
 productRouter.post("/", addProductController);
+productRouter.post("/uploadProductImages", upload.array("images", 5), uploadProductImagesController);
 productRouter.delete("/deleteProduct", deleteProduct);
 productRouter.delete("/:id", deleteProduct);
 productRouter.put("/updateProduct", updateProduct);

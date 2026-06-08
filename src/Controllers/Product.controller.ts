@@ -1,7 +1,8 @@
 import type { Request, Response } from "express";
 import { marketplacePool } from "../lib/marketplace.js";
-import { getPresignedUrlOrOriginal } from "../services/s3.service.js";
+import { getPresignedUrlOrOriginal, s3Client, BUCKET_NAME } from "../services/s3.service.js";
 import { createAndEmitNotification } from "../lib/notificationEmitter.js";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 
 const adminRoles = ["admin", "super_admin"];
 const reviewDecisions = ["approved", "rejected"] as const;
@@ -69,6 +70,11 @@ const productSelect = `
         p.product_type,
         p.item_code,
         p.specifications,
+        p.attributes,
+        p.attributes->>'material' AS material,
+        p.attributes->>'grade' AS grade,
+        p.attributes->>'application' AS application,
+        p.attributes->>'standard' AS standard,
         p.approval_status,
         p.approval_notes,
         p.created_at,
@@ -101,7 +107,7 @@ export const addProductController = async (req: Request, res: Response): Promise
         return res as Response;
     }
 
-    const { name, description, category, productType, specifications, itemCode, item_code } = req.body;
+    const { name, description, category, productType, specifications, itemCode, item_code, material, grade, application, standard, attributes } = req.body;
     const finalItemCode = itemCode || item_code || null;
 
     if (!name || !category || !productType) {
@@ -112,6 +118,23 @@ export const addProductController = async (req: Request, res: Response): Promise
         const parsedSpecifications = parseSpecifications(specifications ?? {});
         const resolvedCategoryId = await resolveCategoryId(category);
 
+        const attributesObj: Record<string, string> = {};
+        if (attributes && typeof attributes === 'object') {
+            Object.entries(attributes).forEach(([key, val]) => {
+                attributesObj[key.trim()] = String(val).trim();
+            });
+        }
+        if (material) attributesObj.material = String(material).trim();
+        if (grade) attributesObj.grade = String(grade).trim();
+        if (application) attributesObj.application = String(application).trim();
+        if (standard) attributesObj.standard = String(standard).trim();
+
+        const quotationLimit = req.body.quotationLimit || req.body.quotation_limit || null;
+        const parsedQuotationLimit = quotationLimit ? Number(quotationLimit) : null;
+        if (parsedQuotationLimit !== null && (isNaN(parsedQuotationLimit) || parsedQuotationLimit < 1)) {
+            return res.status(400).json({ message: "Quotation limit must be a positive integer" });
+        }
+
         const result = await marketplacePool.query(
             `
                 INSERT INTO products (
@@ -120,19 +143,63 @@ export const addProductController = async (req: Request, res: Response): Promise
                     category,
                     product_type,
                     specifications,
+                    attributes,
                     approval_status,
                     is_active,
-                    item_code
+                    item_code,
+                    quotation_limit,
+                    created_by_user_id
                 )
-                VALUES ($1, $2, $3, $4, $5::jsonb, 'approved', TRUE, $6)
+                VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, 'approved', TRUE, $7, $8, $9)
                 RETURNING id
             `,
-            [name.trim(), description ? description.trim() : null, resolvedCategoryId, String(productType).trim(), JSON.stringify(parsedSpecifications), finalItemCode]
+            [
+                name.trim(),
+                description ? description.trim() : null,
+                resolvedCategoryId,
+                String(productType).trim(),
+                JSON.stringify(parsedSpecifications),
+                JSON.stringify(attributesObj),
+                finalItemCode,
+                parsedQuotationLimit,
+                authUser.userId
+            ]
         );
+
+        const productId = result.rows[0].id;
+
+        // Insert specifications into dynamic specifications table
+        if (parsedSpecifications) {
+            const specEntries = Array.isArray(parsedSpecifications)
+                ? parsedSpecifications
+                : typeof parsedSpecifications === "object"
+                    ? Object.entries(parsedSpecifications).map(([key, value]) => ({ key, value }))
+                    : [];
+
+            for (const spec of specEntries) {
+                const specKey = String((spec as any).key ?? (spec as any).spec_key ?? "").trim();
+                const specValue = String((spec as any).value ?? (spec as any).spec_value ?? "").trim();
+                if (specKey) {
+                    await marketplacePool.query(
+                        `
+                            INSERT INTO product_specification (
+                                product_id,
+                                spec_key,
+                                spec_value,
+                                approval_status,
+                                created_by_user_id
+                            )
+                            VALUES ($1, $2, $3, 'approved', $4)
+                        `,
+                        [productId, specKey, specValue, authUser.userId]
+                    );
+                }
+            }
+        }
 
         const product = await marketplacePool.query(
             `${productSelect} WHERE p.id = $1`,
-            [result.rows[0].id]
+            [productId]
         );
 
         return res.status(201).json({ message: "Product created successfully", data: product.rows[0] });
@@ -230,14 +297,16 @@ export const updateProduct = async (req: Request, res: Response): Promise<Respon
         return res.status(400).json({ message: "Product ID is required." });
     }
 
-    const { name, description, category, productType, specifications, is_active, itemCode, item_code } = req.body;
+    const { name, description, category, productType, specifications, is_active, itemCode, item_code, material, grade, application, standard, attributes } = req.body;
     const finalItemCode = itemCode !== undefined ? itemCode : item_code;
 
     try {
-        const existing = await marketplacePool.query(`SELECT id FROM products WHERE id = $1`, [productId]);
+        const existing = await marketplacePool.query(`SELECT id, attributes FROM products WHERE id = $1`, [productId]);
         if (!existing.rows.length) {
             return res.status(404).json({ message: "Product not found" });
         }
+
+        const existingAttributes = existing.rows[0]?.attributes || {};
 
         const updates: string[] = [];
         const values: unknown[] = [];
@@ -267,6 +336,55 @@ export const updateProduct = async (req: Request, res: Response): Promise<Respon
             updates.push(`specifications = $${index++}::jsonb`);
             values.push(JSON.stringify(parseSpecifications(specifications)));
         }
+
+        const newAttributes = { ...existingAttributes };
+        let attributesUpdated = false;
+
+        if (attributes && typeof attributes === 'object') {
+            Object.entries(attributes).forEach(([key, val]) => {
+                newAttributes[key.trim()] = String(val).trim();
+            });
+            attributesUpdated = true;
+        }
+
+        if (material !== undefined) {
+            if (material === null || material === "") {
+                delete newAttributes.material;
+            } else {
+                newAttributes.material = String(material).trim();
+            }
+            attributesUpdated = true;
+        }
+        if (grade !== undefined) {
+            if (grade === null || grade === "") {
+                delete newAttributes.grade;
+            } else {
+                newAttributes.grade = String(grade).trim();
+            }
+            attributesUpdated = true;
+        }
+        if (application !== undefined) {
+            if (application === null || application === "") {
+                delete newAttributes.application;
+            } else {
+                newAttributes.application = String(application).trim();
+            }
+            attributesUpdated = true;
+        }
+        if (standard !== undefined) {
+            if (standard === null || standard === "") {
+                delete newAttributes.standard;
+            } else {
+                newAttributes.standard = String(standard).trim();
+            }
+            attributesUpdated = true;
+        }
+
+        if (attributesUpdated) {
+            updates.push(`attributes = $${index++}::jsonb`);
+            values.push(JSON.stringify(newAttributes));
+        }
+
         if (typeof is_active === "boolean") {
             updates.push(`is_active = $${index++}`);
             values.push(is_active);
@@ -912,6 +1030,91 @@ export const deleteCategoryController = async (req: Request, res: Response): Pro
                 message: "Cannot delete this category because it has products associated with it. Please delete the products or deactivate the category instead."
             });
         }
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const uploadProductImagesController = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res as Response;
+    }
+
+    const { productId } = req.body;
+    const files = req.files as Express.Multer.File[];
+
+    if (!productId) {
+        return res.status(400).json({ message: "Product ID is required." });
+    }
+
+    if (!files || files.length === 0) {
+        return res.status(400).json({ message: "No images provided." });
+    }
+
+    try {
+        const productResult = await marketplacePool.query(
+            `SELECT id FROM products WHERE id = $1`,
+            [productId]
+        );
+        if (productResult.rows.length === 0) {
+            return res.status(404).json({ message: "Product not found." });
+        }
+
+        const targetPrimaryIndex = req.body.primaryImageIndex !== undefined ? Number(req.body.primaryImageIndex) : -1;
+
+        if (targetPrimaryIndex >= 0 && targetPrimaryIndex < files.length) {
+            await marketplacePool.query(
+                `UPDATE products_images SET is_primary = false WHERE product_id = $1`,
+                [productId]
+            );
+        }
+
+        // Check if product already has a primary image
+        const existingImages = await marketplacePool.query(
+            `SELECT id FROM products_images WHERE product_id = $1 AND is_primary = true`,
+            [productId]
+        );
+        let hasPrimary = existingImages.rows.length > 0;
+
+        const uploadedImages = [];
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (!file) continue;
+            const originalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
+            const fileName = `products/${productId}/${Date.now()}_${originalName}`;
+
+            const command = new PutObjectCommand({
+                Bucket: BUCKET_NAME,
+                Key: fileName,
+                Body: file.buffer,
+                ContentType: file.mimetype,
+            });
+
+            await s3Client.send(command);
+
+            let isPrimary = false;
+            if (targetPrimaryIndex >= 0) {
+                isPrimary = (i === targetPrimaryIndex);
+            } else {
+                isPrimary = !hasPrimary && i === 0;
+                if (isPrimary) hasPrimary = true;
+            }
+
+            const fullUrl = `https://${BUCKET_NAME}.s3.${(process.env.AWS_REGION || "ap-south-1").trim()}.amazonaws.com/${fileName}`;
+            const values = [productId, fullUrl, isPrimary, i, 'approved', true, authUser.userId];
+            const insertQuery = `
+                INSERT INTO products_images (product_id, image_url, is_primary, display_order, approval_status, is_approved, created_by_user_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING *
+            `;
+            const result = await marketplacePool.query(insertQuery, values);
+            uploadedImages.push(result.rows[0]);
+        }
+
+        return res.status(201).json({ message: "Images uploaded successfully", data: uploadedImages });
+    } catch (error) {
+        console.error("Error uploading product images:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };
