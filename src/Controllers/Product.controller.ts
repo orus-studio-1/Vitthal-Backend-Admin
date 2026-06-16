@@ -279,6 +279,17 @@ export const getProductById = async (req: Request, res: Response): Promise<Respo
         );
         product.detailed_vendors = vendorsResult.rows;
 
+        // Fetch all variants (pending, approved, rejected) for this product
+        const variantsResult = await marketplacePool.query(
+            `SELECT pv.id, pv.sku, pv.properties, pv.approval_status, pv.approval_notes, pv.created_at, u.name AS creator_name, u.email AS creator_email
+             FROM product_variants pv
+             LEFT JOIN users u ON pv.created_by_user_id = u.id
+             WHERE pv.product_id = $1
+             ORDER BY pv.created_at ASC`,
+            [req.params.id]
+        );
+        product.variants = variantsResult.rows;
+
         return res.status(200).json({ message: "Product fetched successfully", data: product });
     } catch (error) {
         console.error("Error while fetching product:", error);
@@ -1262,5 +1273,110 @@ export const reviewPendingPriceChange = async (req: Request, res: Response): Pro
         return res.status(500).json({ message: "Internal server error" });
     }
 };
+
+export const getPendingVariants = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res;
+
+    try {
+        const query = `
+            SELECT 
+                pv.id AS variant_id,
+                pv.product_id,
+                pv.sku,
+                pv.properties,
+                pv.approval_status,
+                pv.approval_notes,
+                pv.created_at,
+                p.name AS product_name,
+                p.description AS product_description,
+                u.name AS creator_name,
+                u.email AS creator_email
+            FROM product_variants pv
+            JOIN products p ON pv.product_id = p.id
+            LEFT JOIN users u ON pv.created_by_user_id = u.id
+            WHERE pv.approval_status = 'pending'
+            ORDER BY pv.created_at DESC
+        `;
+        const result = await marketplacePool.query(query);
+        return res.status(200).json({
+            message: "Pending product variants fetched successfully",
+            data: result.rows
+        });
+    } catch (error) {
+        console.error("Error while fetching pending product variants:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const reviewProductVariant = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res;
+
+    const { id } = req.params; // variant id
+    const { decision, notes } = req.body as { decision?: 'approved' | 'rejected'; notes?: string };
+
+    if (!id) {
+        return res.status(400).json({ message: "Variant ID is required" });
+    }
+
+    if (!decision || (decision !== 'approved' && decision !== 'rejected')) {
+        return res.status(400).json({ message: "Decision must be approved or rejected." });
+    }
+
+    try {
+        const query = `
+            UPDATE product_variants
+            SET 
+                approval_status = $1,
+                approval_notes = $2,
+                reviewed_by_user_id = $3,
+                reviewed_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $4
+            RETURNING id, product_id, sku, properties, approval_status, created_by_user_id
+        `;
+        const result = await marketplacePool.query(query, [decision, notes?.trim() || null, authUser.userId, id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Product variant not found" });
+        }
+
+        const variant = result.rows[0];
+
+        // Notify the creator of the variant if it's a vendor
+        if (variant.created_by_user_id) {
+            const productRes = await marketplacePool.query(`SELECT name FROM products WHERE id = $1`, [variant.product_id]);
+            const productName = productRes.rows[0]?.name || "a product";
+            const propertiesStr = Object.entries(variant.properties || {})
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(", ") || "default";
+
+            try {
+                await createAndEmitNotification({
+                    userId: variant.created_by_user_id,
+                    type: decision === "approved" ? "product_approved" : "product_rejected", // reuse standard types
+                    title: decision === "approved" ? "Variant Approved ✅" : "Variant Rejected ❌",
+                    body: decision === "approved"
+                        ? `Your variant (${propertiesStr}) for product "${productName}" has been approved.`
+                        : `Your variant (${propertiesStr}) for product "${productName}" has been rejected.${notes ? ` Reason: ${notes}` : ""}`,
+                    referenceType: "product",
+                    referenceId: variant.product_id
+                });
+            } catch (notifyErr) {
+                console.error("Failed to emit variant review notification:", notifyErr);
+            }
+        }
+
+        return res.status(200).json({
+            message: `Product variant ${decision} successfully`,
+            data: variant
+        });
+    } catch (error) {
+        console.error("Error while reviewing product variant:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 
 

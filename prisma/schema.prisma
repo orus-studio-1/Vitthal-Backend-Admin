@@ -89,6 +89,7 @@ model Product {
 
   products_images ProductImage[]
   vendorProducts  VendorProduct[]
+  variants        ProductVariant[]
   quotationRequests QuotationRequest[]
 
   @@map("products")
@@ -179,27 +180,51 @@ model Order {
 }
 
 model VendorProduct {
-  id                String   @id @default(uuid()) @db.Uuid
-  product_id        String   @db.Uuid
-  vendor_id         String   @db.Uuid
-  price             Decimal  @db.Decimal(12, 2)
-  moq               Int
-  stock_quantity    Int      @default(0)
-  quotation_enabled Boolean  @default(false)
-  quotation_min_qty Int?
-  is_active         Boolean  @default(false)
-  status            String   @default("waiting")
-  gst_percentage    Decimal? @db.Decimal(5, 2) @default(0.00)
-  pending_price     Decimal? @db.Decimal(12, 2)
-  created_at        DateTime @default(now()) @db.Timestamptz
-  updated_at        DateTime @default(now()) @db.Timestamptz
+  id                 String   @id @default(uuid()) @db.Uuid
+  product_id         String   @db.Uuid
+  product_variant_id String   @db.Uuid
+  vendor_id          String   @db.Uuid
+  price              Decimal  @db.Decimal(12, 2)
+  moq                Int
+  stock_quantity     Int      @default(0)
+  quotation_enabled  Boolean  @default(false)
+  quotation_min_qty  Int?
+  is_active          Boolean  @default(false)
+  status             String   @default("waiting")
+  gst_percentage     Decimal? @db.Decimal(5, 2) @default(0.00)
+  pending_price      Decimal? @db.Decimal(12, 2)
+  created_at         DateTime @default(now()) @db.Timestamptz
+  updated_at         DateTime @default(now()) @db.Timestamptz
 
-  vendor            Vendor   @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
-  product           Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  vendor             Vendor   @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+  product            Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  variant            ProductVariant @relation(fields: [product_variant_id], references: [id], onDelete: Cascade)
 
-  @@unique([vendor_id, product_id])
+  @@unique([vendor_id, product_variant_id])
 
   @@map("vendor_products")
+}
+
+model ProductVariant {
+  id                  String   @id @default(uuid()) @db.Uuid
+  product_id          String   @db.Uuid
+  sku                 String?
+  properties          Json     @default("{}")
+  approval_status     String   @default("approved")
+  approval_notes      String?
+  created_by_user_id  String? @db.Uuid
+  reviewed_by_user_id String? @db.Uuid
+  reviewed_at         DateTime? @db.Timestamptz
+  is_active           Boolean  @default(true)
+  created_at          DateTime @default(now()) @db.Timestamptz
+  updated_at          DateTime @default(now()) @db.Timestamptz
+
+  product             Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  vendorProducts      VendorProduct[]
+  quotationRequests   QuotationRequest[]
+
+  @@unique([product_id, properties])
+  @@map("product_variants")
 }
 
 model Cart {
@@ -222,6 +247,7 @@ model QuotationRequest {
   user_id               String   @db.Uuid
   vendor_id             String   @db.Uuid
   product_id            String   @db.Uuid
+  product_variant_id    String?  @db.Uuid
   requested_quantity    Int
   requested_price       Decimal? @db.Decimal(12, 2)
   status                QuotationStatus @default(pending_vendor)
@@ -242,6 +268,7 @@ model QuotationRequest {
 
   vendor        Vendor  @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
   product       Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  variant       ProductVariant? @relation(fields: [product_variant_id], references: [id], onDelete: Cascade)
   order         Order?  @relation(fields: [order_id], references: [id], onDelete: SetNull)
   messages      QuotationMessage[]
   payments      Payment[]

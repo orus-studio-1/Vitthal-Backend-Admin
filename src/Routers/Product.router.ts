@@ -19,7 +19,9 @@ import {
     uploadProductImagesController,
     getProductTypes,
     getPendingPriceChanges,
-    reviewPendingPriceChange
+    reviewPendingPriceChange,
+    getPendingVariants,
+    reviewProductVariant
 } from "../Controllers/Product.controller.js";
 import { authMiddleware } from "../Middleware/AuthMiddleware.js";
 
@@ -41,6 +43,8 @@ productRouter.get("/pending-vendor/all", getPendingVendorProducts);
 productRouter.put("/pending-vendor/:id/review", reviewVendorProduct);
 productRouter.get("/pending-price/all", getPendingPriceChanges);
 productRouter.put("/pending-price/:id/review", reviewPendingPriceChange);
+productRouter.get("/pending-variants/all", getPendingVariants);
+productRouter.put("/pending-variants/:id/review", reviewProductVariant);
 productRouter.put("/image/set-primary", setProductPrimaryImage);
 productRouter.get("/getCategories", getCategories);
 productRouter.post("/categories/add", addCategoryController);
