@@ -16,7 +16,10 @@ import {
     addCategoryController,
     updateCategoryController,
     deleteCategoryController,
-    uploadProductImagesController
+    uploadProductImagesController,
+    getProductTypes,
+    getPendingPriceChanges,
+    reviewPendingPriceChange
 } from "../Controllers/Product.controller.js";
 import { authMiddleware } from "../Middleware/AuthMiddleware.js";
 
@@ -33,8 +36,11 @@ const upload = multer({
 productRouter.use(authMiddleware);
 
 productRouter.get("/", getAllProducts);
+productRouter.get("/getProductTypes", getProductTypes);
 productRouter.get("/pending-vendor/all", getPendingVendorProducts);
 productRouter.put("/pending-vendor/:id/review", reviewVendorProduct);
+productRouter.get("/pending-price/all", getPendingPriceChanges);
+productRouter.put("/pending-price/:id/review", reviewPendingPriceChange);
 productRouter.put("/image/set-primary", setProductPrimaryImage);
 productRouter.get("/getCategories", getCategories);
 productRouter.post("/categories/add", addCategoryController);

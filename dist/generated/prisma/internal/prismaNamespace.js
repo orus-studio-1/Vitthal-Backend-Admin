@@ -125,7 +125,8 @@ export const ProductImageScalarFieldEnum = {
     approval_status: 'approval_status',
     created_by_user_id: 'created_by_user_id',
     reviewed_by_user_id: 'reviewed_by_user_id',
-    created_at: 'created_at'
+    created_at: 'created_at',
+    media_type: 'media_type'
 };
 export const VendorScalarFieldEnum = {
     id: 'id',
@@ -191,6 +192,8 @@ export const VendorProductScalarFieldEnum = {
     quotation_min_qty: 'quotation_min_qty',
     is_active: 'is_active',
     status: 'status',
+    gst_percentage: 'gst_percentage',
+    pending_price: 'pending_price',
     created_at: 'created_at',
     updated_at: 'updated_at'
 };

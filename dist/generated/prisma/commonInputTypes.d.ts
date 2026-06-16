@@ -278,12 +278,6 @@ export type IntNullableWithAggregatesFilter<$PrismaModel = never> = {
     _min?: Prisma.NestedIntNullableFilter<$PrismaModel>;
     _max?: Prisma.NestedIntNullableFilter<$PrismaModel>;
 };
-export type EnumCartTypeFilter<$PrismaModel = never> = {
-    equals?: $Enums.CartType | Prisma.EnumCartTypeFieldRefInput<$PrismaModel>;
-    in?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
-    notIn?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
-    not?: Prisma.NestedEnumCartTypeFilter<$PrismaModel> | $Enums.CartType;
-};
 export type DecimalNullableFilter<$PrismaModel = never> = {
     equals?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel> | null;
     in?: runtime.Decimal[] | runtime.DecimalJsLike[] | number[] | string[] | Prisma.ListDecimalFieldRefInput<$PrismaModel> | null;
@@ -293,15 +287,6 @@ export type DecimalNullableFilter<$PrismaModel = never> = {
     gt?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel>;
     gte?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel>;
     not?: Prisma.NestedDecimalNullableFilter<$PrismaModel> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
-};
-export type EnumCartTypeWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: $Enums.CartType | Prisma.EnumCartTypeFieldRefInput<$PrismaModel>;
-    in?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
-    notIn?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
-    not?: Prisma.NestedEnumCartTypeWithAggregatesFilter<$PrismaModel> | $Enums.CartType;
-    _count?: Prisma.NestedIntFilter<$PrismaModel>;
-    _min?: Prisma.NestedEnumCartTypeFilter<$PrismaModel>;
-    _max?: Prisma.NestedEnumCartTypeFilter<$PrismaModel>;
 };
 export type DecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel> | null;
@@ -317,6 +302,21 @@ export type DecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
     _sum?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
     _min?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
     _max?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
+};
+export type EnumCartTypeFilter<$PrismaModel = never> = {
+    equals?: $Enums.CartType | Prisma.EnumCartTypeFieldRefInput<$PrismaModel>;
+    in?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumCartTypeFilter<$PrismaModel> | $Enums.CartType;
+};
+export type EnumCartTypeWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: $Enums.CartType | Prisma.EnumCartTypeFieldRefInput<$PrismaModel>;
+    in?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumCartTypeWithAggregatesFilter<$PrismaModel> | $Enums.CartType;
+    _count?: Prisma.NestedIntFilter<$PrismaModel>;
+    _min?: Prisma.NestedEnumCartTypeFilter<$PrismaModel>;
+    _max?: Prisma.NestedEnumCartTypeFilter<$PrismaModel>;
 };
 export type EnumQuotationStatusFilter<$PrismaModel = never> = {
     equals?: $Enums.QuotationStatus | Prisma.EnumQuotationStatusFieldRefInput<$PrismaModel>;
@@ -613,12 +613,6 @@ export type NestedFloatNullableFilter<$PrismaModel = never> = {
     gte?: number | Prisma.FloatFieldRefInput<$PrismaModel>;
     not?: Prisma.NestedFloatNullableFilter<$PrismaModel> | number | null;
 };
-export type NestedEnumCartTypeFilter<$PrismaModel = never> = {
-    equals?: $Enums.CartType | Prisma.EnumCartTypeFieldRefInput<$PrismaModel>;
-    in?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
-    notIn?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
-    not?: Prisma.NestedEnumCartTypeFilter<$PrismaModel> | $Enums.CartType;
-};
 export type NestedDecimalNullableFilter<$PrismaModel = never> = {
     equals?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel> | null;
     in?: runtime.Decimal[] | runtime.DecimalJsLike[] | number[] | string[] | Prisma.ListDecimalFieldRefInput<$PrismaModel> | null;
@@ -628,15 +622,6 @@ export type NestedDecimalNullableFilter<$PrismaModel = never> = {
     gt?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel>;
     gte?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel>;
     not?: Prisma.NestedDecimalNullableFilter<$PrismaModel> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
-};
-export type NestedEnumCartTypeWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: $Enums.CartType | Prisma.EnumCartTypeFieldRefInput<$PrismaModel>;
-    in?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
-    notIn?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
-    not?: Prisma.NestedEnumCartTypeWithAggregatesFilter<$PrismaModel> | $Enums.CartType;
-    _count?: Prisma.NestedIntFilter<$PrismaModel>;
-    _min?: Prisma.NestedEnumCartTypeFilter<$PrismaModel>;
-    _max?: Prisma.NestedEnumCartTypeFilter<$PrismaModel>;
 };
 export type NestedDecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel> | null;
@@ -652,6 +637,21 @@ export type NestedDecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
     _sum?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
     _min?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
     _max?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
+};
+export type NestedEnumCartTypeFilter<$PrismaModel = never> = {
+    equals?: $Enums.CartType | Prisma.EnumCartTypeFieldRefInput<$PrismaModel>;
+    in?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumCartTypeFilter<$PrismaModel> | $Enums.CartType;
+};
+export type NestedEnumCartTypeWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: $Enums.CartType | Prisma.EnumCartTypeFieldRefInput<$PrismaModel>;
+    in?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.CartType[] | Prisma.ListEnumCartTypeFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumCartTypeWithAggregatesFilter<$PrismaModel> | $Enums.CartType;
+    _count?: Prisma.NestedIntFilter<$PrismaModel>;
+    _min?: Prisma.NestedEnumCartTypeFilter<$PrismaModel>;
+    _max?: Prisma.NestedEnumCartTypeFilter<$PrismaModel>;
 };
 export type NestedEnumQuotationStatusFilter<$PrismaModel = never> = {
     equals?: $Enums.QuotationStatus | Prisma.EnumQuotationStatusFieldRefInput<$PrismaModel>;

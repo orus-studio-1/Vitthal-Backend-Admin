@@ -86,6 +86,7 @@ export declare const ProductImageScalarFieldEnum: {
     readonly created_by_user_id: "created_by_user_id";
     readonly reviewed_by_user_id: "reviewed_by_user_id";
     readonly created_at: "created_at";
+    readonly media_type: "media_type";
 };
 export type ProductImageScalarFieldEnum = (typeof ProductImageScalarFieldEnum)[keyof typeof ProductImageScalarFieldEnum];
 export declare const VendorScalarFieldEnum: {
@@ -154,6 +155,8 @@ export declare const VendorProductScalarFieldEnum: {
     readonly quotation_min_qty: "quotation_min_qty";
     readonly is_active: "is_active";
     readonly status: "status";
+    readonly gst_percentage: "gst_percentage";
+    readonly pending_price: "pending_price";
     readonly created_at: "created_at";
     readonly updated_at: "updated_at";
 };

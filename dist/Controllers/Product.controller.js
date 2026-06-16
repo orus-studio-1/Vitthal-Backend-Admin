@@ -202,7 +202,7 @@ export const getProductById = async (req, res) => {
              FROM product_specification
              WHERE product_id = $1
              ORDER BY created_at ASC`, [req.params.id]);
-        const imagesResult = await marketplacePool.query(`SELECT id, image_url, is_primary, display_order, approval_status, is_approved, created_by_user_id
+        const imagesResult = await marketplacePool.query(`SELECT id, image_url, is_primary, display_order, approval_status, is_approved, created_by_user_id, media_type
              FROM products_images
              WHERE product_id = $1
              ORDER BY display_order ASC, created_at ASC`, [req.params.id]);
@@ -566,6 +566,7 @@ export const getPendingVendorProducts = async (req, res) => {
                 vp.price,
                 vp.moq,
                 vp.stock_quantity,
+                vp.gst_percentage,
                 vp.status AS vendor_product_status,
                 vp.is_active AS vendor_product_active,
                 vp.created_at,
@@ -875,8 +876,8 @@ export const uploadProductImagesController = async (req, res) => {
             const fullUrl = `https://${BUCKET_NAME}.s3.${(process.env.AWS_REGION || "ap-south-1").trim()}.amazonaws.com/${fileName}`;
             const values = [productId, fullUrl, isPrimary, i, 'approved', true, authUser.userId];
             const insertQuery = `
-                INSERT INTO products_images (product_id, image_url, is_primary, display_order, approval_status, is_approved, created_by_user_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO products_images (product_id, image_url, is_primary, display_order, approval_status, is_approved, created_by_user_id, media_type)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, 'image')
                 RETURNING *
             `;
             const result = await marketplacePool.query(insertQuery, values);
@@ -886,6 +887,133 @@ export const uploadProductImagesController = async (req, res) => {
     }
     catch (error) {
         console.error("Error uploading product images:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+export const getProductTypes = async (req, res) => {
+    try {
+        const result = await marketplacePool.query(`SELECT DISTINCT product_type 
+             FROM products 
+             WHERE product_type IS NOT NULL AND product_type != '' AND is_active = TRUE AND approval_status = 'approved'
+             ORDER BY product_type ASC`);
+        const types = result.rows.map(row => row.product_type);
+        return res.status(200).json({ message: "Product types fetched successfully", data: types });
+    }
+    catch (e) {
+        console.error("Error while fetching product types in admin:", e);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+export const getPendingPriceChanges = async (req, res) => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser)
+        return res;
+    try {
+        const query = `
+            SELECT 
+                vp.id AS id,
+                vp.product_id,
+                vp.vendor_id,
+                vp.price AS current_price,
+                vp.pending_price,
+                vp.updated_at,
+                p.name AS product_name,
+                v.company_name AS vendor_company_name,
+                v.phone AS vendor_phone,
+                u.email AS vendor_email
+            FROM vendor_products vp
+            JOIN products p ON vp.product_id = p.id
+            JOIN vendors v ON vp.vendor_id = v.id
+            JOIN users u ON v.user_id = u.id
+            WHERE vp.pending_price IS NOT NULL
+            ORDER BY vp.updated_at DESC
+        `;
+        const result = await marketplacePool.query(query);
+        return res.status(200).json({
+            message: "Pending price changes fetched successfully",
+            data: result.rows
+        });
+    }
+    catch (error) {
+        console.error("Error while fetching pending price changes:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+export const reviewPendingPriceChange = async (req, res) => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser)
+        return res;
+    const { id } = req.params; // vendor_products.id
+    const { decision } = req.body; // 'approved' or 'rejected'
+    if (!id) {
+        return res.status(400).json({ message: "Vendor Product ID is required" });
+    }
+    if (!decision || (decision !== "approved" && decision !== "rejected")) {
+        return res.status(400).json({ message: "Valid decision ('approved' or 'rejected') is required" });
+    }
+    try {
+        // Find the vendor product
+        const checkQuery = `
+            SELECT vp.id, vp.price, vp.pending_price, vp.vendor_id, vp.product_id, v.user_id, p.name AS product_name
+            FROM vendor_products vp
+            JOIN vendors v ON vp.vendor_id = v.id
+            JOIN products p ON vp.product_id = p.id
+            WHERE vp.id = $1
+        `;
+        const checkResult = await marketplacePool.query(checkQuery, [id]);
+        if (checkResult.rows.length === 0) {
+            return res.status(404).json({ message: "Vendor product listing not found" });
+        }
+        const vp = checkResult.rows[0];
+        if (vp.pending_price === null) {
+            return res.status(400).json({ message: "This listing does not have a pending price change" });
+        }
+        const pendingPrice = vp.pending_price;
+        if (decision === "approved") {
+            // Commit price change
+            await marketplacePool.query(`UPDATE vendor_products SET price = pending_price, pending_price = NULL, updated_at = NOW() WHERE id = $1`, [id]);
+            // Create notification for the vendor
+            try {
+                await createAndEmitNotification({
+                    userId: vp.user_id,
+                    type: "vendor_product_approved",
+                    title: "Price Update Approved",
+                    body: `Your price update request for "${vp.product_name}" (to ₹${pendingPrice}) has been approved and is now active.`,
+                    referenceType: "product",
+                    referenceId: vp.product_id
+                });
+            }
+            catch (notifyErr) {
+                console.error("Failed to create/emit approved notification:", notifyErr);
+            }
+            return res.status(200).json({
+                message: "Price update approved successfully. The new price is now active."
+            });
+        }
+        else {
+            // Reject price change
+            await marketplacePool.query(`UPDATE vendor_products SET pending_price = NULL, updated_at = NOW() WHERE id = $1`, [id]);
+            // Create notification for the vendor
+            try {
+                await createAndEmitNotification({
+                    userId: vp.user_id,
+                    type: "vendor_product_rejected",
+                    title: "Price Update Rejected",
+                    body: `Your price update request for "${vp.product_name}" (to ₹${pendingPrice}) has been rejected.`,
+                    referenceType: "product",
+                    referenceId: vp.product_id
+                });
+            }
+            catch (notifyErr) {
+                console.error("Failed to create/emit rejected notification:", notifyErr);
+            }
+            return res.status(200).json({
+                message: "Price update request rejected successfully."
+            });
+        }
+    }
+    catch (error) {
+        console.error("Error while reviewing pending price change:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };

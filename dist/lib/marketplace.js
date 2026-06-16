@@ -1133,6 +1133,28 @@ ALTER TABLE vendor_quotations
         WHERE vp.order_id = o.id 
           AND o.status = 'delivered' 
           AND vp.due_date IS NULL;
+
+        -- V2 schema updates
+        ALTER TABLE products DROP CONSTRAINT IF EXISTS chk_products_product_type;
+        ALTER TABLE vendor_products ADD COLUMN IF NOT EXISTS gst_percentage NUMERIC(5,2) DEFAULT 0.00;
+        ALTER TABLE products_images ADD COLUMN IF NOT EXISTS media_type TEXT DEFAULT 'image';
+
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints
+                WHERE constraint_name = 'chk_products_images_media_type'
+                  AND table_name = 'products_images'
+            ) THEN
+                ALTER TABLE products_images
+                    ADD CONSTRAINT chk_products_images_media_type
+                    CHECK (media_type IN ('image', 'video'));
+            END IF;
+        END $$;
+
+        -- V3 schema updates - Stock & Price approvals
+        ALTER TABLE vendor_products ADD COLUMN IF NOT EXISTS pending_price NUMERIC(12,2) DEFAULT NULL CHECK (pending_price >= 0);
     `);
 }
 //# sourceMappingURL=marketplace.js.map
