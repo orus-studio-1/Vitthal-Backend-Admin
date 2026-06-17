@@ -1159,6 +1159,32 @@ ALTER TABLE vendor_quotations
 
         -- V3 schema updates - Stock & Price approvals
         ALTER TABLE vendor_products ADD COLUMN IF NOT EXISTS pending_price NUMERIC(12,2) DEFAULT NULL CHECK (pending_price >= 0);
+
+        -- Drop obsolete uniqueness constraints that block multiple variants of the same product
+        ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS idx_unique_cart_product_vendor;
+        DROP INDEX IF EXISTS idx_unique_cart_product_vendor;
+        ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS unique_cart_product_vendor;
+        DROP INDEX IF EXISTS unique_cart_product_vendor;
+
+        -- Drop legacy vendor product constraints/indexes that block multiple variants
+        ALTER TABLE vendor_products DROP CONSTRAINT IF EXISTS unique_vendor_product;
+        ALTER TABLE vendor_products DROP CONSTRAINT IF EXISTS idx_unique_vendor_product;
+        DROP INDEX IF EXISTS idx_unique_vendor_product;
+
+        -- Ensure unique_cart_product_variant_vendor is added
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints
+                WHERE constraint_name = 'unique_cart_product_variant_vendor'
+                  AND table_name = 'cart_items'
+            ) THEN
+                ALTER TABLE cart_items
+                    ADD CONSTRAINT unique_cart_product_variant_vendor
+                    UNIQUE (cart_id, product_variant_id, vendor_id);
+            END IF;
+        END $$;
     `);
 }
 
