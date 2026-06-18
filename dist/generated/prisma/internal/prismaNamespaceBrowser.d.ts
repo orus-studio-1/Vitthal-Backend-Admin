@@ -32,6 +32,7 @@ export declare const ModelName: {
     readonly Vendor: "Vendor";
     readonly Order: "Order";
     readonly VendorProduct: "VendorProduct";
+    readonly ProductVariant: "ProductVariant";
     readonly Cart: "Cart";
     readonly QuotationRequest: "QuotationRequest";
     readonly QuotationMessage: "QuotationMessage";
@@ -147,6 +148,7 @@ export type OrderScalarFieldEnum = (typeof OrderScalarFieldEnum)[keyof typeof Or
 export declare const VendorProductScalarFieldEnum: {
     readonly id: "id";
     readonly product_id: "product_id";
+    readonly product_variant_id: "product_variant_id";
     readonly vendor_id: "vendor_id";
     readonly price: "price";
     readonly moq: "moq";
@@ -161,6 +163,21 @@ export declare const VendorProductScalarFieldEnum: {
     readonly updated_at: "updated_at";
 };
 export type VendorProductScalarFieldEnum = (typeof VendorProductScalarFieldEnum)[keyof typeof VendorProductScalarFieldEnum];
+export declare const ProductVariantScalarFieldEnum: {
+    readonly id: "id";
+    readonly product_id: "product_id";
+    readonly sku: "sku";
+    readonly properties: "properties";
+    readonly approval_status: "approval_status";
+    readonly approval_notes: "approval_notes";
+    readonly created_by_user_id: "created_by_user_id";
+    readonly reviewed_by_user_id: "reviewed_by_user_id";
+    readonly reviewed_at: "reviewed_at";
+    readonly is_active: "is_active";
+    readonly created_at: "created_at";
+    readonly updated_at: "updated_at";
+};
+export type ProductVariantScalarFieldEnum = (typeof ProductVariantScalarFieldEnum)[keyof typeof ProductVariantScalarFieldEnum];
 export declare const CartScalarFieldEnum: {
     readonly id: "id";
     readonly user_id: "user_id";
@@ -176,6 +193,7 @@ export declare const QuotationRequestScalarFieldEnum: {
     readonly user_id: "user_id";
     readonly vendor_id: "vendor_id";
     readonly product_id: "product_id";
+    readonly product_variant_id: "product_variant_id";
     readonly requested_quantity: "requested_quantity";
     readonly requested_price: "requested_price";
     readonly status: "status";

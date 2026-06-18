@@ -237,6 +237,7 @@ export declare const ModelName: {
     readonly Vendor: "Vendor";
     readonly Order: "Order";
     readonly VendorProduct: "VendorProduct";
+    readonly ProductVariant: "ProductVariant";
     readonly Cart: "Cart";
     readonly QuotationRequest: "QuotationRequest";
     readonly QuotationMessage: "QuotationMessage";
@@ -253,7 +254,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         omit: GlobalOmitOptions;
     };
     meta: {
-        modelProps: "user" | "product" | "productImage" | "vendor" | "order" | "vendorProduct" | "cart" | "quotationRequest" | "quotationMessage" | "payment";
+        modelProps: "user" | "product" | "productImage" | "vendor" | "order" | "vendorProduct" | "productVariant" | "cart" | "quotationRequest" | "quotationMessage" | "payment";
         txIsolationLevel: TransactionIsolationLevel;
     };
     model: {
@@ -701,6 +702,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
                 };
             };
         };
+        ProductVariant: {
+            payload: Prisma.$ProductVariantPayload<ExtArgs>;
+            fields: Prisma.ProductVariantFieldRefs;
+            operations: {
+                findUnique: {
+                    args: Prisma.ProductVariantFindUniqueArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload> | null;
+                };
+                findUniqueOrThrow: {
+                    args: Prisma.ProductVariantFindUniqueOrThrowArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                findFirst: {
+                    args: Prisma.ProductVariantFindFirstArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload> | null;
+                };
+                findFirstOrThrow: {
+                    args: Prisma.ProductVariantFindFirstOrThrowArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                findMany: {
+                    args: Prisma.ProductVariantFindManyArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>[];
+                };
+                create: {
+                    args: Prisma.ProductVariantCreateArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                createMany: {
+                    args: Prisma.ProductVariantCreateManyArgs<ExtArgs>;
+                    result: BatchPayload;
+                };
+                createManyAndReturn: {
+                    args: Prisma.ProductVariantCreateManyAndReturnArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>[];
+                };
+                delete: {
+                    args: Prisma.ProductVariantDeleteArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                update: {
+                    args: Prisma.ProductVariantUpdateArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                deleteMany: {
+                    args: Prisma.ProductVariantDeleteManyArgs<ExtArgs>;
+                    result: BatchPayload;
+                };
+                updateMany: {
+                    args: Prisma.ProductVariantUpdateManyArgs<ExtArgs>;
+                    result: BatchPayload;
+                };
+                updateManyAndReturn: {
+                    args: Prisma.ProductVariantUpdateManyAndReturnArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>[];
+                };
+                upsert: {
+                    args: Prisma.ProductVariantUpsertArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                aggregate: {
+                    args: Prisma.ProductVariantAggregateArgs<ExtArgs>;
+                    result: runtime.Types.Utils.Optional<Prisma.AggregateProductVariant>;
+                };
+                groupBy: {
+                    args: Prisma.ProductVariantGroupByArgs<ExtArgs>;
+                    result: runtime.Types.Utils.Optional<Prisma.ProductVariantGroupByOutputType>[];
+                };
+                count: {
+                    args: Prisma.ProductVariantCountArgs<ExtArgs>;
+                    result: runtime.Types.Utils.Optional<Prisma.ProductVariantCountAggregateOutputType> | number;
+                };
+            };
+        };
         Cart: {
             payload: Prisma.$CartPayload<ExtArgs>;
             fields: Prisma.CartFieldRefs;
@@ -1133,6 +1208,7 @@ export type OrderScalarFieldEnum = (typeof OrderScalarFieldEnum)[keyof typeof Or
 export declare const VendorProductScalarFieldEnum: {
     readonly id: "id";
     readonly product_id: "product_id";
+    readonly product_variant_id: "product_variant_id";
     readonly vendor_id: "vendor_id";
     readonly price: "price";
     readonly moq: "moq";
@@ -1147,6 +1223,21 @@ export declare const VendorProductScalarFieldEnum: {
     readonly updated_at: "updated_at";
 };
 export type VendorProductScalarFieldEnum = (typeof VendorProductScalarFieldEnum)[keyof typeof VendorProductScalarFieldEnum];
+export declare const ProductVariantScalarFieldEnum: {
+    readonly id: "id";
+    readonly product_id: "product_id";
+    readonly sku: "sku";
+    readonly properties: "properties";
+    readonly approval_status: "approval_status";
+    readonly approval_notes: "approval_notes";
+    readonly created_by_user_id: "created_by_user_id";
+    readonly reviewed_by_user_id: "reviewed_by_user_id";
+    readonly reviewed_at: "reviewed_at";
+    readonly is_active: "is_active";
+    readonly created_at: "created_at";
+    readonly updated_at: "updated_at";
+};
+export type ProductVariantScalarFieldEnum = (typeof ProductVariantScalarFieldEnum)[keyof typeof ProductVariantScalarFieldEnum];
 export declare const CartScalarFieldEnum: {
     readonly id: "id";
     readonly user_id: "user_id";
@@ -1162,6 +1253,7 @@ export declare const QuotationRequestScalarFieldEnum: {
     readonly user_id: "user_id";
     readonly vendor_id: "vendor_id";
     readonly product_id: "product_id";
+    readonly product_variant_id: "product_variant_id";
     readonly requested_quantity: "requested_quantity";
     readonly requested_price: "requested_price";
     readonly status: "status";
@@ -1439,6 +1531,7 @@ export type GlobalOmitConfig = {
     vendor?: Prisma.VendorOmit;
     order?: Prisma.OrderOmit;
     vendorProduct?: Prisma.VendorProductOmit;
+    productVariant?: Prisma.ProductVariantOmit;
     cart?: Prisma.CartOmit;
     quotationRequest?: Prisma.QuotationRequestOmit;
     quotationMessage?: Prisma.QuotationMessageOmit;

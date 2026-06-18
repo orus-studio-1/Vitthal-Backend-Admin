@@ -73,6 +73,7 @@ export const ModelName = {
     Vendor: 'Vendor',
     Order: 'Order',
     VendorProduct: 'VendorProduct',
+    ProductVariant: 'ProductVariant',
     Cart: 'Cart',
     QuotationRequest: 'QuotationRequest',
     QuotationMessage: 'QuotationMessage',
@@ -184,6 +185,7 @@ export const OrderScalarFieldEnum = {
 export const VendorProductScalarFieldEnum = {
     id: 'id',
     product_id: 'product_id',
+    product_variant_id: 'product_variant_id',
     vendor_id: 'vendor_id',
     price: 'price',
     moq: 'moq',
@@ -194,6 +196,20 @@ export const VendorProductScalarFieldEnum = {
     status: 'status',
     gst_percentage: 'gst_percentage',
     pending_price: 'pending_price',
+    created_at: 'created_at',
+    updated_at: 'updated_at'
+};
+export const ProductVariantScalarFieldEnum = {
+    id: 'id',
+    product_id: 'product_id',
+    sku: 'sku',
+    properties: 'properties',
+    approval_status: 'approval_status',
+    approval_notes: 'approval_notes',
+    created_by_user_id: 'created_by_user_id',
+    reviewed_by_user_id: 'reviewed_by_user_id',
+    reviewed_at: 'reviewed_at',
+    is_active: 'is_active',
     created_at: 'created_at',
     updated_at: 'updated_at'
 };
@@ -211,6 +227,7 @@ export const QuotationRequestScalarFieldEnum = {
     user_id: 'user_id',
     vendor_id: 'vendor_id',
     product_id: 'product_id',
+    product_variant_id: 'product_variant_id',
     requested_quantity: 'requested_quantity',
     requested_price: 'requested_price',
     status: 'status',

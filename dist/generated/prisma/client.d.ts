@@ -52,6 +52,11 @@ export type Order = Prisma.OrderModel;
  */
 export type VendorProduct = Prisma.VendorProductModel;
 /**
+ * Model ProductVariant
+ *
+ */
+export type ProductVariant = Prisma.ProductVariantModel;
+/**
  * Model Cart
  *
  */

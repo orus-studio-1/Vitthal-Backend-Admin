@@ -479,6 +479,7 @@ CREATE TABLE IF NOT EXISTS cart_items (
 
     cart_id UUID NOT NULL,
     product_id UUID NOT NULL,
+    product_variant_id UUID,
     vendor_id UUID NOT NULL,
 
     quantity INTEGER NOT NULL CHECK (quantity > 0),
@@ -496,6 +497,11 @@ CREATE TABLE IF NOT EXISTS cart_items (
     CONSTRAINT fk_cart_items_product
         FOREIGN KEY (product_id)
         REFERENCES products(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_cart_items_product_variant
+        FOREIGN KEY (product_variant_id)
+        REFERENCES product_variants(id)
         ON DELETE CASCADE,
 
     CONSTRAINT fk_cart_items_vendor
@@ -785,6 +791,8 @@ ALTER TABLE orders
 -- INDEXES
 -- ================================
 
+ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS product_variant_id UUID;
+
 -- Optimizing Foreign Keys (Postgres does not index these automatically)
 CREATE INDEX IF NOT EXISTS idx_vendor_products_product_id ON vendor_products(product_id);
 CREATE INDEX IF NOT EXISTS idx_products_images_product_id ON products_images(product_id);
@@ -799,6 +807,7 @@ CREATE INDEX IF NOT EXISTS idx_vendor_products_status ON vendor_products(status)
 --cart indexes
 CREATE INDEX IF NOT EXISTS idx_cart_items_cart_id ON cart_items(cart_id);
 CREATE INDEX IF NOT EXISTS idx_cart_items_product_id ON cart_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_product_variant_id ON cart_items(product_variant_id);
 CREATE INDEX IF NOT EXISTS idx_wishlists_user_id ON wishlists(user_id);
 CREATE INDEX IF NOT EXISTS idx_wishlist_items_wishlist_id ON wishlist_items(wishlist_id);
 CREATE INDEX IF NOT EXISTS idx_wishlist_items_product_id ON wishlist_items(product_id);
@@ -1155,6 +1164,49 @@ ALTER TABLE vendor_quotations
 
         -- V3 schema updates - Stock & Price approvals
         ALTER TABLE vendor_products ADD COLUMN IF NOT EXISTS pending_price NUMERIC(12,2) DEFAULT NULL CHECK (pending_price >= 0);
+        ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS product_variant_id UUID;
+
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints
+                WHERE constraint_name = 'fk_cart_items_product_variant'
+                  AND table_name = 'cart_items'
+            ) THEN
+                ALTER TABLE cart_items
+                    ADD CONSTRAINT fk_cart_items_product_variant
+                    FOREIGN KEY (product_variant_id)
+                    REFERENCES product_variants(id)
+                    ON DELETE CASCADE;
+            END IF;
+        END $$;
+
+        -- Drop obsolete uniqueness constraints that block multiple variants of the same product
+        ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS idx_unique_cart_product_vendor;
+        DROP INDEX IF EXISTS idx_unique_cart_product_vendor;
+        ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS unique_cart_product_vendor;
+        DROP INDEX IF EXISTS unique_cart_product_vendor;
+
+        -- Drop legacy vendor product constraints/indexes that block multiple variants
+        ALTER TABLE vendor_products DROP CONSTRAINT IF EXISTS unique_vendor_product;
+        ALTER TABLE vendor_products DROP CONSTRAINT IF EXISTS idx_unique_vendor_product;
+        DROP INDEX IF EXISTS idx_unique_vendor_product;
+
+        -- Ensure unique_cart_product_variant_vendor is added
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints
+                WHERE constraint_name = 'unique_cart_product_variant_vendor'
+                  AND table_name = 'cart_items'
+            ) THEN
+                ALTER TABLE cart_items
+                    ADD CONSTRAINT unique_cart_product_variant_vendor
+                    UNIQUE (cart_id, product_variant_id, vendor_id);
+            END IF;
+        END $$;
     `);
 }
 //# sourceMappingURL=marketplace.js.map

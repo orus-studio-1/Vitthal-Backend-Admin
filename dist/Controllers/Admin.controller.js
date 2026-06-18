@@ -46,6 +46,7 @@ export const getDashboardStats = async (req, res) => {
                     ORDER BY oi.created_at ASC
                     LIMIT 1
                 ) p ON true
+                WHERE NOT (o.status = 'pending' AND o.payment_status = 'pending' AND o.source IN ('client', 'quotation'))
                 ORDER BY o.created_at DESC
                 LIMIT 5
             `),

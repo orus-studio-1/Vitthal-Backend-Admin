@@ -246,6 +246,7 @@ export type ProductWhereInput = {
     updated_at?: Prisma.DateTimeFilter<"Product"> | Date | string;
     products_images?: Prisma.ProductImageListRelationFilter;
     vendorProducts?: Prisma.VendorProductListRelationFilter;
+    variants?: Prisma.ProductVariantListRelationFilter;
     quotationRequests?: Prisma.QuotationRequestListRelationFilter;
 };
 export type ProductOrderByWithRelationInput = {
@@ -266,6 +267,7 @@ export type ProductOrderByWithRelationInput = {
     updated_at?: Prisma.SortOrder;
     products_images?: Prisma.ProductImageOrderByRelationAggregateInput;
     vendorProducts?: Prisma.VendorProductOrderByRelationAggregateInput;
+    variants?: Prisma.ProductVariantOrderByRelationAggregateInput;
     quotationRequests?: Prisma.QuotationRequestOrderByRelationAggregateInput;
 };
 export type ProductWhereUniqueInput = Prisma.AtLeast<{
@@ -289,6 +291,7 @@ export type ProductWhereUniqueInput = Prisma.AtLeast<{
     updated_at?: Prisma.DateTimeFilter<"Product"> | Date | string;
     products_images?: Prisma.ProductImageListRelationFilter;
     vendorProducts?: Prisma.VendorProductListRelationFilter;
+    variants?: Prisma.ProductVariantListRelationFilter;
     quotationRequests?: Prisma.QuotationRequestListRelationFilter;
 }, "id">;
 export type ProductOrderByWithAggregationInput = {
@@ -351,6 +354,7 @@ export type ProductCreateInput = {
     updated_at?: Date | string;
     products_images?: Prisma.ProductImageCreateNestedManyWithoutProductInput;
     vendorProducts?: Prisma.VendorProductCreateNestedManyWithoutProductInput;
+    variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput;
     quotationRequests?: Prisma.QuotationRequestCreateNestedManyWithoutProductInput;
 };
 export type ProductUncheckedCreateInput = {
@@ -371,6 +375,7 @@ export type ProductUncheckedCreateInput = {
     updated_at?: Date | string;
     products_images?: Prisma.ProductImageUncheckedCreateNestedManyWithoutProductInput;
     vendorProducts?: Prisma.VendorProductUncheckedCreateNestedManyWithoutProductInput;
+    variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput;
     quotationRequests?: Prisma.QuotationRequestUncheckedCreateNestedManyWithoutProductInput;
 };
 export type ProductUpdateInput = {
@@ -391,6 +396,7 @@ export type ProductUpdateInput = {
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     products_images?: Prisma.ProductImageUpdateManyWithoutProductNestedInput;
     vendorProducts?: Prisma.VendorProductUpdateManyWithoutProductNestedInput;
+    variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput;
     quotationRequests?: Prisma.QuotationRequestUpdateManyWithoutProductNestedInput;
 };
 export type ProductUncheckedUpdateInput = {
@@ -411,6 +417,7 @@ export type ProductUncheckedUpdateInput = {
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     products_images?: Prisma.ProductImageUncheckedUpdateManyWithoutProductNestedInput;
     vendorProducts?: Prisma.VendorProductUncheckedUpdateManyWithoutProductNestedInput;
+    variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput;
     quotationRequests?: Prisma.QuotationRequestUncheckedUpdateManyWithoutProductNestedInput;
 };
 export type ProductCreateManyInput = {
@@ -561,6 +568,18 @@ export type ProductUpdateOneRequiredWithoutVendorProductsNestedInput = {
     connect?: Prisma.ProductWhereUniqueInput;
     update?: Prisma.XOR<Prisma.XOR<Prisma.ProductUpdateToOneWithWhereWithoutVendorProductsInput, Prisma.ProductUpdateWithoutVendorProductsInput>, Prisma.ProductUncheckedUpdateWithoutVendorProductsInput>;
 };
+export type ProductCreateNestedOneWithoutVariantsInput = {
+    create?: Prisma.XOR<Prisma.ProductCreateWithoutVariantsInput, Prisma.ProductUncheckedCreateWithoutVariantsInput>;
+    connectOrCreate?: Prisma.ProductCreateOrConnectWithoutVariantsInput;
+    connect?: Prisma.ProductWhereUniqueInput;
+};
+export type ProductUpdateOneRequiredWithoutVariantsNestedInput = {
+    create?: Prisma.XOR<Prisma.ProductCreateWithoutVariantsInput, Prisma.ProductUncheckedCreateWithoutVariantsInput>;
+    connectOrCreate?: Prisma.ProductCreateOrConnectWithoutVariantsInput;
+    upsert?: Prisma.ProductUpsertWithoutVariantsInput;
+    connect?: Prisma.ProductWhereUniqueInput;
+    update?: Prisma.XOR<Prisma.XOR<Prisma.ProductUpdateToOneWithWhereWithoutVariantsInput, Prisma.ProductUpdateWithoutVariantsInput>, Prisma.ProductUncheckedUpdateWithoutVariantsInput>;
+};
 export type ProductCreateNestedOneWithoutQuotationRequestsInput = {
     create?: Prisma.XOR<Prisma.ProductCreateWithoutQuotationRequestsInput, Prisma.ProductUncheckedCreateWithoutQuotationRequestsInput>;
     connectOrCreate?: Prisma.ProductCreateOrConnectWithoutQuotationRequestsInput;
@@ -590,6 +609,7 @@ export type ProductCreateWithoutProducts_imagesInput = {
     created_at?: Date | string;
     updated_at?: Date | string;
     vendorProducts?: Prisma.VendorProductCreateNestedManyWithoutProductInput;
+    variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput;
     quotationRequests?: Prisma.QuotationRequestCreateNestedManyWithoutProductInput;
 };
 export type ProductUncheckedCreateWithoutProducts_imagesInput = {
@@ -609,6 +629,7 @@ export type ProductUncheckedCreateWithoutProducts_imagesInput = {
     created_at?: Date | string;
     updated_at?: Date | string;
     vendorProducts?: Prisma.VendorProductUncheckedCreateNestedManyWithoutProductInput;
+    variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput;
     quotationRequests?: Prisma.QuotationRequestUncheckedCreateNestedManyWithoutProductInput;
 };
 export type ProductCreateOrConnectWithoutProducts_imagesInput = {
@@ -641,6 +662,7 @@ export type ProductUpdateWithoutProducts_imagesInput = {
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     vendorProducts?: Prisma.VendorProductUpdateManyWithoutProductNestedInput;
+    variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput;
     quotationRequests?: Prisma.QuotationRequestUpdateManyWithoutProductNestedInput;
 };
 export type ProductUncheckedUpdateWithoutProducts_imagesInput = {
@@ -660,6 +682,7 @@ export type ProductUncheckedUpdateWithoutProducts_imagesInput = {
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     vendorProducts?: Prisma.VendorProductUncheckedUpdateManyWithoutProductNestedInput;
+    variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput;
     quotationRequests?: Prisma.QuotationRequestUncheckedUpdateManyWithoutProductNestedInput;
 };
 export type ProductCreateWithoutVendorProductsInput = {
@@ -679,6 +702,7 @@ export type ProductCreateWithoutVendorProductsInput = {
     created_at?: Date | string;
     updated_at?: Date | string;
     products_images?: Prisma.ProductImageCreateNestedManyWithoutProductInput;
+    variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput;
     quotationRequests?: Prisma.QuotationRequestCreateNestedManyWithoutProductInput;
 };
 export type ProductUncheckedCreateWithoutVendorProductsInput = {
@@ -698,6 +722,7 @@ export type ProductUncheckedCreateWithoutVendorProductsInput = {
     created_at?: Date | string;
     updated_at?: Date | string;
     products_images?: Prisma.ProductImageUncheckedCreateNestedManyWithoutProductInput;
+    variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput;
     quotationRequests?: Prisma.QuotationRequestUncheckedCreateNestedManyWithoutProductInput;
 };
 export type ProductCreateOrConnectWithoutVendorProductsInput = {
@@ -730,6 +755,7 @@ export type ProductUpdateWithoutVendorProductsInput = {
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     products_images?: Prisma.ProductImageUpdateManyWithoutProductNestedInput;
+    variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput;
     quotationRequests?: Prisma.QuotationRequestUpdateManyWithoutProductNestedInput;
 };
 export type ProductUncheckedUpdateWithoutVendorProductsInput = {
@@ -749,6 +775,100 @@ export type ProductUncheckedUpdateWithoutVendorProductsInput = {
     created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     products_images?: Prisma.ProductImageUncheckedUpdateManyWithoutProductNestedInput;
+    variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput;
+    quotationRequests?: Prisma.QuotationRequestUncheckedUpdateManyWithoutProductNestedInput;
+};
+export type ProductCreateWithoutVariantsInput = {
+    id?: string;
+    name: string;
+    description?: string | null;
+    category?: string | null;
+    product_type?: string | null;
+    specifications?: Prisma.JsonNullValueInput | runtime.InputJsonValue;
+    attributes?: Prisma.JsonNullValueInput | runtime.InputJsonValue;
+    approval_status?: string;
+    approval_notes?: string | null;
+    created_by_user_id?: string | null;
+    is_active?: boolean;
+    rating?: runtime.Decimal | runtime.DecimalJsLike | number | string;
+    review_count?: number;
+    created_at?: Date | string;
+    updated_at?: Date | string;
+    products_images?: Prisma.ProductImageCreateNestedManyWithoutProductInput;
+    vendorProducts?: Prisma.VendorProductCreateNestedManyWithoutProductInput;
+    quotationRequests?: Prisma.QuotationRequestCreateNestedManyWithoutProductInput;
+};
+export type ProductUncheckedCreateWithoutVariantsInput = {
+    id?: string;
+    name: string;
+    description?: string | null;
+    category?: string | null;
+    product_type?: string | null;
+    specifications?: Prisma.JsonNullValueInput | runtime.InputJsonValue;
+    attributes?: Prisma.JsonNullValueInput | runtime.InputJsonValue;
+    approval_status?: string;
+    approval_notes?: string | null;
+    created_by_user_id?: string | null;
+    is_active?: boolean;
+    rating?: runtime.Decimal | runtime.DecimalJsLike | number | string;
+    review_count?: number;
+    created_at?: Date | string;
+    updated_at?: Date | string;
+    products_images?: Prisma.ProductImageUncheckedCreateNestedManyWithoutProductInput;
+    vendorProducts?: Prisma.VendorProductUncheckedCreateNestedManyWithoutProductInput;
+    quotationRequests?: Prisma.QuotationRequestUncheckedCreateNestedManyWithoutProductInput;
+};
+export type ProductCreateOrConnectWithoutVariantsInput = {
+    where: Prisma.ProductWhereUniqueInput;
+    create: Prisma.XOR<Prisma.ProductCreateWithoutVariantsInput, Prisma.ProductUncheckedCreateWithoutVariantsInput>;
+};
+export type ProductUpsertWithoutVariantsInput = {
+    update: Prisma.XOR<Prisma.ProductUpdateWithoutVariantsInput, Prisma.ProductUncheckedUpdateWithoutVariantsInput>;
+    create: Prisma.XOR<Prisma.ProductCreateWithoutVariantsInput, Prisma.ProductUncheckedCreateWithoutVariantsInput>;
+    where?: Prisma.ProductWhereInput;
+};
+export type ProductUpdateToOneWithWhereWithoutVariantsInput = {
+    where?: Prisma.ProductWhereInput;
+    data: Prisma.XOR<Prisma.ProductUpdateWithoutVariantsInput, Prisma.ProductUncheckedUpdateWithoutVariantsInput>;
+};
+export type ProductUpdateWithoutVariantsInput = {
+    id?: Prisma.StringFieldUpdateOperationsInput | string;
+    name?: Prisma.StringFieldUpdateOperationsInput | string;
+    description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    category?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    product_type?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    specifications?: Prisma.JsonNullValueInput | runtime.InputJsonValue;
+    attributes?: Prisma.JsonNullValueInput | runtime.InputJsonValue;
+    approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
+    approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    created_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    is_active?: Prisma.BoolFieldUpdateOperationsInput | boolean;
+    rating?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    review_count?: Prisma.IntFieldUpdateOperationsInput | number;
+    created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+    updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+    products_images?: Prisma.ProductImageUpdateManyWithoutProductNestedInput;
+    vendorProducts?: Prisma.VendorProductUpdateManyWithoutProductNestedInput;
+    quotationRequests?: Prisma.QuotationRequestUpdateManyWithoutProductNestedInput;
+};
+export type ProductUncheckedUpdateWithoutVariantsInput = {
+    id?: Prisma.StringFieldUpdateOperationsInput | string;
+    name?: Prisma.StringFieldUpdateOperationsInput | string;
+    description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    category?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    product_type?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    specifications?: Prisma.JsonNullValueInput | runtime.InputJsonValue;
+    attributes?: Prisma.JsonNullValueInput | runtime.InputJsonValue;
+    approval_status?: Prisma.StringFieldUpdateOperationsInput | string;
+    approval_notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    created_by_user_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    is_active?: Prisma.BoolFieldUpdateOperationsInput | boolean;
+    rating?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    review_count?: Prisma.IntFieldUpdateOperationsInput | number;
+    created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+    updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+    products_images?: Prisma.ProductImageUncheckedUpdateManyWithoutProductNestedInput;
+    vendorProducts?: Prisma.VendorProductUncheckedUpdateManyWithoutProductNestedInput;
     quotationRequests?: Prisma.QuotationRequestUncheckedUpdateManyWithoutProductNestedInput;
 };
 export type ProductCreateWithoutQuotationRequestsInput = {
@@ -769,6 +889,7 @@ export type ProductCreateWithoutQuotationRequestsInput = {
     updated_at?: Date | string;
     products_images?: Prisma.ProductImageCreateNestedManyWithoutProductInput;
     vendorProducts?: Prisma.VendorProductCreateNestedManyWithoutProductInput;
+    variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput;
 };
 export type ProductUncheckedCreateWithoutQuotationRequestsInput = {
     id?: string;
@@ -788,6 +909,7 @@ export type ProductUncheckedCreateWithoutQuotationRequestsInput = {
     updated_at?: Date | string;
     products_images?: Prisma.ProductImageUncheckedCreateNestedManyWithoutProductInput;
     vendorProducts?: Prisma.VendorProductUncheckedCreateNestedManyWithoutProductInput;
+    variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput;
 };
 export type ProductCreateOrConnectWithoutQuotationRequestsInput = {
     where: Prisma.ProductWhereUniqueInput;
@@ -820,6 +942,7 @@ export type ProductUpdateWithoutQuotationRequestsInput = {
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     products_images?: Prisma.ProductImageUpdateManyWithoutProductNestedInput;
     vendorProducts?: Prisma.VendorProductUpdateManyWithoutProductNestedInput;
+    variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput;
 };
 export type ProductUncheckedUpdateWithoutQuotationRequestsInput = {
     id?: Prisma.StringFieldUpdateOperationsInput | string;
@@ -839,6 +962,7 @@ export type ProductUncheckedUpdateWithoutQuotationRequestsInput = {
     updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     products_images?: Prisma.ProductImageUncheckedUpdateManyWithoutProductNestedInput;
     vendorProducts?: Prisma.VendorProductUncheckedUpdateManyWithoutProductNestedInput;
+    variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput;
 };
 /**
  * Count Type ProductCountOutputType
@@ -846,11 +970,13 @@ export type ProductUncheckedUpdateWithoutQuotationRequestsInput = {
 export type ProductCountOutputType = {
     products_images: number;
     vendorProducts: number;
+    variants: number;
     quotationRequests: number;
 };
 export type ProductCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
     products_images?: boolean | ProductCountOutputTypeCountProducts_imagesArgs;
     vendorProducts?: boolean | ProductCountOutputTypeCountVendorProductsArgs;
+    variants?: boolean | ProductCountOutputTypeCountVariantsArgs;
     quotationRequests?: boolean | ProductCountOutputTypeCountQuotationRequestsArgs;
 };
 /**
@@ -877,6 +1003,12 @@ export type ProductCountOutputTypeCountVendorProductsArgs<ExtArgs extends runtim
 /**
  * ProductCountOutputType without action
  */
+export type ProductCountOutputTypeCountVariantsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+    where?: Prisma.ProductVariantWhereInput;
+};
+/**
+ * ProductCountOutputType without action
+ */
 export type ProductCountOutputTypeCountQuotationRequestsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
     where?: Prisma.QuotationRequestWhereInput;
 };
@@ -898,6 +1030,7 @@ export type ProductSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     updated_at?: boolean;
     products_images?: boolean | Prisma.Product$products_imagesArgs<ExtArgs>;
     vendorProducts?: boolean | Prisma.Product$vendorProductsArgs<ExtArgs>;
+    variants?: boolean | Prisma.Product$variantsArgs<ExtArgs>;
     quotationRequests?: boolean | Prisma.Product$quotationRequestsArgs<ExtArgs>;
     _count?: boolean | Prisma.ProductCountOutputTypeDefaultArgs<ExtArgs>;
 }, ExtArgs["result"]["product"]>;
@@ -956,6 +1089,7 @@ export type ProductOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
 export type ProductInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
     products_images?: boolean | Prisma.Product$products_imagesArgs<ExtArgs>;
     vendorProducts?: boolean | Prisma.Product$vendorProductsArgs<ExtArgs>;
+    variants?: boolean | Prisma.Product$variantsArgs<ExtArgs>;
     quotationRequests?: boolean | Prisma.Product$quotationRequestsArgs<ExtArgs>;
     _count?: boolean | Prisma.ProductCountOutputTypeDefaultArgs<ExtArgs>;
 };
@@ -966,6 +1100,7 @@ export type $ProductPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     objects: {
         products_images: Prisma.$ProductImagePayload<ExtArgs>[];
         vendorProducts: Prisma.$VendorProductPayload<ExtArgs>[];
+        variants: Prisma.$ProductVariantPayload<ExtArgs>[];
         quotationRequests: Prisma.$QuotationRequestPayload<ExtArgs>[];
     };
     scalars: runtime.Types.Extensions.GetPayloadResult<{
@@ -1315,6 +1450,7 @@ export interface Prisma__ProductClient<T, Null = never, ExtArgs extends runtime.
     readonly [Symbol.toStringTag]: "PrismaPromise";
     products_images<T extends Prisma.Product$products_imagesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$products_imagesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProductImagePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>;
     vendorProducts<T extends Prisma.Product$vendorProductsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$vendorProductsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VendorProductPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>;
+    variants<T extends Prisma.Product$variantsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$variantsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProductVariantPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>;
     quotationRequests<T extends Prisma.Product$quotationRequestsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$quotationRequestsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$QuotationRequestPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>;
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -1776,6 +1912,29 @@ export type Product$vendorProductsArgs<ExtArgs extends runtime.Types.Extensions.
     take?: number;
     skip?: number;
     distinct?: Prisma.VendorProductScalarFieldEnum | Prisma.VendorProductScalarFieldEnum[];
+};
+/**
+ * Product.variants
+ */
+export type Product$variantsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ProductVariant
+     */
+    select?: Prisma.ProductVariantSelect<ExtArgs> | null;
+    /**
+     * Omit specific fields from the ProductVariant
+     */
+    omit?: Prisma.ProductVariantOmit<ExtArgs> | null;
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: Prisma.ProductVariantInclude<ExtArgs> | null;
+    where?: Prisma.ProductVariantWhereInput;
+    orderBy?: Prisma.ProductVariantOrderByWithRelationInput | Prisma.ProductVariantOrderByWithRelationInput[];
+    cursor?: Prisma.ProductVariantWhereUniqueInput;
+    take?: number;
+    skip?: number;
+    distinct?: Prisma.ProductVariantScalarFieldEnum | Prisma.ProductVariantScalarFieldEnum[];
 };
 /**
  * Product.quotationRequests

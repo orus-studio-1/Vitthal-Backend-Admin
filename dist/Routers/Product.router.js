@@ -1,6 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import { addProductController, deleteProduct, getAllProducts, getProductById, reviewProduct, updateProduct, reviewProductImage, reviewProductSpecification, getPendingVendorProducts, reviewVendorProduct, setProductPrimaryImage, getCategories, addCategoryController, updateCategoryController, deleteCategoryController, uploadProductImagesController, getProductTypes, getPendingPriceChanges, reviewPendingPriceChange } from "../Controllers/Product.controller.js";
+import { addProductController, deleteProduct, getAllProducts, getProductById, reviewProduct, updateProduct, reviewProductImage, reviewProductSpecification, getPendingVendorProducts, reviewVendorProduct, setProductPrimaryImage, getCategories, addCategoryController, updateCategoryController, deleteCategoryController, uploadProductImagesController, getProductTypes, getPendingPriceChanges, reviewPendingPriceChange, getPendingVariants, reviewProductVariant } from "../Controllers/Product.controller.js";
 import { authMiddleware } from "../Middleware/AuthMiddleware.js";
 const productRouter = Router();
 const upload = multer({
@@ -17,6 +17,8 @@ productRouter.get("/pending-vendor/all", getPendingVendorProducts);
 productRouter.put("/pending-vendor/:id/review", reviewVendorProduct);
 productRouter.get("/pending-price/all", getPendingPriceChanges);
 productRouter.put("/pending-price/:id/review", reviewPendingPriceChange);
+productRouter.get("/pending-variants/all", getPendingVariants);
+productRouter.put("/pending-variants/:id/review", reviewProductVariant);
 productRouter.put("/image/set-primary", setProductPrimaryImage);
 productRouter.get("/getCategories", getCategories);
 productRouter.post("/categories/add", addCategoryController);
