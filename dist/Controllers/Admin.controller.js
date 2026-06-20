@@ -15,7 +15,7 @@ export const getDashboardStats = async (req, res) => {
         return res;
     }
     try {
-        const [totalUsers, totalProducts, totalOrders, totalVendors, activeVendors, pendingVendors, pendingProducts, orderStats, recentOrders, monthlyRevenue,] = await Promise.all([
+        const [totalUsers, totalProducts, totalOrders, totalVendors, activeVendors, pendingVendors, pendingProducts, orderStats, recentOrders, orderDetails, monthlyRevenue,] = await Promise.all([
             marketplacePool.query(`SELECT COUNT(*)::int AS count FROM users`),
             marketplacePool.query(`SELECT COUNT(*)::int AS count FROM products`),
             marketplacePool.query(`SELECT COUNT(*)::int AS count FROM orders`),
@@ -51,6 +51,32 @@ export const getDashboardStats = async (req, res) => {
                 LIMIT 5
             `),
             marketplacePool.query(`
+                SELECT
+                    o.id,
+                    COALESCE(o.customer_name, u.name) AS customer_name,
+                    v.company_name AS vendor_name,
+                    p.name AS product_name,
+                    o.total_amount,
+                    o.status,
+                    o.source,
+                    o.created_at,
+                    o.updated_at
+                FROM orders o
+                LEFT JOIN users u ON u.id = o.user_id
+                JOIN vendors v ON v.id = o.vendor_id
+                LEFT JOIN LATERAL (
+                    SELECT pr.name
+                    FROM order_items oi
+                    JOIN products pr ON pr.id = oi.product_id
+                    WHERE oi.order_id = o.id
+                    ORDER BY oi.created_at ASC
+                    LIMIT 1
+                ) p ON true
+                WHERE NOT (o.status = 'pending' AND o.payment_status = 'pending' AND o.source IN ('client', 'quotation'))
+                ORDER BY o.created_at DESC
+                LIMIT 100
+            `),
+            marketplacePool.query(`
                 SELECT COALESCE(SUM(total_amount), 0)::float AS revenue
                 FROM orders
                 WHERE status = 'delivered'
@@ -72,6 +98,7 @@ export const getDashboardStats = async (req, res) => {
                 return acc;
             }, {}),
             recentOrders: recentOrders.rows,
+            orderDetails: orderDetails.rows,
             monthlyRevenue: monthlyRevenue.rows[0].revenue,
         };
         return res.status(200).json({ message: "Dashboard stats retrieved successfully", data: stats });
@@ -88,6 +115,16 @@ export const getAnalytics = async (req, res) => {
     }
     const period = Number(req.query.period || 30);
     const safePeriod = Number.isFinite(period) && period > 0 ? period : 30;
+    const startDate = typeof req.query.startDate === "string" ? req.query.startDate : "";
+    const endDate = typeof req.query.endDate === "string" ? req.query.endDate : "";
+    const hasDateRange = Boolean(startDate && endDate);
+    const dateFilter = hasDateRange
+        ? "o.created_at >= $1::date AND o.created_at < ($2::date + INTERVAL '1 day')"
+        : "o.created_at >= NOW() - ($1::text || ' days')::interval";
+    const orderDateFilter = hasDateRange
+        ? "created_at >= $1::date AND created_at < ($2::date + INTERVAL '1 day')"
+        : "created_at >= NOW() - ($1::text || ' days')::interval";
+    const analyticsValues = hasDateRange ? [startDate, endDate] : [safePeriod];
     try {
         const [ordersOverTime, topProducts, topVendors, statusDistribution, topCustomers, topCities, purchaseTimeOfDay, categoryDistribution] = await Promise.all([
             marketplacePool.query(`
@@ -96,10 +133,10 @@ export const getAnalytics = async (req, res) => {
                         COUNT(*)::int AS count,
                         COALESCE(SUM(o.total_amount), 0)::float AS revenue
                     FROM orders o
-                    WHERE o.created_at >= NOW() - ($1::text || ' days')::interval
+                    WHERE ${dateFilter}
                     GROUP BY DATE(o.created_at)
                     ORDER BY DATE(o.created_at) ASC
-                `, [safePeriod]),
+                `, analyticsValues),
             marketplacePool.query(`
                     SELECT
                         oi.product_id,
@@ -109,11 +146,11 @@ export const getAnalytics = async (req, res) => {
                     FROM order_items oi
                     JOIN orders o ON o.id = oi.order_id
                     JOIN products p ON p.id = oi.product_id
-                    WHERE o.created_at >= NOW() - ($1::text || ' days')::interval
+                    WHERE ${dateFilter}
                     GROUP BY oi.product_id, p.name
                     ORDER BY order_count DESC, total_revenue DESC
                     LIMIT 10
-                `, [safePeriod]),
+                `, analyticsValues),
             marketplacePool.query(`
                     SELECT
                         o.vendor_id,
@@ -122,17 +159,17 @@ export const getAnalytics = async (req, res) => {
                         v.company_name
                     FROM orders o
                     JOIN vendors v ON v.id = o.vendor_id
-                    WHERE o.created_at >= NOW() - ($1::text || ' days')::interval
+                    WHERE ${dateFilter}
                     GROUP BY o.vendor_id, v.company_name
                     ORDER BY total_revenue DESC, order_count DESC
                     LIMIT 10
-                `, [safePeriod]),
+                `, analyticsValues),
             marketplacePool.query(`
                     SELECT status, COUNT(*)::int AS count
                     FROM orders
-                    WHERE created_at >= NOW() - ($1::text || ' days')::interval
+                    WHERE ${orderDateFilter}
                     GROUP BY status
-                `, [safePeriod]),
+                `, analyticsValues),
             marketplacePool.query(`
                     SELECT
                         u.id AS user_id,
@@ -142,32 +179,32 @@ export const getAnalytics = async (req, res) => {
                         COALESCE(SUM(o.total_amount), 0)::float AS total_spent
                     FROM orders o
                     JOIN users u ON u.id = o.user_id
-                    WHERE o.created_at >= NOW() - ($1::text || ' days')::interval
+                    WHERE ${dateFilter}
                     GROUP BY u.id, u.name, u.email
                     ORDER BY total_spent DESC, order_count DESC
                     LIMIT 10
-                `, [safePeriod]),
+                `, analyticsValues),
             marketplacePool.query(`
                     SELECT
                         COALESCE(NULLIF(o.city, ''), 'Unknown') AS city,
                         COUNT(o.id)::int AS order_count,
                         COALESCE(SUM(o.total_amount), 0)::float AS total_revenue
                     FROM orders o
-                    WHERE o.created_at >= NOW() - ($1::text || ' days')::interval
+                    WHERE ${dateFilter}
                     GROUP BY o.city
                     ORDER BY total_revenue DESC, order_count DESC
                     LIMIT 10
-                `, [safePeriod]),
+                `, analyticsValues),
             marketplacePool.query(`
                     SELECT
                         EXTRACT(HOUR FROM o.created_at)::int AS hour_of_day,
                         COUNT(o.id)::int AS order_count,
                         COALESCE(SUM(o.total_amount), 0)::float AS total_revenue
                     FROM orders o
-                    WHERE o.created_at >= NOW() - ($1::text || ' days')::interval
+                    WHERE ${dateFilter}
                     GROUP BY EXTRACT(HOUR FROM o.created_at)
                     ORDER BY hour_of_day ASC
-                `, [safePeriod]),
+                `, analyticsValues),
             marketplacePool.query(`
                     SELECT
                         p.category,
@@ -177,13 +214,13 @@ export const getAnalytics = async (req, res) => {
                     FROM order_items oi
                     JOIN orders o ON o.id = oi.order_id
                     JOIN products p ON p.id = oi.product_id
-                    WHERE o.created_at >= NOW() - ($1::text || ' days')::interval
+                    WHERE ${dateFilter}
                     GROUP BY p.category
                     ORDER BY total_revenue DESC, order_count DESC
-                `, [safePeriod]),
+                `, analyticsValues),
         ]);
         const analytics = {
-            period: `${safePeriod} days`,
+            period: hasDateRange ? `${startDate} to ${endDate}` : `${safePeriod} days`,
             ordersOverTime: ordersOverTime.rows,
             topProducts: topProducts.rows.map((row) => ({
                 product_id: row.product_id,
