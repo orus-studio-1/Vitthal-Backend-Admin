@@ -57,6 +57,16 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
         next();
 
     } catch (error) {
+        [
+            "accessToken",
+            "refreshToken",
+            "vendorAccessToken",
+            "vendorRefreshToken",
+            "clientAccessToken",
+            "clientRefreshToken",
+        ].forEach((cookieName) => {
+            res.clearCookie(cookieName, COOKIE_OPTIONS);
+        });
         return res.status(401).json({ message: "Unauthorized! Failed to verify Tokens." });
     }
 }

@@ -54,7 +54,12 @@ export function verifyToken(token, type) {
         return { userId: decoded.userId, username: decoded.username, email: decoded.email, role: decoded.role };
     }
     catch (error) {
-        console.error('Error verifying token:', error);
+        if (error instanceof Error && ["JsonWebTokenError", "TokenExpiredError", "NotBeforeError"].includes(error.name)) {
+            console.warn(`Token verification failed: ${error.message}`);
+        }
+        else {
+            console.error('Error verifying token:', error);
+        }
         throw new Error('Failed to verify token');
     }
 }

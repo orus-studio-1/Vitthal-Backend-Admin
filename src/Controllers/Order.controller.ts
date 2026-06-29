@@ -78,6 +78,50 @@ const orderSelect = `
     LEFT JOIN products first_product ON first_product.id = first_item.product_id
 `;
 
+const statusTrackingText: Record<(typeof allowedStatuses)[number], { title: string; note: string }> = {
+    pending: {
+        title: "Order placed",
+        note: "Order was created and is waiting for confirmation.",
+    },
+    confirmed: {
+        title: "Order confirmed",
+        note: "Order was confirmed and vendor fulfillment can begin.",
+    },
+    shipped: {
+        title: "Order shipped",
+        note: "Order has left the vendor or fulfillment center.",
+    },
+    delivered: {
+        title: "Order delivered",
+        note: "Order was delivered to the customer location.",
+    },
+    cancelled: {
+        title: "Order cancelled",
+        note: "Order was cancelled before completion.",
+    },
+};
+
+async function recordOrderTracking(client: any, orderId: string, status: (typeof allowedStatuses)[number], note?: string) {
+    const tracking = statusTrackingText[status];
+    const trackingNote = note?.trim() || tracking.note;
+
+    await client.query(
+        `
+            INSERT INTO order_status_history (order_id, status, note)
+            VALUES ($1, $2, $3)
+        `,
+        [orderId, status, trackingNote]
+    );
+
+    await client.query(
+        `
+            INSERT INTO order_fulfillment_tracking (order_id, status, note)
+            VALUES ($1, $2, $3)
+        `,
+        [orderId, status, `${tracking.title}: ${trackingNote}`]
+    );
+}
+
 async function ensureClientUser(client: any, customerName: string, customerEmail: string, customerPhone?: string) {
     const normalizedEmail = customerEmail.trim().toLowerCase();
     const existingUser = await client.query(
@@ -261,6 +305,8 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
             [orderResult.rows[0].id, vendor_id]
         );
 
+        await recordOrderTracking(client, orderResult.rows[0].id, "pending", "Admin created this order.");
+
         await client.query("COMMIT");
 
         const created = await marketplacePool.query(`${orderSelect} WHERE o.id = $1`, [orderResult.rows[0].id]);
@@ -390,11 +436,30 @@ export const getOrderById = async (req: Request, res: Response): Promise<Respons
                             'status', osh.status,
                             'note', osh.note,
                             'created_at', osh.created_at
-                        ) ORDER BY osh.created_at DESC
+                        ) ORDER BY osh.created_at ASC
                     )
                     FROM order_status_history osh
                     WHERE osh.order_id = o.id
-                ) AS status_history
+                ) AS status_history,
+                (
+                    SELECT json_agg(
+                        json_build_object(
+                            'id', oft.id,
+                            'status', oft.status,
+                            'note', oft.note,
+                            'created_at', oft.created_at,
+                            'fulfillment_center_id', oft.fulfillment_center_id,
+                            'fulfillment_center', fc.name,
+                            'city', fc.city,
+                            'state', fc.state,
+                            'country', fc.country,
+                            'pincode', fc.pincode
+                        ) ORDER BY oft.created_at ASC
+                    )
+                    FROM order_fulfillment_tracking oft
+                    LEFT JOIN fulfillment_centers fc ON fc.id = oft.fulfillment_center_id
+                    WHERE oft.order_id = o.id
+                ) AS fulfillment_tracking
             FROM orders o
             LEFT JOIN users u ON u.id = o.user_id
             LEFT JOIN client c ON c.user_id = o.user_id
@@ -426,19 +491,28 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<Re
     if (!mappedStatus) {
         return res.status(400).json({ message: "A valid order status is required." });
     }
+    const orderId = String(req.params.id ?? "");
+
+    const client = await marketplacePool.connect();
 
     try {
-        const result = await marketplacePool.query(
+        await client.query("BEGIN");
+
+        const result = await client.query(
             `UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id`,
-            [mappedStatus, req.params.id]
+            [mappedStatus, orderId]
         );
 
         if (!result.rows.length) {
+            await client.query("ROLLBACK");
             return res.status(404).json({ message: "Order not found" });
         }
 
+        const trackingNote = typeof req.body.note === "string" ? req.body.note : undefined;
+        await recordOrderTracking(client, orderId, mappedStatus, trackingNote);
+
         if (mappedStatus === "delivered") {
-            await marketplacePool.query(
+            await client.query(
                 `INSERT INTO vendor_payouts (order_id, vendor_id, status, delivered_at, due_date)
                  SELECT 
                      o.id,
@@ -462,15 +536,20 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<Re
                      delivered_at = EXCLUDED.delivered_at,
                      due_date = EXCLUDED.due_date,
                      updated_at = NOW()`,
-                [req.params.id]
+                [orderId]
             );
         }
 
-        const updated = await marketplacePool.query(`${orderSelect} WHERE o.id = $1`, [req.params.id]);
+        await client.query("COMMIT");
+
+        const updated = await marketplacePool.query(`${orderSelect} WHERE o.id = $1`, [orderId]);
         return res.status(200).json({ message: "Order status updated successfully", data: updated.rows[0] });
     } catch (error) {
+        await client.query("ROLLBACK");
         console.error("Error updating order status:", error);
         return res.status(500).json({ message: "Internal server error" });
+    } finally {
+        client.release();
     }
 };
 
