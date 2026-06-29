@@ -1103,9 +1103,12 @@ export async function createAndSendVendorQuotation(input: {
     adminSignatureData?: unknown;
     vendorUpdates?: any;
 }) {
-    const quotationKind = (normalizeOptionalText(input.quotationKind) || "vendor_agreement").toLowerCase() as VendorQuotationKind;
+    const quotationKind = (normalizeOptionalText(input.quotationKind) || "order_request").toLowerCase() as VendorQuotationKind;
     if (quotationKind !== "vendor_agreement" && quotationKind !== "order_request") {
         throw new Error("quotationKind must be either vendor_agreement or order_request.");
+    }
+    if ((quotationKind as string) === "vendor_agreement") {
+        throw new Error("Vendor agreement signing has been replaced by mandatory signature image upload during vendor registration.");
     }
 
     const title = normalizeRequiredText(input.title, "title");

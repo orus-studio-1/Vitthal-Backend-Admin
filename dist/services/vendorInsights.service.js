@@ -9,6 +9,7 @@ const vendorProfileSelect = `
         v.company_name,
         v.gst_number,
         v.gst_certificate_link,
+        v.vendor_signature_image_link,
         v.business_type,
         v.company_website,
         v.phone,
@@ -62,6 +63,9 @@ export async function getVendorProfile(vendorId) {
     const vendor = result.rows[0] ?? null;
     if (vendor && vendor.gst_certificate_link) {
         vendor.gst_certificate_link = await getPresignedUrlOrOriginal(vendor.gst_certificate_link);
+    }
+    if (vendor && vendor.vendor_signature_image_link) {
+        vendor.vendor_signature_image_link = await getPresignedUrlOrOriginal(vendor.vendor_signature_image_link);
     }
     return vendor;
 }

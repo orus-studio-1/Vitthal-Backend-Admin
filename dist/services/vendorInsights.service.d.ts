@@ -6,6 +6,7 @@ type VendorProfile = {
     company_name: string;
     gst_number: string | null;
     gst_certificate_link: string | null;
+    vendor_signature_image_link: string | null;
     business_type: string | null;
     company_website: string | null;
     phone: string | null;
