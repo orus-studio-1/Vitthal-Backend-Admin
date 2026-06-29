@@ -76,9 +76,4 @@ export type QuotationMessage = Prisma.QuotationMessageModel;
  *
  */
 export type Payment = Prisma.PaymentModel;
-/**
- * Model FulfillmentCenter
- *
- */
-export type FulfillmentCenter = Prisma.FulfillmentCenterModel;
 //# sourceMappingURL=client.d.ts.map

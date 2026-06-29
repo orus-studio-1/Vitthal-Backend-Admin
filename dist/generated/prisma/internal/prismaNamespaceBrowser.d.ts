@@ -37,7 +37,6 @@ export declare const ModelName: {
     readonly QuotationRequest: "QuotationRequest";
     readonly QuotationMessage: "QuotationMessage";
     readonly Payment: "Payment";
-    readonly FulfillmentCenter: "FulfillmentCenter";
 };
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
 export declare const TransactionIsolationLevel: {
@@ -245,30 +244,6 @@ export declare const PaymentScalarFieldEnum: {
     readonly updated_at: "updated_at";
 };
 export type PaymentScalarFieldEnum = (typeof PaymentScalarFieldEnum)[keyof typeof PaymentScalarFieldEnum];
-export declare const FulfillmentCenterScalarFieldEnum: {
-    readonly id: "id";
-    readonly user_id: "user_id";
-    readonly name: "name";
-    readonly code: "code";
-    readonly contact_phone: "contact_phone";
-    readonly contact_email: "contact_email";
-    readonly manager_name: "manager_name";
-    readonly address: "address";
-    readonly city: "city";
-    readonly state: "state";
-    readonly country: "country";
-    readonly pincode: "pincode";
-    readonly latitude: "latitude";
-    readonly longitude: "longitude";
-    readonly total_area_sqft: "total_area_sqft";
-    readonly capacity_packages: "capacity_packages";
-    readonly storage_type: "storage_type";
-    readonly operating_hours: "operating_hours";
-    readonly status: "status";
-    readonly created_at: "created_at";
-    readonly updated_at: "updated_at";
-};
-export type FulfillmentCenterScalarFieldEnum = (typeof FulfillmentCenterScalarFieldEnum)[keyof typeof FulfillmentCenterScalarFieldEnum];
 export declare const SortOrder: {
     readonly asc: "asc";
     readonly desc: "desc";

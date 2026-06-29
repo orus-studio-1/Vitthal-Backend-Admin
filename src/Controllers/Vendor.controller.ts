@@ -13,6 +13,9 @@ async function resolveVendorGstLink(vendor: any) {
     if (vendor && vendor.gst_certificate_link) {
         vendor.gst_certificate_link = await getPresignedUrlOrOriginal(vendor.gst_certificate_link);
     }
+    if (vendor && vendor.vendor_signature_image_link) {
+        vendor.vendor_signature_image_link = await getPresignedUrlOrOriginal(vendor.vendor_signature_image_link);
+    }
     return vendor;
 }
 
@@ -39,6 +42,7 @@ const vendorSelect = `
         v.company_name,
         v.gst_number,
         v.gst_certificate_link,
+        v.vendor_signature_image_link,
         v.business_type,
         v.company_website,
         v.phone,
@@ -278,7 +282,7 @@ export const reviewVendor = async (req: Request, res: Response): Promise<Respons
 
         const vendorResult = await client.query(
             `
-                SELECT v.id, v.user_id, v.company_name, u.name, u.email
+                SELECT v.id, v.user_id, v.company_name, v.vendor_signature_image_link, u.name, u.email
                 FROM vendors v
                 JOIN users u ON u.id = v.user_id
                 WHERE v.id = $1
@@ -294,24 +298,9 @@ export const reviewVendor = async (req: Request, res: Response): Promise<Respons
         const isApproved = decision === "approved";
         const isReconsideration = decision === "reconsideration";
 
-        if (decision === "approved") {
-            const agreementResult = await client.query(
-                `
-                    SELECT status
-                    FROM vendor_quotations
-                    WHERE vendor_id = $1
-                      AND quotation_kind = 'vendor_agreement'
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                `,
-                [id]
-            );
-
-            const agreementStatus = agreementResult.rows[0]?.status as string | undefined;
-            if (!agreementStatus || !["vendor_approved", "vendor_rejected", "admin_approved", "admin_rejected"].includes(agreementStatus)) {
-                await client.query("ROLLBACK");
-                return res.status(400).json({ message: `Vendor can only be approved after the agreement has been sent and the vendor has responded.` });
-            }
+        if (decision === "approved" && !vendor.vendor_signature_image_link) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ message: "Vendor can only be approved after uploading a signature image." });
         }
 
         await client.query(

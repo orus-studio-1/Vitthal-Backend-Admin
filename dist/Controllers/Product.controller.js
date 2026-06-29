@@ -4,6 +4,7 @@ import { createAndEmitNotification } from "../lib/notificationEmitter.js";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 const adminRoles = ["admin", "super_admin"];
 const reviewDecisions = ["approved", "rejected"];
+const categoryImageMimeTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 function ensureAdmin(req, res) {
     const { role } = req.user ?? {};
     if (!adminRoles.includes(role)) {
@@ -41,6 +42,36 @@ function parseSpecifications(specifications) {
         return specifications;
     }
     throw new Error("Specifications must be a JSON object, array, or valid JSON string.");
+}
+function asOptionalTrimmedString(value) {
+    if (value === undefined || value === null) {
+        return null;
+    }
+    const trimmed = String(value).trim();
+    return trimmed ? trimmed : null;
+}
+async function uploadCategoryImage(file) {
+    if (!file) {
+        return null;
+    }
+    if (!categoryImageMimeTypes.has(file.mimetype)) {
+        throw new Error("Category image must be a JPG, PNG, or WEBP file.");
+    }
+    if (!BUCKET_NAME) {
+        throw new Error("AWS_BUCKET_NAME is not configured.");
+    }
+    const extension = file.originalname.includes(".")
+        ? file.originalname.split(".").pop()?.toLowerCase()
+        : file.mimetype.split("/").pop();
+    const safeExtension = extension && /^[a-z0-9]+$/.test(extension) ? extension : "jpg";
+    const fileName = `categories/${Date.now()}_${Math.random().toString(36).slice(2, 10)}.${safeExtension}`;
+    await s3Client.send(new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: fileName,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+    }));
+    return fileName;
 }
 const productSelect = `
     SELECT
@@ -686,6 +717,9 @@ export const getCategories = async (req, res) => {
         const result = await marketplacePool.query(`SELECT id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active
              FROM product_category
              ORDER BY sort_order ASC, label ASC`);
+        for (const category of result.rows) {
+            category.image = await getPresignedUrlOrOriginal(category.image);
+        }
         return res.status(200).json({ message: "Categories fetched successfully", data: result.rows });
     }
     catch (e) {
@@ -698,11 +732,13 @@ export const addCategoryController = async (req, res) => {
     if (!authUser) {
         return res;
     }
-    const { code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active } = req.body;
-    if (!code || !label || !image) {
-        return res.status(400).json({ message: "Code, Label, and Image are required." });
-    }
     try {
+        const { code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active } = req.body;
+        const uploadedImage = await uploadCategoryImage(req.file);
+        const finalImage = uploadedImage || asOptionalTrimmedString(image);
+        if (!code || !label || !finalImage) {
+            return res.status(400).json({ message: "Code, Label, and Image are required." });
+        }
         const codeCheck = await marketplacePool.query(`SELECT id FROM product_category WHERE LOWER(code) = LOWER($1)`, [code.trim()]);
         if (codeCheck.rows.length > 0) {
             return res.status(400).json({ message: `Category with code "${code}" already exists.` });
@@ -724,17 +760,19 @@ export const addCategoryController = async (req, res) => {
             code.trim().toLowerCase(),
             label.trim(),
             description ? description.trim() : null,
-            image.trim(),
+            finalImage,
             Number(min_commision_percentage) || 0,
             max_commision_percentage !== undefined ? Number(max_commision_percentage) : 10,
             Number(sort_order) || 0,
             is_active !== undefined ? Boolean(is_active) : true
         ]);
-        return res.status(201).json({ message: "Category created successfully", data: result.rows[0] });
+        const category = result.rows[0];
+        category.image = await getPresignedUrlOrOriginal(category.image);
+        return res.status(201).json({ message: "Category created successfully", data: category });
     }
     catch (error) {
         console.error("Error while creating category:", error);
-        return res.status(500).json({ message: "Internal server error" });
+        return res.status(400).json({ message: error instanceof Error ? error.message : "Internal server error" });
     }
 };
 export const updateCategoryController = async (req, res) => {
@@ -743,8 +781,9 @@ export const updateCategoryController = async (req, res) => {
         return res;
     }
     const { id } = req.params;
-    const { code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active } = req.body;
     try {
+        const { code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active } = req.body;
+        const uploadedImage = await uploadCategoryImage(req.file);
         const existing = await marketplacePool.query(`SELECT id FROM product_category WHERE id = $1`, [id]);
         if (existing.rows.length === 0) {
             return res.status(404).json({ message: "Category not found." });
@@ -770,9 +809,17 @@ export const updateCategoryController = async (req, res) => {
             updates.push(`description = $${index++}`);
             values.push(description ? description.trim() : null);
         }
-        if (image !== undefined) {
+        if (uploadedImage) {
             updates.push(`image = $${index++}`);
-            values.push(image.trim());
+            values.push(uploadedImage);
+        }
+        else if (image !== undefined) {
+            const finalImage = asOptionalTrimmedString(image);
+            if (!finalImage) {
+                return res.status(400).json({ message: "Image cannot be empty." });
+            }
+            updates.push(`image = $${index++}`);
+            values.push(finalImage);
         }
         if (min_commision_percentage !== undefined) {
             updates.push(`min_commision_percentage = $${index++}`);
@@ -802,11 +849,13 @@ export const updateCategoryController = async (req, res) => {
             RETURNING id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active
         `;
         const result = await marketplacePool.query(query, values);
-        return res.status(200).json({ message: "Category updated successfully", data: result.rows[0] });
+        const category = result.rows[0];
+        category.image = await getPresignedUrlOrOriginal(category.image);
+        return res.status(200).json({ message: "Category updated successfully", data: category });
     }
     catch (error) {
         console.error("Error while updating category:", error);
-        return res.status(500).json({ message: "Internal server error" });
+        return res.status(400).json({ message: error instanceof Error ? error.message : "Internal server error" });
     }
 };
 export const deleteCategoryController = async (req, res) => {
