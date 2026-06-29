@@ -18,4 +18,6 @@ export declare const uploadProductImagesController: (req: Request, res: Response
 export declare const getProductTypes: (req: Request, res: Response) => Promise<Response>;
 export declare const getPendingPriceChanges: (req: Request, res: Response) => Promise<Response>;
 export declare const reviewPendingPriceChange: (req: Request, res: Response) => Promise<Response>;
+export declare const getPendingVariants: (req: Request, res: Response) => Promise<Response>;
+export declare const reviewProductVariant: (req: Request, res: Response) => Promise<Response>;
 //# sourceMappingURL=Product.controller.d.ts.map

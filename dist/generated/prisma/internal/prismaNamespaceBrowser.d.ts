@@ -32,10 +32,12 @@ export declare const ModelName: {
     readonly Vendor: "Vendor";
     readonly Order: "Order";
     readonly VendorProduct: "VendorProduct";
+    readonly ProductVariant: "ProductVariant";
     readonly Cart: "Cart";
     readonly QuotationRequest: "QuotationRequest";
     readonly QuotationMessage: "QuotationMessage";
     readonly Payment: "Payment";
+    readonly FulfillmentCenter: "FulfillmentCenter";
 };
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
 export declare const TransactionIsolationLevel: {
@@ -147,6 +149,7 @@ export type OrderScalarFieldEnum = (typeof OrderScalarFieldEnum)[keyof typeof Or
 export declare const VendorProductScalarFieldEnum: {
     readonly id: "id";
     readonly product_id: "product_id";
+    readonly product_variant_id: "product_variant_id";
     readonly vendor_id: "vendor_id";
     readonly price: "price";
     readonly moq: "moq";
@@ -161,6 +164,21 @@ export declare const VendorProductScalarFieldEnum: {
     readonly updated_at: "updated_at";
 };
 export type VendorProductScalarFieldEnum = (typeof VendorProductScalarFieldEnum)[keyof typeof VendorProductScalarFieldEnum];
+export declare const ProductVariantScalarFieldEnum: {
+    readonly id: "id";
+    readonly product_id: "product_id";
+    readonly sku: "sku";
+    readonly properties: "properties";
+    readonly approval_status: "approval_status";
+    readonly approval_notes: "approval_notes";
+    readonly created_by_user_id: "created_by_user_id";
+    readonly reviewed_by_user_id: "reviewed_by_user_id";
+    readonly reviewed_at: "reviewed_at";
+    readonly is_active: "is_active";
+    readonly created_at: "created_at";
+    readonly updated_at: "updated_at";
+};
+export type ProductVariantScalarFieldEnum = (typeof ProductVariantScalarFieldEnum)[keyof typeof ProductVariantScalarFieldEnum];
 export declare const CartScalarFieldEnum: {
     readonly id: "id";
     readonly user_id: "user_id";
@@ -176,6 +194,7 @@ export declare const QuotationRequestScalarFieldEnum: {
     readonly user_id: "user_id";
     readonly vendor_id: "vendor_id";
     readonly product_id: "product_id";
+    readonly product_variant_id: "product_variant_id";
     readonly requested_quantity: "requested_quantity";
     readonly requested_price: "requested_price";
     readonly status: "status";
@@ -226,6 +245,30 @@ export declare const PaymentScalarFieldEnum: {
     readonly updated_at: "updated_at";
 };
 export type PaymentScalarFieldEnum = (typeof PaymentScalarFieldEnum)[keyof typeof PaymentScalarFieldEnum];
+export declare const FulfillmentCenterScalarFieldEnum: {
+    readonly id: "id";
+    readonly user_id: "user_id";
+    readonly name: "name";
+    readonly code: "code";
+    readonly contact_phone: "contact_phone";
+    readonly contact_email: "contact_email";
+    readonly manager_name: "manager_name";
+    readonly address: "address";
+    readonly city: "city";
+    readonly state: "state";
+    readonly country: "country";
+    readonly pincode: "pincode";
+    readonly latitude: "latitude";
+    readonly longitude: "longitude";
+    readonly total_area_sqft: "total_area_sqft";
+    readonly capacity_packages: "capacity_packages";
+    readonly storage_type: "storage_type";
+    readonly operating_hours: "operating_hours";
+    readonly status: "status";
+    readonly created_at: "created_at";
+    readonly updated_at: "updated_at";
+};
+export type FulfillmentCenterScalarFieldEnum = (typeof FulfillmentCenterScalarFieldEnum)[keyof typeof FulfillmentCenterScalarFieldEnum];
 export declare const SortOrder: {
     readonly asc: "asc";
     readonly desc: "desc";

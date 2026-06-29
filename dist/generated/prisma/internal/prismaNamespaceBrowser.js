@@ -45,10 +45,12 @@ export const ModelName = {
     Vendor: 'Vendor',
     Order: 'Order',
     VendorProduct: 'VendorProduct',
+    ProductVariant: 'ProductVariant',
     Cart: 'Cart',
     QuotationRequest: 'QuotationRequest',
     QuotationMessage: 'QuotationMessage',
-    Payment: 'Payment'
+    Payment: 'Payment',
+    FulfillmentCenter: 'FulfillmentCenter'
 };
 /*
  * Enums
@@ -156,6 +158,7 @@ export const OrderScalarFieldEnum = {
 export const VendorProductScalarFieldEnum = {
     id: 'id',
     product_id: 'product_id',
+    product_variant_id: 'product_variant_id',
     vendor_id: 'vendor_id',
     price: 'price',
     moq: 'moq',
@@ -166,6 +169,20 @@ export const VendorProductScalarFieldEnum = {
     status: 'status',
     gst_percentage: 'gst_percentage',
     pending_price: 'pending_price',
+    created_at: 'created_at',
+    updated_at: 'updated_at'
+};
+export const ProductVariantScalarFieldEnum = {
+    id: 'id',
+    product_id: 'product_id',
+    sku: 'sku',
+    properties: 'properties',
+    approval_status: 'approval_status',
+    approval_notes: 'approval_notes',
+    created_by_user_id: 'created_by_user_id',
+    reviewed_by_user_id: 'reviewed_by_user_id',
+    reviewed_at: 'reviewed_at',
+    is_active: 'is_active',
     created_at: 'created_at',
     updated_at: 'updated_at'
 };
@@ -183,6 +200,7 @@ export const QuotationRequestScalarFieldEnum = {
     user_id: 'user_id',
     vendor_id: 'vendor_id',
     product_id: 'product_id',
+    product_variant_id: 'product_variant_id',
     requested_quantity: 'requested_quantity',
     requested_price: 'requested_price',
     status: 'status',
@@ -227,6 +245,29 @@ export const PaymentScalarFieldEnum = {
     quotation_request_id: 'quotation_request_id',
     split_number: 'split_number',
     split_percentage: 'split_percentage',
+    created_at: 'created_at',
+    updated_at: 'updated_at'
+};
+export const FulfillmentCenterScalarFieldEnum = {
+    id: 'id',
+    user_id: 'user_id',
+    name: 'name',
+    code: 'code',
+    contact_phone: 'contact_phone',
+    contact_email: 'contact_email',
+    manager_name: 'manager_name',
+    address: 'address',
+    city: 'city',
+    state: 'state',
+    country: 'country',
+    pincode: 'pincode',
+    latitude: 'latitude',
+    longitude: 'longitude',
+    total_area_sqft: 'total_area_sqft',
+    capacity_packages: 'capacity_packages',
+    storage_type: 'storage_type',
+    operating_hours: 'operating_hours',
+    status: 'status',
     created_at: 'created_at',
     updated_at: 'updated_at'
 };

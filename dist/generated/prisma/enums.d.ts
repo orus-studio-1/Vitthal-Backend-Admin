@@ -3,6 +3,7 @@ export declare const UserRole: {
     readonly vendor: "vendor";
     readonly admin: "admin";
     readonly super_admin: "super_admin";
+    readonly fulfillment_center: "fulfillment_center";
 };
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 export declare const CartType: {

@@ -184,6 +184,17 @@ export interface PrismaClient<in LogOpts extends Prisma.LogLevel = never, in out
         omit: OmitOpts;
     }>;
     /**
+     * `prisma.productVariant`: Exposes CRUD operations for the **ProductVariant** model.
+      * Example usage:
+      * ```ts
+      * // Fetch zero or more ProductVariants
+      * const productVariants = await prisma.productVariant.findMany()
+      * ```
+      */
+    get productVariant(): Prisma.ProductVariantDelegate<ExtArgs, {
+        omit: OmitOpts;
+    }>;
+    /**
      * `prisma.cart`: Exposes CRUD operations for the **Cart** model.
       * Example usage:
       * ```ts
@@ -225,6 +236,17 @@ export interface PrismaClient<in LogOpts extends Prisma.LogLevel = never, in out
       * ```
       */
     get payment(): Prisma.PaymentDelegate<ExtArgs, {
+        omit: OmitOpts;
+    }>;
+    /**
+     * `prisma.fulfillmentCenter`: Exposes CRUD operations for the **FulfillmentCenter** model.
+      * Example usage:
+      * ```ts
+      * // Fetch zero or more FulfillmentCenters
+      * const fulfillmentCenters = await prisma.fulfillmentCenter.findMany()
+      * ```
+      */
+    get fulfillmentCenter(): Prisma.FulfillmentCenterDelegate<ExtArgs, {
         omit: OmitOpts;
     }>;
 }

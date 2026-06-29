@@ -11,7 +11,8 @@ export const UserRole = {
     client: 'client',
     vendor: 'vendor',
     admin: 'admin',
-    super_admin: 'super_admin'
+    super_admin: 'super_admin',
+    fulfillment_center: 'fulfillment_center'
 };
 export const CartType = {
     direct: 'direct',

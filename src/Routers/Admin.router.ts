@@ -13,6 +13,13 @@ import {
     getAdminVendorConversations,
     sendAdminVendorMessage,
 } from "../Controllers/Chat.controller.js";
+import {
+    createFulfillmentCenter,
+    getAllFulfillmentCenters,
+    getFulfillmentCenterById,
+    updateFulfillmentCenter,
+    deleteFulfillmentCenter
+} from "../Controllers/FulfillmentCenter.controller.js";
 
 const router = Router();
 
@@ -27,5 +34,12 @@ router.get("/users", getUserManagement);
 router.get("/users/:id", getUserDetails);
 router.put("/users/:id/status", updateUserStatus);
 router.get("/payments", getAllPayments);
+
+// Fulfillment Centers Routes
+router.post("/fulfillment-centers", createFulfillmentCenter);
+router.get("/fulfillment-centers", getAllFulfillmentCenters);
+router.get("/fulfillment-centers/:id", getFulfillmentCenterById);
+router.put("/fulfillment-centers/:id", updateFulfillmentCenter);
+router.delete("/fulfillment-centers/:id", deleteFulfillmentCenter);
 
 export default router;

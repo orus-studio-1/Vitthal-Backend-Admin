@@ -237,10 +237,12 @@ export declare const ModelName: {
     readonly Vendor: "Vendor";
     readonly Order: "Order";
     readonly VendorProduct: "VendorProduct";
+    readonly ProductVariant: "ProductVariant";
     readonly Cart: "Cart";
     readonly QuotationRequest: "QuotationRequest";
     readonly QuotationMessage: "QuotationMessage";
     readonly Payment: "Payment";
+    readonly FulfillmentCenter: "FulfillmentCenter";
 };
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
 export interface TypeMapCb<GlobalOmitOptions = {}> extends runtime.Types.Utils.Fn<{
@@ -253,7 +255,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         omit: GlobalOmitOptions;
     };
     meta: {
-        modelProps: "user" | "product" | "productImage" | "vendor" | "order" | "vendorProduct" | "cart" | "quotationRequest" | "quotationMessage" | "payment";
+        modelProps: "user" | "product" | "productImage" | "vendor" | "order" | "vendorProduct" | "productVariant" | "cart" | "quotationRequest" | "quotationMessage" | "payment" | "fulfillmentCenter";
         txIsolationLevel: TransactionIsolationLevel;
     };
     model: {
@@ -701,6 +703,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
                 };
             };
         };
+        ProductVariant: {
+            payload: Prisma.$ProductVariantPayload<ExtArgs>;
+            fields: Prisma.ProductVariantFieldRefs;
+            operations: {
+                findUnique: {
+                    args: Prisma.ProductVariantFindUniqueArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload> | null;
+                };
+                findUniqueOrThrow: {
+                    args: Prisma.ProductVariantFindUniqueOrThrowArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                findFirst: {
+                    args: Prisma.ProductVariantFindFirstArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload> | null;
+                };
+                findFirstOrThrow: {
+                    args: Prisma.ProductVariantFindFirstOrThrowArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                findMany: {
+                    args: Prisma.ProductVariantFindManyArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>[];
+                };
+                create: {
+                    args: Prisma.ProductVariantCreateArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                createMany: {
+                    args: Prisma.ProductVariantCreateManyArgs<ExtArgs>;
+                    result: BatchPayload;
+                };
+                createManyAndReturn: {
+                    args: Prisma.ProductVariantCreateManyAndReturnArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>[];
+                };
+                delete: {
+                    args: Prisma.ProductVariantDeleteArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                update: {
+                    args: Prisma.ProductVariantUpdateArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                deleteMany: {
+                    args: Prisma.ProductVariantDeleteManyArgs<ExtArgs>;
+                    result: BatchPayload;
+                };
+                updateMany: {
+                    args: Prisma.ProductVariantUpdateManyArgs<ExtArgs>;
+                    result: BatchPayload;
+                };
+                updateManyAndReturn: {
+                    args: Prisma.ProductVariantUpdateManyAndReturnArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>[];
+                };
+                upsert: {
+                    args: Prisma.ProductVariantUpsertArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductVariantPayload>;
+                };
+                aggregate: {
+                    args: Prisma.ProductVariantAggregateArgs<ExtArgs>;
+                    result: runtime.Types.Utils.Optional<Prisma.AggregateProductVariant>;
+                };
+                groupBy: {
+                    args: Prisma.ProductVariantGroupByArgs<ExtArgs>;
+                    result: runtime.Types.Utils.Optional<Prisma.ProductVariantGroupByOutputType>[];
+                };
+                count: {
+                    args: Prisma.ProductVariantCountArgs<ExtArgs>;
+                    result: runtime.Types.Utils.Optional<Prisma.ProductVariantCountAggregateOutputType> | number;
+                };
+            };
+        };
         Cart: {
             payload: Prisma.$CartPayload<ExtArgs>;
             fields: Prisma.CartFieldRefs;
@@ -997,6 +1073,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
                 };
             };
         };
+        FulfillmentCenter: {
+            payload: Prisma.$FulfillmentCenterPayload<ExtArgs>;
+            fields: Prisma.FulfillmentCenterFieldRefs;
+            operations: {
+                findUnique: {
+                    args: Prisma.FulfillmentCenterFindUniqueArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$FulfillmentCenterPayload> | null;
+                };
+                findUniqueOrThrow: {
+                    args: Prisma.FulfillmentCenterFindUniqueOrThrowArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$FulfillmentCenterPayload>;
+                };
+                findFirst: {
+                    args: Prisma.FulfillmentCenterFindFirstArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$FulfillmentCenterPayload> | null;
+                };
+                findFirstOrThrow: {
+                    args: Prisma.FulfillmentCenterFindFirstOrThrowArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$FulfillmentCenterPayload>;
+                };
+                findMany: {
+                    args: Prisma.FulfillmentCenterFindManyArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$FulfillmentCenterPayload>[];
+                };
+                create: {
+                    args: Prisma.FulfillmentCenterCreateArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$FulfillmentCenterPayload>;
+                };
+                createMany: {
+                    args: Prisma.FulfillmentCenterCreateManyArgs<ExtArgs>;
+                    result: BatchPayload;
+                };
+                createManyAndReturn: {
+                    args: Prisma.FulfillmentCenterCreateManyAndReturnArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$FulfillmentCenterPayload>[];
+                };
+                delete: {
+                    args: Prisma.FulfillmentCenterDeleteArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$FulfillmentCenterPayload>;
+                };
+                update: {
+                    args: Prisma.FulfillmentCenterUpdateArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$FulfillmentCenterPayload>;
+                };
+                deleteMany: {
+                    args: Prisma.FulfillmentCenterDeleteManyArgs<ExtArgs>;
+                    result: BatchPayload;
+                };
+                updateMany: {
+                    args: Prisma.FulfillmentCenterUpdateManyArgs<ExtArgs>;
+                    result: BatchPayload;
+                };
+                updateManyAndReturn: {
+                    args: Prisma.FulfillmentCenterUpdateManyAndReturnArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$FulfillmentCenterPayload>[];
+                };
+                upsert: {
+                    args: Prisma.FulfillmentCenterUpsertArgs<ExtArgs>;
+                    result: runtime.Types.Utils.PayloadToResult<Prisma.$FulfillmentCenterPayload>;
+                };
+                aggregate: {
+                    args: Prisma.FulfillmentCenterAggregateArgs<ExtArgs>;
+                    result: runtime.Types.Utils.Optional<Prisma.AggregateFulfillmentCenter>;
+                };
+                groupBy: {
+                    args: Prisma.FulfillmentCenterGroupByArgs<ExtArgs>;
+                    result: runtime.Types.Utils.Optional<Prisma.FulfillmentCenterGroupByOutputType>[];
+                };
+                count: {
+                    args: Prisma.FulfillmentCenterCountArgs<ExtArgs>;
+                    result: runtime.Types.Utils.Optional<Prisma.FulfillmentCenterCountAggregateOutputType> | number;
+                };
+            };
+        };
     };
 } & {
     other: {
@@ -1133,6 +1283,7 @@ export type OrderScalarFieldEnum = (typeof OrderScalarFieldEnum)[keyof typeof Or
 export declare const VendorProductScalarFieldEnum: {
     readonly id: "id";
     readonly product_id: "product_id";
+    readonly product_variant_id: "product_variant_id";
     readonly vendor_id: "vendor_id";
     readonly price: "price";
     readonly moq: "moq";
@@ -1147,6 +1298,21 @@ export declare const VendorProductScalarFieldEnum: {
     readonly updated_at: "updated_at";
 };
 export type VendorProductScalarFieldEnum = (typeof VendorProductScalarFieldEnum)[keyof typeof VendorProductScalarFieldEnum];
+export declare const ProductVariantScalarFieldEnum: {
+    readonly id: "id";
+    readonly product_id: "product_id";
+    readonly sku: "sku";
+    readonly properties: "properties";
+    readonly approval_status: "approval_status";
+    readonly approval_notes: "approval_notes";
+    readonly created_by_user_id: "created_by_user_id";
+    readonly reviewed_by_user_id: "reviewed_by_user_id";
+    readonly reviewed_at: "reviewed_at";
+    readonly is_active: "is_active";
+    readonly created_at: "created_at";
+    readonly updated_at: "updated_at";
+};
+export type ProductVariantScalarFieldEnum = (typeof ProductVariantScalarFieldEnum)[keyof typeof ProductVariantScalarFieldEnum];
 export declare const CartScalarFieldEnum: {
     readonly id: "id";
     readonly user_id: "user_id";
@@ -1162,6 +1328,7 @@ export declare const QuotationRequestScalarFieldEnum: {
     readonly user_id: "user_id";
     readonly vendor_id: "vendor_id";
     readonly product_id: "product_id";
+    readonly product_variant_id: "product_variant_id";
     readonly requested_quantity: "requested_quantity";
     readonly requested_price: "requested_price";
     readonly status: "status";
@@ -1212,6 +1379,30 @@ export declare const PaymentScalarFieldEnum: {
     readonly updated_at: "updated_at";
 };
 export type PaymentScalarFieldEnum = (typeof PaymentScalarFieldEnum)[keyof typeof PaymentScalarFieldEnum];
+export declare const FulfillmentCenterScalarFieldEnum: {
+    readonly id: "id";
+    readonly user_id: "user_id";
+    readonly name: "name";
+    readonly code: "code";
+    readonly contact_phone: "contact_phone";
+    readonly contact_email: "contact_email";
+    readonly manager_name: "manager_name";
+    readonly address: "address";
+    readonly city: "city";
+    readonly state: "state";
+    readonly country: "country";
+    readonly pincode: "pincode";
+    readonly latitude: "latitude";
+    readonly longitude: "longitude";
+    readonly total_area_sqft: "total_area_sqft";
+    readonly capacity_packages: "capacity_packages";
+    readonly storage_type: "storage_type";
+    readonly operating_hours: "operating_hours";
+    readonly status: "status";
+    readonly created_at: "created_at";
+    readonly updated_at: "updated_at";
+};
+export type FulfillmentCenterScalarFieldEnum = (typeof FulfillmentCenterScalarFieldEnum)[keyof typeof FulfillmentCenterScalarFieldEnum];
 export declare const SortOrder: {
     readonly asc: "asc";
     readonly desc: "desc";
@@ -1439,10 +1630,12 @@ export type GlobalOmitConfig = {
     vendor?: Prisma.VendorOmit;
     order?: Prisma.OrderOmit;
     vendorProduct?: Prisma.VendorProductOmit;
+    productVariant?: Prisma.ProductVariantOmit;
     cart?: Prisma.CartOmit;
     quotationRequest?: Prisma.QuotationRequestOmit;
     quotationMessage?: Prisma.QuotationMessageOmit;
     payment?: Prisma.PaymentOmit;
+    fulfillmentCenter?: Prisma.FulfillmentCenterOmit;
 };
 export type LogLevel = 'info' | 'query' | 'warn' | 'error';
 export type LogDefinition = {
