@@ -298,9 +298,23 @@ export const reviewVendor = async (req: Request, res: Response): Promise<Respons
         const isApproved = decision === "approved";
         const isReconsideration = decision === "reconsideration";
 
-        if (decision === "approved" && !vendor.vendor_signature_image_link) {
-            await client.query("ROLLBACK");
-            return res.status(400).json({ message: "Vendor can only be approved after uploading a signature image." });
+        if (decision === "approved") {
+            const agreementResult = await client.query(
+                `
+                    SELECT status
+                    FROM vendor_quotations
+                    WHERE vendor_id = $1
+                      AND quotation_kind = 'vendor_agreement'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                `,
+                [id]
+            );
+            const latestAgreementStatus = agreementResult.rows[0]?.status;
+            if (!latestAgreementStatus || !["vendor_approved", "admin_approved"].includes(latestAgreementStatus)) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ message: "Vendor can only be approved after the agreement is signed by the vendor." });
+            }
         }
 
         await client.query(

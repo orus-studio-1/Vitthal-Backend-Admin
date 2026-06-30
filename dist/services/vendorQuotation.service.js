@@ -869,12 +869,9 @@ async function sendAdminNotificationEmail(quotation) {
     });
 }
 export async function createAndSendVendorQuotation(input) {
-    const quotationKind = (normalizeOptionalText(input.quotationKind) || "order_request").toLowerCase();
+    const quotationKind = (normalizeOptionalText(input.quotationKind) || "vendor_agreement").toLowerCase();
     if (quotationKind !== "vendor_agreement" && quotationKind !== "order_request") {
         throw new Error("quotationKind must be either vendor_agreement or order_request.");
-    }
-    if (quotationKind === "vendor_agreement") {
-        throw new Error("Vendor agreement signing has been replaced by mandatory signature image upload during vendor registration.");
     }
     const title = normalizeRequiredText(input.title, "title");
     const quantity = quotationKind === "vendor_agreement" ? 1 : parsePositiveNumber(input.quantity, "quantity");
