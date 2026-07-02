@@ -52,8 +52,8 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
         if (decodedAccessToken.userId !== decodedRefreshToken.userId)
             return res.status(401).json({ message: "Refresh Token and Access Token are not issued for same user!!" });
 
-        const { userId, username, email, role } = decodedAccessToken;
-        (req as any).user = { userId, username, email, role };
+        const { userId, username, email, role, vendorType } = decodedAccessToken;
+        (req as any).user = { userId, username, email, role, vendorType };
         next();
 
     } catch (error) {
@@ -75,8 +75,8 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
 const generateNewAccessToken = (refreshToken: string) => {
     try {
         const decoded = verifyToken(refreshToken, "refresh");
-        const { userId, username, email, role } = decoded;
-        const newAccessToken = generateAccessToken(userId, username, email, role);
+        const { userId, username, email, role, vendorType } = decoded;
+        const newAccessToken = generateAccessToken(userId, username, email, role, vendorType);
         return newAccessToken;
     }
     catch (error) {

@@ -163,8 +163,17 @@ export async function registerUser(req: Request, res: Response): Promise<Respons
             select: selectSafeUser
         });
 
-        const refreshToken = generateRefreshToken(user.id, user.name, user.email, role);
-        const accessToken = generateAccessToken(user.id, user.name, user.email, role);
+        let vendorType: string | undefined;
+        if (role === 'vendor') {
+            const vendor = await prisma.vendor.findUnique({
+                where: { user_id: user.id },
+                select: { vendor_type: true }
+            });
+            vendorType = vendor?.vendor_type ?? 'product';
+        }
+
+        const refreshToken = generateRefreshToken(user.id, user.name, user.email, role, vendorType);
+        const accessToken = generateAccessToken(user.id, user.name, user.email, role, vendorType);
 
         // Store refresh token in database for revocation and session tracking
         await prisma.user.update({
@@ -246,8 +255,17 @@ export async function loginUser(req: Request, res: Response): Promise<Response> 
         const responseName = legacyAdminUser?.name || user.name;
         const responseCreatedAt = legacyAdminUser?.created_at || user.created_at;
 
-        const refreshToken = generateRefreshToken(user.id, responseName, user.email, sessionRole);
-        const accessToken = generateAccessToken(user.id, responseName, user.email, sessionRole);
+        let vendorType: string | undefined;
+        if (sessionRole === 'vendor') {
+            const vendor = await prisma.vendor.findUnique({
+                where: { user_id: user.id },
+                select: { vendor_type: true }
+            });
+            vendorType = vendor?.vendor_type ?? 'product';
+        }
+
+        const refreshToken = generateRefreshToken(user.id, responseName, user.email, sessionRole, vendorType);
+        const accessToken = generateAccessToken(user.id, responseName, user.email, sessionRole, vendorType);
 
         // Store refresh token in database for revocation and session tracking
         await prisma.user.update({
