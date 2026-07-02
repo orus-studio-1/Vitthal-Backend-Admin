@@ -147,6 +147,7 @@ model Vendor {
   created_at                   DateTime               @default(now()) @db.Timestamptz(6)
   updated_at                   DateTime               @default(now()) @db.Timestamptz(6)
   reconsideration_notes        String?
+  vendor_type                  String                 @default("product")
   cart_items                   cart_items[]
   order_item_reviews           order_item_reviews[]
   order_items                  order_items[]
