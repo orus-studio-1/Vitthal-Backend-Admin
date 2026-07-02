@@ -25,6 +25,9 @@ type CurrentUserRecord = {
     refresh_token: string | null;
     created_at: Date;
     updated_at: Date;
+    otp: string | null;
+    otp_expiry: Date | null;
+    is_verified: boolean;
 };
 
 type LegacyAdminUser = {
