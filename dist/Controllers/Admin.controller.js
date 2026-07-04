@@ -1,3 +1,4 @@
+import bcrypt from "bcrypt";
 import { marketplacePool } from "../lib/marketplace.js";
 import { getVendorAnalyticsData, getVendorDashboardData, getVendorIdByUserId, } from "../services/vendorInsights.service.js";
 const adminRoles = ["admin", "super_admin"];
@@ -275,6 +276,86 @@ export const getMyVendorAnalytics = async (req, res) => {
     }
     catch (error) {
         console.error("Error fetching current admin-linked vendor analytics:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+export const createDeliveryAgent = async (req, res) => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res;
+    }
+    const { name, email, password, contact_phone, vehicle_type, vehicle_number, fulfillment_center_id } = req.body;
+    if (!name || !email || !password || !fulfillment_center_id) {
+        return res.status(400).json({ message: "Name, email, password, and fulfillment center ID are required." });
+    }
+    const client = await marketplacePool.connect();
+    try {
+        await client.query("BEGIN");
+        const normalizedEmail = String(email).trim().toLowerCase();
+        // Check if email already exists
+        const userCheck = await client.query("SELECT id FROM users WHERE email = $1", [normalizedEmail]);
+        if (userCheck.rows.length > 0) {
+            await client.query("ROLLBACK");
+            return res.status(409).json({ message: "Email is already registered." });
+        }
+        // Get Fulfillment Center code
+        const fcCheck = await client.query("SELECT code FROM fulfillment_centers WHERE id = $1", [fulfillment_center_id]);
+        if (fcCheck.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ message: "Fulfillment center not found." });
+        }
+        const fcCode = fcCheck.rows[0].code;
+        // Create User
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const userRes = await client.query(`INSERT INTO users (name, email, password_hash, role, is_active, is_verified)
+             VALUES ($1, $2, $3, 'delivery_agent', TRUE, TRUE)
+             RETURNING id`, [name.trim(), normalizedEmail, hashedPassword]);
+        const riderUserId = userRes.rows[0].id;
+        // Generate special rider code (e.g. RID-PUNE-01)
+        const riderCountRes = await client.query(`SELECT COUNT(*) FROM delivery_agents WHERE fulfillment_center_id = $1`, [fulfillment_center_id]);
+        const sequence = parseInt(riderCountRes.rows[0].count, 10) + 1;
+        const specialRiderId = `RID-${fcCode}-${sequence.toString().padStart(3, "0")}`;
+        // Insert delivery agent profile
+        await client.query(`INSERT INTO delivery_agents (user_id, fulfillment_center_id, special_rider_id, contact_phone, vehicle_type, vehicle_number)
+             VALUES ($1, $2, $3, $4, $5, $6)`, [riderUserId, fulfillment_center_id, specialRiderId, contact_phone, vehicle_type, vehicle_number]);
+        await client.query("COMMIT");
+        return res.status(201).json({
+            message: "Delivery agent registered successfully",
+            data: { specialRiderId, name, email: normalizedEmail }
+        });
+    }
+    catch (error) {
+        await client.query("ROLLBACK");
+        console.error("Error creating delivery agent:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+    finally {
+        client.release();
+    }
+};
+export const getDeliveryAgents = async (req, res) => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res;
+    }
+    try {
+        const result = await marketplacePool.query(`
+            SELECT da.id, da.special_rider_id, da.contact_phone, da.vehicle_type, da.vehicle_number, 
+                   da.status, da.is_online, da.created_at, u.name as rider_name, u.email as rider_email,
+                   fc.name as center_name, fc.code as center_code
+            FROM delivery_agents da
+            JOIN users u ON da.user_id = u.id
+            JOIN fulfillment_centers fc ON da.fulfillment_center_id = fc.id
+            WHERE da.status != 'deleted'
+            ORDER BY da.created_at DESC
+        `);
+        return res.status(200).json({
+            message: "Delivery agents retrieved successfully",
+            data: result.rows
+        });
+    }
+    catch (error) {
+        console.error("Error retrieving delivery agents:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };

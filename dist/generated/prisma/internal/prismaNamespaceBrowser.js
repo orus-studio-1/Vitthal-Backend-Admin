@@ -49,7 +49,8 @@ export const ModelName = {
     Cart: 'Cart',
     QuotationRequest: 'QuotationRequest',
     QuotationMessage: 'QuotationMessage',
-    Payment: 'Payment'
+    Payment: 'Payment',
+    FulfillmentCenter: 'FulfillmentCenter'
 };
 /*
  * Enums
@@ -244,6 +245,29 @@ export const PaymentScalarFieldEnum = {
     quotation_request_id: 'quotation_request_id',
     split_number: 'split_number',
     split_percentage: 'split_percentage',
+    created_at: 'created_at',
+    updated_at: 'updated_at'
+};
+export const FulfillmentCenterScalarFieldEnum = {
+    id: 'id',
+    user_id: 'user_id',
+    name: 'name',
+    code: 'code',
+    contact_phone: 'contact_phone',
+    contact_email: 'contact_email',
+    manager_name: 'manager_name',
+    address: 'address',
+    city: 'city',
+    state: 'state',
+    country: 'country',
+    pincode: 'pincode',
+    latitude: 'latitude',
+    longitude: 'longitude',
+    total_area_sqft: 'total_area_sqft',
+    capacity_packages: 'capacity_packages',
+    storage_type: 'storage_type',
+    operating_hours: 'operating_hours',
+    status: 'status',
     created_at: 'created_at',
     updated_at: 'updated_at'
 };

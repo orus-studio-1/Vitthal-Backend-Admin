@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getDashboardStats, getAnalytics, getMyVendorAnalytics, getUserDetails, getUserManagement, updateUserStatus, getAllPayments } from "../Controllers/Admin.controller.js";
+import { getDashboardStats, getAnalytics, getMyVendorAnalytics, getUserDetails, getUserManagement, updateUserStatus, getAllPayments, getDeliveryAgents, createDeliveryAgent } from "../Controllers/Admin.controller.js";
 import { getAdminVendorConversation, getAdminVendorConversations, sendAdminVendorMessage, } from "../Controllers/Chat.controller.js";
 import { createFulfillmentCenter, getAllFulfillmentCenters, getFulfillmentCenterById, updateFulfillmentCenter, deleteFulfillmentCenter } from "../Controllers/FulfillmentCenter.controller.js";
 const router = Router();
@@ -14,6 +14,8 @@ router.get("/users", getUserManagement);
 router.get("/users/:id", getUserDetails);
 router.put("/users/:id/status", updateUserStatus);
 router.get("/payments", getAllPayments);
+router.get("/delivery-agents", getDeliveryAgents);
+router.post("/delivery-agents", createDeliveryAgent);
 // Fulfillment Centers Routes
 router.post("/fulfillment-centers", createFulfillmentCenter);
 router.get("/fulfillment-centers", getAllFulfillmentCenters);

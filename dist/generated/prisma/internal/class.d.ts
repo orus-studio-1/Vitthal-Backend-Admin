@@ -238,6 +238,17 @@ export interface PrismaClient<in LogOpts extends Prisma.LogLevel = never, in out
     get payment(): Prisma.PaymentDelegate<ExtArgs, {
         omit: OmitOpts;
     }>;
+    /**
+     * `prisma.fulfillmentCenter`: Exposes CRUD operations for the **FulfillmentCenter** model.
+      * Example usage:
+      * ```ts
+      * // Fetch zero or more FulfillmentCenters
+      * const fulfillmentCenters = await prisma.fulfillmentCenter.findMany()
+      * ```
+      */
+    get fulfillmentCenter(): Prisma.FulfillmentCenterDelegate<ExtArgs, {
+        omit: OmitOpts;
+    }>;
 }
 export declare function getPrismaClientClass(): PrismaClientConstructor;
 //# sourceMappingURL=class.d.ts.map
