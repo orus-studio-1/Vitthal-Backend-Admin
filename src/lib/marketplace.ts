@@ -186,7 +186,12 @@ CREATE TABLE IF NOT EXISTS product_category (
             'renewable_energy_systems',
             'packaging_logistics_supplies',
             'textile_garment_materials',
-            'cnc_industrial_tooling'
+            'cnc_industrial_tooling',
+            'logistics_transport',
+            'quality_testing_lab',
+            'equipment_rental_maintenance',
+            'fabrication_structural_steel',
+            'waterproofing_site_prep'
         );
 
 CREATE TABLE IF NOT EXISTS vendor_categories (

@@ -9,6 +9,7 @@ import {
     adminDeleteServiceController,
     vendorOfferServiceController,
     vendorUpdateServiceOfferingController,
+    vendorDeleteServiceOfferingController,
     uploadServiceMediaController,
     adminReviewServiceMediaController,
     deleteServiceMediaController,
@@ -33,6 +34,7 @@ serviceRouter.use(authMiddleware);
 serviceRouter.get("/vendor/offerings", vendorGetMyServiceOfferingsController);
 serviceRouter.post("/vendor/offerings", vendorOfferServiceController);
 serviceRouter.put("/vendor/offerings/:id", vendorUpdateServiceOfferingController);
+serviceRouter.delete("/vendor/offerings/:id", vendorDeleteServiceOfferingController);
 
 // --- Admin monitoring routes (must be before /:id to avoid route clash) ---
 serviceRouter.get("/admin/bookings", adminListServiceBookingsController);

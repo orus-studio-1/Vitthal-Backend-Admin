@@ -124,7 +124,7 @@ export async function adminListServicesController(req: Request, res: Response): 
 }
 
 export async function adminCreateServiceController(req: Request, res: Response): Promise<Response> {
-    const authUser = ensureAdmin(req, res);
+    const authUser = ensureAdminOrVendor(req, res);
     if (!authUser) return res as Response;
 
     const { name, description, categoryId, status } = req.body as Record<string, unknown>;
@@ -136,7 +136,11 @@ export async function adminCreateServiceController(req: Request, res: Response):
     if (!categoryId || typeof categoryId !== "string") {
         return res.status(400).json({ message: "categoryId is required" });
     }
-    const statusVal = typeof status === "string" && ALLOWED_SERVICE_STATUSES.has(status) ? status : "pending";
+    
+    let statusVal = "pending";
+    if (adminRoles.has(authUser.role)) {
+        statusVal = typeof status === "string" && ALLOWED_SERVICE_STATUSES.has(status) ? status : "pending";
+    }
 
     try {
         const categoryCheck = await marketplacePool.query(
@@ -283,7 +287,7 @@ export async function vendorOfferServiceController(req: Request, res: Response):
     const authUser = ensureAdminOrVendor(req, res);
     if (!authUser) return res as Response;
 
-    const { serviceId, price, pricingType, moq } = req.body as Record<string, unknown>;
+    const { serviceId, price, pricingType, moq, deliveryDays, tokenPercentage } = req.body as Record<string, unknown>;
 
     if (!serviceId || typeof serviceId !== "string") {
         return res.status(400).json({ message: "serviceId is required" });
@@ -296,6 +300,8 @@ export async function vendorOfferServiceController(req: Request, res: Response):
         return res.status(400).json({ message: `pricingType must be one of: ${[...ALLOWED_PRICING_TYPES].join(", ")}` });
     }
     const moqVal = parsePositiveInt(moq ?? 1) ?? 1;
+    const deliveryDaysVal = deliveryDays != null ? parsePositiveInt(deliveryDays) : null;
+    const tokenPercentageVal = tokenPercentage != null ? parsePositiveDecimal(tokenPercentage) : null;
 
     let vendorId: string;
     if (adminRoles.has(authUser.role)) {
@@ -322,14 +328,16 @@ export async function vendorOfferServiceController(req: Request, res: Response):
         }
 
         const result = await marketplacePool.query(
-            `INSERT INTO vendor_services (vendor_id, service_id, price, pricing_type, moq, is_active)
-             VALUES ($1, $2, $3, $4, $5, true)
+            `INSERT INTO vendor_services (vendor_id, service_id, price, pricing_type, moq, delivery_days, token_percentage, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, true)
              ON CONFLICT (vendor_id, service_id) DO UPDATE
              SET price = EXCLUDED.price, pricing_type = EXCLUDED.pricing_type,
                  moq = EXCLUDED.moq,
+                 delivery_days = EXCLUDED.delivery_days,
+                 token_percentage = EXCLUDED.token_percentage,
                  is_active = true, updated_at = NOW()
-             RETURNING id, vendor_id, service_id, price, pricing_type, moq, is_active, created_at`,
-            [vendorId, serviceId, priceVal, pricingType, moqVal]
+             RETURNING id, vendor_id, service_id, price, pricing_type, moq, delivery_days, token_percentage, is_active, created_at`,
+            [vendorId, serviceId, priceVal, pricingType, moqVal, deliveryDaysVal, tokenPercentageVal]
         );
 
         return res.status(201).json({
@@ -347,7 +355,7 @@ export async function vendorUpdateServiceOfferingController(req: Request, res: R
     if (!authUser) return res as Response;
 
     const { id } = req.params;
-    const { price, pricingType, moq, isActive } = req.body as Record<string, unknown>;
+    const { price, pricingType, moq, isActive, deliveryDays, tokenPercentage } = req.body as Record<string, unknown>;
 
     const fields: string[] = [];
     const values: unknown[] = [];
@@ -378,6 +386,18 @@ export async function vendorUpdateServiceOfferingController(req: Request, res: R
         values.push(Boolean(isActive));
     }
 
+    if (deliveryDays !== undefined) {
+        const val = deliveryDays != null ? parsePositiveInt(deliveryDays) : null;
+        fields.push(`delivery_days = $${idx++}`);
+        values.push(val);
+    }
+
+    if (tokenPercentage !== undefined) {
+        const val = tokenPercentage != null ? parsePositiveDecimal(tokenPercentage) : null;
+        fields.push(`token_percentage = $${idx++}`);
+        values.push(val);
+    }
+
     if (fields.length === 0) {
         return res.status(400).json({ message: "No fields to update" });
     }
@@ -403,6 +423,36 @@ export async function vendorUpdateServiceOfferingController(req: Request, res: R
         return res.status(200).json({ message: "Service offering updated" });
     } catch (error) {
         console.error("Error updating vendor service offering:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function vendorDeleteServiceOfferingController(req: Request, res: Response): Promise<Response> {
+    const authUser = ensureAdminOrVendor(req, res);
+    if (!authUser) return res as Response;
+
+    const { id } = req.params;
+
+    try {
+        let query: string;
+        const values: unknown[] = [id];
+        
+        if (adminRoles.has(authUser.role)) {
+            query = `DELETE FROM vendor_services WHERE id = $1 RETURNING id`;
+        } else {
+            const vendorId = await getVendorIdByUserId(authUser.userId);
+            if (!vendorId) return res.status(403).json({ message: "Vendor profile not found or not approved" });
+            values.push(vendorId);
+            query = `DELETE FROM vendor_services WHERE id = $1 AND vendor_id = $2 RETURNING id`;
+        }
+
+        const result = await marketplacePool.query(query, values);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Service offering not found" });
+        }
+        return res.status(200).json({ message: "Service offering deleted successfully" });
+    } catch (error) {
+        console.error("Error deleting vendor service offering:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 }
@@ -744,8 +794,17 @@ export async function vendorGetMyServiceOfferingsController(req: Request, res: R
     try {
         const result = await marketplacePool.query(
             `SELECT
-                vs.id, vs.price, vs.pricing_type, vs.moq, vs.is_active, vs.created_at,
+                vs.id, vs.price, vs.pricing_type, vs.moq, vs.delivery_days, vs.token_percentage, vs.is_active, vs.created_at,
                 s.id AS service_id, s.name AS service_name, s.status AS service_status,
+                (
+                    SELECT COALESCE(
+                        (SELECT sm.media_url FROM services_media sm WHERE sm.service_id = s.id AND sm.is_primary = true LIMIT 1),
+                        (SELECT sm.media_url FROM services_media sm WHERE sm.service_id = s.id LIMIT 1),
+                        (SELECT pc.image FROM product_category pc WHERE pc.id = s.category_id LIMIT 1),
+                        ''
+                    )
+                ) AS service_image,
+                (SELECT pc.label FROM product_category pc WHERE pc.id = s.category_id LIMIT 1) AS category_name,
                 COUNT(sb.id) AS booking_count
              FROM vendor_services vs
              JOIN services s ON s.id = vs.service_id

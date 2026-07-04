@@ -6,15 +6,43 @@ import { prisma } from "../lib/prisma.js";
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const requestFrom = req.headers["x-request-from"];
-        let accessToken = req.cookies.accessToken;
-        let refreshToken = req.cookies.refreshToken;
+        const authorization = req.headers.authorization;
+        const usesHeaderAuth = typeof authorization === "string";
+        const bearerToken = authorization?.startsWith("Bearer ")
+            ? authorization.slice(7).trim()
+            : undefined;
+
+        if (usesHeaderAuth && bearerToken) {
+            try {
+                const decoded = verifyToken(bearerToken, "access");
+                
+                // Query database to verify if user's session is still active
+                const dbUser = await prisma.user.findUnique({
+                    where: { id: decoded.userId },
+                    select: { is_active: true, refresh_token: true }
+                });
+                
+                if (dbUser && dbUser.is_active && dbUser.refresh_token) {
+                    (req as any).user = decoded;
+                    return next();
+                }
+            } catch (error) {
+                // Token might be expired or invalid; fall back to cookie validation
+            }
+        }
+
+        let accessToken = undefined;
+        let refreshToken = undefined;
 
         if (requestFrom === "vendor") {
-            accessToken = req.cookies.vendorAccessToken || accessToken;
-            refreshToken = req.cookies.vendorRefreshToken || refreshToken;
+            accessToken = req.cookies.vendorAccessToken;
+            refreshToken = req.cookies.vendorRefreshToken;
         } else if (requestFrom === "client") {
-            accessToken = req.cookies.clientAccessToken || accessToken;
-            refreshToken = req.cookies.clientRefreshToken || refreshToken;
+            accessToken = req.cookies.clientAccessToken;
+            refreshToken = req.cookies.clientRefreshToken;
+        } else {
+            accessToken = req.cookies.accessToken;
+            refreshToken = req.cookies.refreshToken;
         }
 
         if (!refreshToken)
