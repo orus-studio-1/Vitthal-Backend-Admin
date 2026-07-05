@@ -111,7 +111,7 @@ async function findLegacyAdminUserByEmail(email: string): Promise<LegacyAdminUse
     return result[0] ?? null;
 }
 
-async function ensureSessionUserFromLegacy(legacyUser: LegacyAdminUser): Promise<CurrentUserRecord> {
+async function ensureSessionUserFromLegacy(legacyUser: LegacyAdminUser): Promise<any> {
     return prisma.user.upsert({
         where: { email: legacyUser.email.trim().toLowerCase() },
         update: {
@@ -228,7 +228,7 @@ export async function loginUser(req: Request, res: Response): Promise<Response> 
             if (legacyAdminUser && isAdminRole(legacyAdminUser.role)) {
                 legacyPasswordValid = await bcrypt.compare(password, legacyAdminUser.password_hash);
                 if (legacyPasswordValid) {
-                    user = await ensureSessionUserFromLegacy(legacyAdminUser);
+                    user = await ensureSessionUserFromLegacy(legacyAdminUser) as any;
                     effectiveRole = normalizeRoleValue(legacyAdminUser.role) as UserRole;
                 }
             }
