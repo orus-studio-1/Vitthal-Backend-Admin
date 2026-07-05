@@ -832,7 +832,7 @@ export async function adminGetServiceOfferingsController(req: Request, res: Resp
                     u.name AS vendor_name, u.email AS vendor_email
              FROM vendor_services vs
              JOIN vendors v ON v.id = vs.vendor_id
-             JOIN "User" u ON u.id = v.user_id
+             JOIN users u ON u.id = v.user_id
              WHERE vs.service_id = $1
              ORDER BY vs.price ASC`,
             [id]
