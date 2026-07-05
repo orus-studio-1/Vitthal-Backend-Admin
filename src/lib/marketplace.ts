@@ -149,28 +149,35 @@ CREATE TABLE IF NOT EXISTS product_category (
         ALTER TABLE product_category
             ADD COLUMN IF NOT EXISTS image TEXT NOT NULL DEFAULT '',
             ADD COLUMN IF NOT EXISTS min_commision_percentage INTEGER NOT NULL DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS max_commision_percentage INTEGER NOT NULL DEFAULT 10;
+            ADD COLUMN IF NOT EXISTS max_commision_percentage INTEGER NOT NULL DEFAULT 10,
+            ADD COLUMN IF NOT EXISTS category_type TEXT NOT NULL DEFAULT 'product';
 
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active) VALUES
-        ('metal_fabrication_parts', 'Metal & Fabrication Products', 'Sheet metal, structural parts, and custom fabricated components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780292933/Metal_Fabricated_n51kin.jpg', 0, 10, 1, true),
-        ('electrical_automation_components', 'Electrical & Electronics Manufacturing', 'Industrial panels, sensors, and automation hardware.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780293409/Electrical_Electronics_twuwgm.jpg', 0, 10, 2, true),
-        ('industrial_machinery_equipment', 'Machinery & Industrial Equipment', 'Pumps, compressors, conveyor systems, and packaging machines.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780293705/Industrial_Machinery_jubodl.jpg', 0, 10, 3, true),
-        ('construction_building_materials', 'Construction & Building Material', 'Hardware, roofing, flooring, and structural materials.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294255/Construction_zozolo.jpg', 0, 10, 4, true),
-        ('automotive_spare_parts', 'Automobile & Auto Parts', 'Engine parts, braking systems, and EV components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294268/Automative_part_tusmob.jpg', 0, 10, 5, true),
-        ('plastic_polymer_components', 'Plastic & Polymer Products', 'Injection molded parts and industrial plastic components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294480/Plastic_polymer_ysm22x.jpg', 0, 10, 6, true),
-        ('food_agriculture_supplies', 'Food & Agriculture Processing', 'Agro-equipment, processing inputs, and organic supplies.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294555/Food_Agriculture_heawd4.jpg', 0, 10, 7, true),
-        ('laboratory_pharma_consumables', 'Chemical & Pharma Manufacturing', 'Chemicals, additives, and medical consumables.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294629/Pharamas_labs_nigahy.jpg', 0, 10, 8, true),
-        ('modular_furniture_wood', 'Furniture & Wood Products', 'Office, kitchen, and interior decorative products.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294735/Furniture_uig7s6.jpg', 0, 10, 9, true),
-        ('renewable_energy_systems', 'Renewable Energy Products', 'Solar panels, inverters, and energy storage solutions.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294829/Renewable_Energy_piev0o.jpg', 0, 10, 10, true),
-        ('packaging_logistics_supplies', 'Packaging Industry', 'Corrugated boxes, labels, and industrial pallets.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294984/Packaging_boxes_mivqtz.jpg', 0, 10, 11, true),
-        ('textile_garment_materials', 'Textile & Garments', 'Fabrics, yarns, and industrial safety apparel.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780295062/Textile_gqybcg.jpg', 0, 10, 12, true),
-        ('cnc_industrial_tooling', 'CNC & VMC Tooling Product Categories', 'Precision cutting tools, holders, and inserts for CNC machines.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780295138/CNCC_Industrial_Tooling_vqipnh.jpg', 0, 10, 13, true)
+        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, category_type) VALUES
+        ('metal_fabrication_parts', 'Metal & Fabrication Products', 'Sheet metal, structural parts, and custom fabricated components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780292933/Metal_Fabricated_n51kin.jpg', 0, 10, 1, true, 'product'),
+        ('electrical_automation_components', 'Electrical & Electronics Manufacturing', 'Industrial panels, sensors, and automation hardware.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780293409/Electrical_Electronics_twuwgm.jpg', 0, 10, 2, true, 'product'),
+        ('industrial_machinery_equipment', 'Machinery & Industrial Equipment', 'Pumps, compressors, conveyor systems, and packaging machines.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780293705/Industrial_Machinery_jubodl.jpg', 0, 10, 3, true, 'product'),
+        ('construction_building_materials', 'Construction & Building Material', 'Hardware, roofing, flooring, and structural materials.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294255/Construction_zozolo.jpg', 0, 10, 4, true, 'product'),
+        ('automotive_spare_parts', 'Automobile & Auto Parts', 'Engine parts, braking systems, and EV components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294268/Automative_part_tusmob.jpg', 0, 10, 5, true, 'product'),
+        ('plastic_polymer_components', 'Plastic & Polymer Products', 'Injection molded parts and industrial plastic components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294480/Plastic_polymer_ysm22x.jpg', 0, 10, 6, true, 'product'),
+        ('food_agriculture_supplies', 'Food & Agriculture Processing', 'Agro-equipment, processing inputs, and organic supplies.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294555/Food_Agriculture_heawd4.jpg', 0, 10, 7, true, 'product'),
+        ('laboratory_pharma_consumables', 'Chemical & Pharma Manufacturing', 'Chemicals, additives, and medical consumables.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294629/Pharamas_labs_nigahy.jpg', 0, 10, 8, true, 'product'),
+        ('modular_furniture_wood', 'Furniture & Wood Products', 'Office, kitchen, and interior decorative products.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294735/Furniture_uig7s6.jpg', 0, 10, 9, true, 'product'),
+        ('renewable_energy_systems', 'Renewable Energy Products', 'Solar panels, inverters, and energy storage solutions.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294829/Renewable_Energy_piev0o.jpg', 0, 10, 10, true, 'product'),
+        ('packaging_logistics_supplies', 'Packaging Industry', 'Corrugated boxes, labels, and industrial pallets.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294984/Packaging_boxes_mivqtz.jpg', 0, 10, 11, true, 'product'),
+        ('textile_garment_materials', 'Textile & Garments', 'Fabrics, yarns, and industrial safety apparel.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780295062/Textile_gqybcg.jpg', 0, 10, 12, true, 'product'),
+        ('cnc_industrial_tooling', 'CNC & VMC Tooling Product Categories', 'Precision cutting tools, holders, and inserts for CNC machines.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780295138/CNCC_Industrial_Tooling_vqipnh.jpg', 0, 10, 13, true, 'product'),
+        ('logistics_transport', 'Logistics & Transportation', 'Bulk cement transport, aggregate carriage, transit mixer rentals, and rake handling.', 'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=600&auto=format&fit=crop&q=80', 0, 10, 14, true, 'service'),
+        ('quality_testing_lab', 'Quality Testing & Lab', 'Concrete cube compressive strength testing, soil tests, and raw material chemical analysis.', 'https://images.unsplash.com/photo-1576086213369-97a306d36557?w=600&auto=format&fit=crop&q=80', 0, 10, 15, true, 'service'),
+        ('equipment_rental_maintenance', 'Equipment & Machinery Rental', 'Concrete mixer pumps, cranes, excavators rental and batching plant maintenance.', 'https://images.unsplash.com/photo-1541625602330-2277a4c46182?w=600&auto=format&fit=crop&q=80', 0, 10, 16, true, 'service'),
+        ('fabrication_structural_steel', 'Fabrication & Structural Work', 'Bar bending, structural steel welding, and professional scaffolding setups.', 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=600&auto=format&fit=crop&q=80', 0, 10, 17, true, 'service'),
+        ('waterproofing_site_prep', 'Waterproofing & Site Prep', 'Commercial waterproofing, excavation, drilling, and site leveling.', 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?w=600&auto=format&fit=crop&q=80', 0, 10, 18, true, 'service')
         ON CONFLICT (code) DO UPDATE 
         SET label = EXCLUDED.label,
             description = EXCLUDED.description,
             image = EXCLUDED.image,
             sort_order = EXCLUDED.sort_order,
-            is_active = EXCLUDED.is_active;
+            is_active = EXCLUDED.is_active,
+            category_type = EXCLUDED.category_type;
 
         DELETE FROM product_category 
         WHERE code NOT IN (
