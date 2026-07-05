@@ -821,3 +821,25 @@ export async function vendorGetMyServiceOfferingsController(req: Request, res: R
         return res.status(500).json({ message: "Internal server error" });
     }
 }
+
+export async function adminGetServiceOfferingsController(req: Request, res: Response): Promise<Response> {
+    if (!ensureAdmin(req, res)) return res as Response;
+    const { id } = req.params;
+    try {
+        const result = await marketplacePool.query(
+            `SELECT vs.id, vs.price, vs.pricing_type, vs.moq, vs.is_active, vs.created_at,
+                    v.id AS vendor_id, v.company_name, v.business_type,
+                    u.name AS vendor_name, u.email AS vendor_email
+             FROM vendor_services vs
+             JOIN vendors v ON v.id = vs.vendor_id
+             JOIN "User" u ON u.id = v.user_id
+             WHERE vs.service_id = $1
+             ORDER BY vs.price ASC`,
+            [id]
+        );
+        return res.status(200).json({ data: result.rows });
+    } catch (error) {
+        console.error("Error fetching service offerings (admin):", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+}

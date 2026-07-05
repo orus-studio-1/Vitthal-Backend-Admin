@@ -17,6 +17,7 @@ import {
     adminListServiceQuotationsController,
     adminGetServiceReviewsController,
     vendorGetMyServiceOfferingsController,
+    adminGetServiceOfferingsController,
 } from "../Controllers/Service.controller.js";
 
 const serviceRouter = Router();
@@ -44,6 +45,7 @@ serviceRouter.get("/admin/reviews", adminGetServiceReviewsController);
 // --- Service catalog CRUD ---
 serviceRouter.get("/", adminListServicesController);
 serviceRouter.post("/", adminCreateServiceController);
+serviceRouter.get("/:id/offerings", adminGetServiceOfferingsController);
 serviceRouter.put("/:id", adminUpdateServiceController);
 serviceRouter.put("/:id/review", adminReviewServiceController);
 serviceRouter.delete("/:id", adminDeleteServiceController);
