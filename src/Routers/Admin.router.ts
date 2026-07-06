@@ -22,6 +22,10 @@ import {
     updateFulfillmentCenter,
     deleteFulfillmentCenter
 } from "../Controllers/FulfillmentCenter.controller.js";
+import {
+    getAllDeliveryAgents,
+    createDeliveryAgent
+} from "../Controllers/Rider.controller.js";
 
 const router = Router();
 
@@ -45,5 +49,9 @@ router.get("/fulfillment-centers", getAllFulfillmentCenters);
 router.get("/fulfillment-centers/:id", getFulfillmentCenterById);
 router.put("/fulfillment-centers/:id", updateFulfillmentCenter);
 router.delete("/fulfillment-centers/:id", deleteFulfillmentCenter);
+
+// Delivery Agents Routes
+router.get("/delivery-agents", getAllDeliveryAgents);
+router.post("/delivery-agents", createDeliveryAgent);
 
 export default router;

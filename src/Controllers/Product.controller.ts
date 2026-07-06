@@ -902,7 +902,7 @@ export const getCategories = async (req: Request, res: Response): Promise<Respon
 
     try {
         const result = await marketplacePool.query(
-            `SELECT id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active
+            `SELECT id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, category_type
              FROM product_category
              ORDER BY sort_order ASC, label ASC`
         );
@@ -925,7 +925,7 @@ export const addCategoryController = async (req: Request, res: Response): Promis
     }
 
     try {
-        const { code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active } = req.body;
+        const { code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, category_type } = req.body;
         const uploadedImage = await uploadCategoryImage(req.file);
         const finalImage = uploadedImage || asOptionalTrimmedString(image);
 
@@ -941,6 +941,8 @@ export const addCategoryController = async (req: Request, res: Response): Promis
             return res.status(400).json({ message: `Category with code "${code}" already exists.` });
         }
 
+        const categoryTypeVal = category_type === "service" ? "service" : "product";
+
         const result = await marketplacePool.query(
             `
                 INSERT INTO product_category (
@@ -951,10 +953,11 @@ export const addCategoryController = async (req: Request, res: Response): Promis
                     min_commision_percentage,
                     max_commision_percentage,
                     sort_order,
-                    is_active
+                    is_active,
+                    category_type
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                RETURNING id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                RETURNING id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, category_type
             `,
             [
                 code.trim().toLowerCase(),
@@ -964,7 +967,8 @@ export const addCategoryController = async (req: Request, res: Response): Promis
                 Number(min_commision_percentage) || 0,
                 max_commision_percentage !== undefined ? Number(max_commision_percentage) : 10,
                 Number(sort_order) || 0,
-                is_active !== undefined ? Boolean(is_active) : true
+                is_active !== undefined ? Boolean(is_active) : true,
+                categoryTypeVal
             ]
         );
 
@@ -986,7 +990,7 @@ export const updateCategoryController = async (req: Request, res: Response): Pro
     const { id } = req.params;
 
     try {
-        const { code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active } = req.body;
+        const { code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, category_type } = req.body;
         const uploadedImage = await uploadCategoryImage(req.file);
 
         const existing = await marketplacePool.query(
@@ -1050,6 +1054,11 @@ export const updateCategoryController = async (req: Request, res: Response): Pro
             updates.push(`is_active = $${index++}`);
             values.push(Boolean(is_active));
         }
+        if (category_type !== undefined) {
+            const categoryTypeVal = category_type === "service" ? "service" : "product";
+            updates.push(`category_type = $${index++}`);
+            values.push(categoryTypeVal);
+        }
 
         if (updates.length === 0) {
             return res.status(400).json({ message: "No fields to update." });
@@ -1062,7 +1071,7 @@ export const updateCategoryController = async (req: Request, res: Response): Pro
             UPDATE product_category
             SET ${updates.join(", ")}
             WHERE id = $${index}
-            RETURNING id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active
+            RETURNING id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, category_type
         `;
 
         const result = await marketplacePool.query(query, values);
@@ -1098,7 +1107,7 @@ export const deleteCategoryController = async (req: Request, res: Response): Pro
         console.error("Error while deleting category:", error);
         if (error.code === '23503') { // Foreign key constraint violation
             return res.status(400).json({
-                message: "Cannot delete this category because it has products associated with it. Please delete the products or deactivate the category instead."
+                message: "Cannot delete this category because it has products or services associated with it. Please delete them first or deactivate the category instead."
             });
         }
         return res.status(500).json({ message: "Internal server error" });

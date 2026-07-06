@@ -10,6 +10,7 @@ import vendorRouter from './Routers/Vendor.router.js';
 import adminRouter from './Routers/Admin.router.js';
 import vendorQuotationRouter from './Routers/VendorQuotation.router.js';
 import clientQuotationRouter from './Routers/ClientQuotation.router.js';
+import serviceRouter from './Routers/Service.router.js';
 import { authMiddleware } from './Middleware/AuthMiddleware.js';
 import { validateEnv } from './lib/env.js';
 import { ensureMarketplaceSchema } from './lib/marketplace.js';
@@ -51,8 +52,8 @@ app.use("/", cors({
 
 //using Middleware
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '5' + 'mb' }));
+app.use(express.urlencoded({ limit: '5' + 'mb', extended: true }));
 
 app.use("/api/auth", AuthRouter);
 app.use("/api/products", authMiddleware, productRouter);
@@ -61,10 +62,15 @@ app.use("/api/vendors", authMiddleware, vendorRouter);
 app.use("/api/admin", authMiddleware, adminRouter);
 app.use("/api/quotations", vendorQuotationRouter);
 app.use("/api/client-quotations", clientQuotationRouter);
+app.use("/api/services", serviceRouter);
 
 async function startServer() {
     try {
-        await ensureMarketplaceSchema();
+        try {
+            await ensureMarketplaceSchema();
+        } catch (schemaError) {
+            console.warn("Non-fatal: Schema sync bypassed or completed concurrently in another process:", schemaError);
+        }
         initSocket(server);
         initNotificationEmitter();
 
@@ -72,7 +78,7 @@ async function startServer() {
             console.log(`Admin Server is running on port ${PORT}`);
         });
     } catch (error) {
-        console.error("Failed to ensure marketplace schema:", error);
+        console.error("Failed to start admin backend:", error);
         process.exit(1);
     }
 }

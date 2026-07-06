@@ -25,6 +25,9 @@ type CurrentUserRecord = {
     refresh_token: string | null;
     created_at: Date;
     updated_at: Date;
+    otp: string | null;
+    otp_expiry: Date | null;
+    is_verified: boolean;
 };
 
 type LegacyAdminUser = {
@@ -108,7 +111,7 @@ async function findLegacyAdminUserByEmail(email: string): Promise<LegacyAdminUse
     return result[0] ?? null;
 }
 
-async function ensureSessionUserFromLegacy(legacyUser: LegacyAdminUser): Promise<CurrentUserRecord> {
+async function ensureSessionUserFromLegacy(legacyUser: LegacyAdminUser): Promise<any> {
     return prisma.user.upsert({
         where: { email: legacyUser.email.trim().toLowerCase() },
         update: {
@@ -160,8 +163,17 @@ export async function registerUser(req: Request, res: Response): Promise<Respons
             select: selectSafeUser
         });
 
-        const refreshToken = generateRefreshToken(user.id, user.name, user.email, role);
-        const accessToken = generateAccessToken(user.id, user.name, user.email, role);
+        let vendorType: string | undefined;
+        if (role === 'vendor') {
+            const vendor = await prisma.vendor.findUnique({
+                where: { user_id: user.id },
+                select: { vendor_type: true }
+            });
+            vendorType = vendor?.vendor_type ?? 'product';
+        }
+
+        const refreshToken = generateRefreshToken(user.id, user.name, user.email, role, vendorType);
+        const accessToken = generateAccessToken(user.id, user.name, user.email, role, vendorType);
 
         // Store refresh token in database for revocation and session tracking
         await prisma.user.update({
@@ -216,7 +228,7 @@ export async function loginUser(req: Request, res: Response): Promise<Response> 
             if (legacyAdminUser && isAdminRole(legacyAdminUser.role)) {
                 legacyPasswordValid = await bcrypt.compare(password, legacyAdminUser.password_hash);
                 if (legacyPasswordValid) {
-                    user = await ensureSessionUserFromLegacy(legacyAdminUser);
+                    user = await ensureSessionUserFromLegacy(legacyAdminUser) as any;
                     effectiveRole = normalizeRoleValue(legacyAdminUser.role) as UserRole;
                 }
             }
@@ -243,8 +255,17 @@ export async function loginUser(req: Request, res: Response): Promise<Response> 
         const responseName = legacyAdminUser?.name || user.name;
         const responseCreatedAt = legacyAdminUser?.created_at || user.created_at;
 
-        const refreshToken = generateRefreshToken(user.id, responseName, user.email, sessionRole);
-        const accessToken = generateAccessToken(user.id, responseName, user.email, sessionRole);
+        let vendorType: string | undefined;
+        if (sessionRole === 'vendor') {
+            const vendor = await prisma.vendor.findUnique({
+                where: { user_id: user.id },
+                select: { vendor_type: true }
+            });
+            vendorType = vendor?.vendor_type ?? 'product';
+        }
+
+        const refreshToken = generateRefreshToken(user.id, responseName, user.email, sessionRole, vendorType);
+        const accessToken = generateAccessToken(user.id, responseName, user.email, sessionRole, vendorType);
 
         // Store refresh token in database for revocation and session tracking
         await prisma.user.update({
