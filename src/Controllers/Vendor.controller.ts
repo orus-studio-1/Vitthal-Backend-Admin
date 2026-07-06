@@ -53,6 +53,8 @@ const vendorSelect = `
         v.minimum_commision_percentage,
         v.maximum_commision_percentage,
         v.rating,
+        v.vendor_type,
+        v.reconsideration_notes,
         a.address,
         a.city,
         a.state,
