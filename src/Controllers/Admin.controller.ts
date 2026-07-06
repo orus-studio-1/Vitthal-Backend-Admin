@@ -687,3 +687,118 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
         return res.status(500).json({ message: "Internal server error" });
     }
 };
+
+export const getRiderLiveDetails = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) {
+        return res as Response;
+    }
+
+    const { riderId } = req.params;
+
+    try {
+        // 1. Fetch Rider details
+        const riderRes = await marketplacePool.query(
+            `SELECT da.id, da.special_rider_id, da.contact_phone, da.vehicle_type, da.vehicle_number, 
+                    da.status, da.is_online, da.current_latitude, da.current_longitude, da.last_located_at,
+                    u.name as rider_name, u.email as rider_email
+             FROM delivery_agents da
+             JOIN users u ON da.user_id = u.id
+             WHERE da.id = $1`,
+            [riderId]
+        );
+
+        if (riderRes.rows.length === 0) {
+            return res.status(404).json({ message: "Rider not found." });
+        }
+
+        const rider = riderRes.rows[0];
+
+        // 2. Fetch Active Drop-off Job
+        const activeDeliveryRes = await marketplacePool.query(
+            `SELECT o.id as order_id, o.order_reference, o.customer_name, o.customer_phone,
+                    o.address_line, o.city, o.state, o.pincode, o.latitude as destination_lat, o.langitude as destination_lng,
+                    (
+                        SELECT json_agg(json_build_object('name', p.name, 'quantity', oi.quantity))
+                        FROM order_items oi
+                        JOIN products p ON oi.product_id = p.id
+                        WHERE oi.order_id = o.id
+                    ) as items
+             FROM orders o
+             JOIN order_fulfillment_tracking oft ON o.id = oft.order_id
+             WHERE oft.delivery_agent_id = $1 
+               AND oft.status = 'handed_over'
+               AND NOT EXISTS (
+                   SELECT 1 FROM order_fulfillment_tracking oft2 
+                   WHERE oft2.order_id = o.id AND oft2.status = 'delivered'
+               )
+             LIMIT 1`,
+            [riderId]
+        );
+
+        let activeJob = null;
+        if (activeDeliveryRes.rows.length > 0) {
+            const job = activeDeliveryRes.rows[0];
+            activeJob = {
+                type: 'delivery',
+                order_id: job.order_id,
+                order_reference: job.order_reference,
+                destination_name: job.customer_name,
+                destination_phone: job.customer_phone,
+                destination_address: `${job.address_line || ''}, ${job.city || ''}, ${job.state || ''} - ${job.pincode || ''}`,
+                destination_lat: job.destination_lat,
+                destination_lng: job.destination_lng,
+                items: job.items
+            };
+        } else {
+            // 3. Fetch Active Pickup Job (if no active delivery job)
+            const activePickupRes = await marketplacePool.query(
+                `SELECT orp.id as stop_id, orp.order_id,
+                        o.order_reference, o.customer_name,
+                        v.company_name as vendor_name,
+                        (SELECT phone FROM client WHERE user_id = v.user_id LIMIT 1) as vendor_phone,
+                        a.address as vendor_address, a.city as vendor_city, 
+                        a.state as vendor_state, a.pincode as vendor_pincode,
+                        a.latitude as vendor_lat, a.longitude as vendor_lng,
+                        (
+                            SELECT json_agg(json_build_object('name', p.name, 'quantity', oi.quantity))
+                            FROM order_items oi
+                            JOIN products p ON oi.product_id = p.id
+                            WHERE oi.order_id = orp.order_id
+                        ) as items
+                 FROM order_route_plan orp
+                 JOIN orders o ON orp.order_id = o.id
+                 JOIN vendors v ON o.vendor_id = v.id
+                 LEFT JOIN addresses a ON a.user_id = v.user_id
+                 WHERE orp.pickup_rider_id = $1 AND orp.status = 'pickup_assigned'
+                 LIMIT 1`,
+                [riderId]
+            );
+            if (activePickupRes.rows.length > 0) {
+                const job = activePickupRes.rows[0];
+                activeJob = {
+                    type: 'pickup',
+                    order_id: job.order_id,
+                    order_reference: job.order_reference,
+                    destination_name: job.vendor_name,
+                    destination_phone: job.vendor_phone,
+                    destination_address: `${job.vendor_address || ''}, ${job.vendor_city || ''}, ${job.vendor_state || ''} - ${job.vendor_pincode || ''}`,
+                    destination_lat: job.vendor_lat,
+                    destination_lng: job.vendor_lng,
+                    items: job.items
+                };
+            }
+        }
+
+        return res.status(200).json({
+            message: "Rider live details retrieved successfully",
+            data: {
+                rider,
+                activeJob
+            }
+        });
+    } catch (error) {
+        console.error("Error retrieving rider live details:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};

@@ -8,7 +8,8 @@ import {
     updateUserStatus,
     getAllPayments,
     getDeliveryAgents,
-    createDeliveryAgent
+    createDeliveryAgent,
+    getRiderLiveDetails
 } from "../Controllers/Admin.controller.js";
 import {
     getAdminVendorConversation,
@@ -38,6 +39,7 @@ router.put("/users/:id/status", updateUserStatus);
 router.get("/payments", getAllPayments);
 router.get("/delivery-agents", getDeliveryAgents);
 router.post("/delivery-agents", createDeliveryAgent);
+router.get("/delivery-agents/:riderId/live", getRiderLiveDetails);
 
 // Fulfillment Centers Routes
 router.post("/fulfillment-centers", createFulfillmentCenter);
