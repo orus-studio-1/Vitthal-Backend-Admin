@@ -1107,7 +1107,7 @@ export const deleteCategoryController = async (req: Request, res: Response): Pro
         console.error("Error while deleting category:", error);
         if (error.code === '23503') { // Foreign key constraint violation
             return res.status(400).json({
-                message: "Cannot delete this category because it has products associated with it. Please delete the products or deactivate the category instead."
+                message: "Cannot delete this category because it has products or services associated with it. Please delete them first or deactivate the category instead."
             });
         }
         return res.status(500).json({ message: "Internal server error" });
