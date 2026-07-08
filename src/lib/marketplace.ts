@@ -165,12 +165,7 @@ CREATE TABLE IF NOT EXISTS product_category (
         ('renewable_energy_systems', 'Renewable Energy Products', 'Solar panels, inverters, and energy storage solutions.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294829/Renewable_Energy_piev0o.jpg', 0, 10, 10, true, 'product'),
         ('packaging_logistics_supplies', 'Packaging Industry', 'Corrugated boxes, labels, and industrial pallets.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294984/Packaging_boxes_mivqtz.jpg', 0, 10, 11, true, 'product'),
         ('textile_garment_materials', 'Textile & Garments', 'Fabrics, yarns, and industrial safety apparel.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780295062/Textile_gqybcg.jpg', 0, 10, 12, true, 'product'),
-        ('cnc_industrial_tooling', 'CNC & VMC Tooling Product Categories', 'Precision cutting tools, holders, and inserts for CNC machines.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780295138/CNCC_Industrial_Tooling_vqipnh.jpg', 0, 10, 13, true, 'product'),
-        ('logistics_transport', 'Logistics & Transportation', 'Bulk cement transport, aggregate carriage, transit mixer rentals, and rake handling.', 'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=600&auto=format&fit=crop&q=80', 0, 10, 14, true, 'service'),
-        ('quality_testing_lab', 'Quality Testing & Lab', 'Concrete cube compressive strength testing, soil tests, and raw material chemical analysis.', 'https://images.unsplash.com/photo-1576086213369-97a306d36557?w=600&auto=format&fit=crop&q=80', 0, 10, 15, true, 'service'),
-        ('equipment_rental_maintenance', 'Equipment & Machinery Rental', 'Concrete mixer pumps, cranes, excavators rental and batching plant maintenance.', 'https://images.unsplash.com/photo-1541625602330-2277a4c46182?w=600&auto=format&fit=crop&q=80', 0, 10, 16, true, 'service'),
-        ('fabrication_structural_steel', 'Fabrication & Structural Work', 'Bar bending, structural steel welding, and professional scaffolding setups.', 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=600&auto=format&fit=crop&q=80', 0, 10, 17, true, 'service'),
-        ('waterproofing_site_prep', 'Waterproofing & Site Prep', 'Commercial waterproofing, excavation, drilling, and site leveling.', 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?w=600&auto=format&fit=crop&q=80', 0, 10, 18, true, 'service')
+        ('cnc_industrial_tooling', 'CNC & VMC Tooling Product Categories', 'Precision cutting tools, holders, and inserts for CNC machines.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780295138/CNCC_Industrial_Tooling_vqipnh.jpg', 0, 10, 13, true, 'product')
         ON CONFLICT (code) DO UPDATE 
         SET label = EXCLUDED.label,
             description = EXCLUDED.description,
@@ -180,7 +175,7 @@ CREATE TABLE IF NOT EXISTS product_category (
             category_type = EXCLUDED.category_type;
 
         DELETE FROM product_category 
-        WHERE code NOT IN (
+        WHERE category_type = 'product' AND code NOT IN (
             'metal_fabrication_parts',
             'electrical_automation_components',
             'industrial_machinery_equipment',
@@ -193,12 +188,7 @@ CREATE TABLE IF NOT EXISTS product_category (
             'renewable_energy_systems',
             'packaging_logistics_supplies',
             'textile_garment_materials',
-            'cnc_industrial_tooling',
-            'logistics_transport',
-            'quality_testing_lab',
-            'equipment_rental_maintenance',
-            'fabrication_structural_steel',
-            'waterproofing_site_prep'
+            'cnc_industrial_tooling'
         );
 
 CREATE TABLE IF NOT EXISTS vendor_categories (
@@ -1094,7 +1084,7 @@ ALTER TABLE vendor_quotations
         ALTER TABLE notifications DROP CONSTRAINT IF EXISTS chk_notification_reference_type;
         ALTER TABLE notifications
             ADD CONSTRAINT chk_notification_reference_type
-            CHECK (reference_type IS NULL OR reference_type IN ('quotation', 'order', 'product'));
+            CHECK (reference_type IS NULL OR reference_type IN ('quotation', 'order', 'product', 'service_quotation', 'service_booking'));
 
         -- ================================
         -- VENDOR PAYOUTS TABLE

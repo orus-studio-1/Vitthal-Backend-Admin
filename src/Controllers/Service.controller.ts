@@ -143,19 +143,22 @@ export async function adminCreateServiceController(req: Request, res: Response):
     }
 
     try {
-        const categoryCheck = await marketplacePool.query(
-            `SELECT id FROM product_category WHERE id = $1 AND is_active = true LIMIT 1`,
-            [categoryId]
-        );
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId);
+        const query = isUuid
+            ? `SELECT id FROM product_category WHERE id = $1 AND is_active = true LIMIT 1`
+            : `SELECT id FROM product_category WHERE (LOWER(code) = LOWER($1) OR LOWER(label) = LOWER($1)) AND is_active = true LIMIT 1`;
+        
+        const categoryCheck = await marketplacePool.query(query, [categoryId]);
         if (categoryCheck.rows.length === 0) {
             return res.status(404).json({ message: "Category not found or inactive" });
         }
+        const resolvedCategoryId = categoryCheck.rows[0].id;
 
         const result = await marketplacePool.query(
             `INSERT INTO services (name, description, category_id, status)
              VALUES ($1, $2, $3, $4)
              RETURNING id, name, description, status, category_id, created_at`,
-            [nameVal, normalizeText(description), categoryId, statusVal]
+            [nameVal, normalizeText(description), resolvedCategoryId, statusVal]
         );
 
         return res.status(201).json({
@@ -190,8 +193,26 @@ export async function adminUpdateServiceController(req: Request, res: Response):
         values.push(normalizeText(description));
     }
     if (categoryId !== undefined) {
-        fields.push(`category_id = $${idx++}`);
-        values.push(categoryId);
+        if (typeof categoryId !== "string" || !categoryId.trim()) {
+            return res.status(400).json({ message: "Invalid categoryId" });
+        }
+        try {
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId);
+            const query = isUuid
+                ? `SELECT id FROM product_category WHERE id = $1 AND is_active = true LIMIT 1`
+                : `SELECT id FROM product_category WHERE (LOWER(code) = LOWER($1) OR LOWER(label) = LOWER($1)) AND is_active = true LIMIT 1`;
+            
+            const categoryCheck = await marketplacePool.query(query, [categoryId]);
+            if (categoryCheck.rows.length === 0) {
+                return res.status(404).json({ message: "Category not found or inactive" });
+            }
+            const resolvedCategoryId = categoryCheck.rows[0].id;
+            fields.push(`category_id = $${idx++}`);
+            values.push(resolvedCategoryId);
+        } catch (error) {
+            console.error("Error resolving categoryId during update:", error);
+            return res.status(500).json({ message: "Internal server error" });
+        }
     }
     if (status !== undefined) {
         if (typeof status !== "string" || !ALLOWED_SERVICE_STATUSES.has(status)) {
@@ -504,10 +525,10 @@ export async function uploadServiceMediaController(req: Request, res: Response):
         const approvalStatus = adminRoles.has(authUser.role) ? "approved" : "pending";
 
         const result = await marketplacePool.query(
-            `INSERT INTO services_media (service_id, media_url, s3_key, media_type, approval_status, uploaded_by_user_id)
-             VALUES ($1, $2, $3, $4, $5, $6)
+            `INSERT INTO services_media (service_id, media_url, media_type, approval_status, created_by_user_id)
+             VALUES ($1, $2, $3, $4, $5)
              RETURNING id, media_type, approval_status, created_at`,
-            [id, mediaUrl, s3Key, mediaType, approvalStatus, authUser.userId]
+            [id, mediaUrl, mediaType, approvalStatus, authUser.userId]
         );
 
         return res.status(201).json({
@@ -536,7 +557,7 @@ export async function adminReviewServiceMediaController(req: Request, res: Respo
     try {
         const result = await marketplacePool.query(
             `UPDATE services_media
-             SET approval_status = $1, reviewed_by_user_id = $2, updated_at = NOW()
+             SET approval_status = $1, reviewed_by_user_id = $2
              WHERE id = $3 AND service_id = $4
              RETURNING id, media_type, approval_status`,
             [decision, authUser.userId, mediaId, id]
@@ -561,7 +582,7 @@ export async function deleteServiceMediaController(req: Request, res: Response):
         let deleteResult;
         if (adminRoles.has(authUser.role)) {
             deleteResult = await marketplacePool.query(
-                `DELETE FROM services_media WHERE id = $1 AND service_id = $2 RETURNING id, s3_key`,
+                `DELETE FROM services_media WHERE id = $1 AND service_id = $2 RETURNING id`,
                 [mediaId, id]
             );
         } else {
@@ -572,7 +593,7 @@ export async function deleteServiceMediaController(req: Request, res: Response):
                 `DELETE FROM services_media sm
                  USING vendor_services vs
                  WHERE sm.id = $1 AND sm.service_id = $2 AND vs.vendor_id = $3
-                 RETURNING sm.id, sm.s3_key`,
+                 RETURNING sm.id`,
                 [mediaId, id, vendorId]
             );
         }
