@@ -12,7 +12,8 @@ const selectSafeUser = {
     email: true,
     role: true,
     is_active: true,
-    created_at: true
+    created_at: true,
+    deletion_requested_at: true
 } as const;
 
 type CurrentUserRecord = {
@@ -242,7 +243,7 @@ export async function loginUser(req: Request, res: Response): Promise<Response> 
             return res.status(403).json({ message: 'Only admin accounts can access this dashboard' });
         }
 
-        if (!user.is_active) {
+        if (!user.is_active && !user.deletion_requested_at) {
             return res.status(403).json({ message: 'User account is inactive' });
         }
 
@@ -291,7 +292,8 @@ export async function loginUser(req: Request, res: Response): Promise<Response> 
                 email: user.email,
                 role: sessionRole,
                 is_active: user.is_active,
-                created_at: responseCreatedAt
+                created_at: responseCreatedAt,
+                deletion_requested_at: user.deletion_requested_at
             }
         });
     }
@@ -358,7 +360,7 @@ export async function getCurrentUser(req: Request, res: Response): Promise<Respo
             return res.status(404).json({ message: 'User not found' });
         }
 
-        if (!user.is_active) {
+        if (!user.is_active && !user.deletion_requested_at) {
             return res.status(403).json({ message: 'User account is inactive' });
         }
 
@@ -378,3 +380,57 @@ export async function getCurrentUser(req: Request, res: Response): Promise<Respo
         return res.status(500).json({ message: 'Internal server error' });
     }
 }
+
+export const requestAccountDeletion = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = (req as any).user;
+    if (!authUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        await prisma.user.update({
+            where: { id: authUser.userId },
+            data: {
+                is_active: false,
+                deletion_requested_at: new Date(),
+                refresh_token: null
+            }
+        });
+
+        const requestFrom = req.headers["x-request-from"];
+        const accessTokenCookie = requestFrom === "vendor" ? "vendorAccessToken" : requestFrom === "client" ? "clientAccessToken" : "accessToken";
+        const refreshTokenCookie = requestFrom === "vendor" ? "vendorRefreshToken" : requestFrom === "client" ? "clientRefreshToken" : "refreshToken";
+
+        res.clearCookie(accessTokenCookie, COOKIE_OPTIONS);
+        res.clearCookie(refreshTokenCookie, COOKIE_OPTIONS);
+
+        return res.status(200).json({
+            message: "Account deletion requested successfully. Your account has been deactivated and scheduled for permanent deletion in 14 days."
+        });
+    } catch (error) {
+        console.error("Error requesting account deletion:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const recoverAccount = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = (req as any).user;
+    if (!authUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        await prisma.user.update({
+            where: { id: authUser.userId },
+            data: {
+                is_active: true,
+                deletion_requested_at: null
+            }
+        });
+
+        return res.status(200).json({ message: "Account recovered successfully. Welcome back!" });
+    } catch (error) {
+        console.error("Error recovering account:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};

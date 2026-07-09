@@ -89,7 +89,8 @@ CREATE TABLE IF NOT EXISTS users (
     OTP_Expiry TIMESTAMPTZ,
     is_verified BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deletion_requested_at TIMESTAMPTZ DEFAULT NULL
 );
 
 -- ================================
@@ -809,6 +810,7 @@ ALTER TABLE orders
 -- ================================
 
 ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS product_variant_id UUID;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMPTZ DEFAULT NULL;
 
 -- Optimizing Foreign Keys (Postgres does not index these automatically)
 CREATE INDEX IF NOT EXISTS idx_vendor_products_product_id ON vendor_products(product_id);

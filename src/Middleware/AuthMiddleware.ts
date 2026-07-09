@@ -19,10 +19,10 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
                 // Query database to verify if user's session is still active
                 const dbUser = await prisma.user.findUnique({
                     where: { id: decoded.userId },
-                    select: { is_active: true, refresh_token: true }
+                    select: { is_active: true, refresh_token: true, deletion_requested_at: true }
                 });
                 
-                if (dbUser && dbUser.is_active && dbUser.refresh_token) {
+                if (dbUser && (dbUser.is_active || dbUser.deletion_requested_at) && dbUser.refresh_token) {
                     (req as any).user = decoded;
                     return next();
                 }
@@ -57,11 +57,12 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
                 email: true,
                 role: true,
                 is_active: true,
+                deletion_requested_at: true,
                 refresh_token: true
             }
         });
 
-        if (!user || !user.is_active || user.refresh_token !== refreshToken) {
+        if (!user || (!user.is_active && !user.deletion_requested_at) || user.refresh_token !== refreshToken) {
             return res.status(401).json({ message: "Unauthorized" });
         }
 

@@ -12,6 +12,8 @@
     "prisma:generate": "prisma generate",
     "admin:create": "tsx src/scripts/create-admin.ts",
     "create-admin": "npm run admin:create --",
+    "vendor:create": "tsx src/scripts/create-vendor.ts",
+    "create-vendor": "npm run vendor:create --",
     "admin:setup": "tsx src/scripts/setup-admin.ts",
     "setup-admin": "npm run admin:setup --",
     "test": "echo \"Error: no test specified\" && exit 1"
