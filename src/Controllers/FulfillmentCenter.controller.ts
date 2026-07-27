@@ -36,10 +36,15 @@ export const createFulfillmentCenter = async (req: Request, res: Response): Prom
         longitude,
         total_area_sqft,
         capacity_packages,
+        capacity,
         storage_type,
         operating_hours,
         status,
     } = req.body;
+
+    const parsedCapacity = capacity_packages !== undefined && capacity_packages !== null && capacity_packages !== ""
+        ? Number(capacity_packages)
+        : (capacity !== undefined && capacity !== null && capacity !== "" ? Number(capacity) : null);
 
     if (!name || !code || !email || !password || !address || !city || !state || !country || !pincode) {
         return res.status(400).json({
@@ -134,7 +139,7 @@ export const createFulfillmentCenter = async (req: Request, res: Response): Prom
                     latitude ? Number(latitude) : null,
                     longitude ? Number(longitude) : null,
                     total_area_sqft ? Number(total_area_sqft) : null,
-                    capacity_packages ? Number(capacity_packages) : null,
+                    parsedCapacity,
                     storage_type ? String(storage_type).trim() : null,
                     operating_hours ? String(operating_hours).trim() : null,
                     status ? String(status).trim() : "active",
@@ -167,7 +172,7 @@ export const createFulfillmentCenter = async (req: Request, res: Response): Prom
                     latitude ? Number(latitude) : null,
                     longitude ? Number(longitude) : null,
                     total_area_sqft ? Number(total_area_sqft) : null,
-                    capacity_packages ? Number(capacity_packages) : null,
+                    parsedCapacity,
                     storage_type ? String(storage_type).trim() : null,
                     operating_hours ? String(operating_hours).trim() : null,
                     status ? String(status).trim() : "active",
@@ -274,10 +279,15 @@ export const updateFulfillmentCenter = async (req: Request, res: Response): Prom
         longitude,
         total_area_sqft,
         capacity_packages,
+        capacity,
         storage_type,
         operating_hours,
         status,
     } = req.body;
+
+    const parsedUpdateCapacity = capacity_packages !== undefined
+        ? (capacity_packages ? Number(capacity_packages) : null)
+        : (capacity !== undefined ? (capacity ? Number(capacity) : null) : undefined);
 
     const client = await marketplacePool.connect();
     try {
@@ -367,7 +377,7 @@ export const updateFulfillmentCenter = async (req: Request, res: Response): Prom
                 latitude !== undefined ? (latitude ? Number(latitude) : null) : undefined,
                 longitude !== undefined ? (longitude ? Number(longitude) : null) : undefined,
                 total_area_sqft !== undefined ? (total_area_sqft ? Number(total_area_sqft) : null) : undefined,
-                capacity_packages !== undefined ? (capacity_packages ? Number(capacity_packages) : null) : undefined,
+                parsedUpdateCapacity,
                 storage_type ? String(storage_type).trim() : null,
                 operating_hours ? String(operating_hours).trim() : null,
                 status ? String(status).trim() : null,

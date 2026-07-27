@@ -1226,5 +1226,27 @@ ALTER TABLE vendor_quotations
                     UNIQUE (cart_id, product_variant_id, vendor_id);
             END IF;
         END $$;
+
+        -- Fix fulfillment_centers capacity column constraint and missing columns
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'fulfillment_centers'
+                  AND column_name = 'capacity'
+            ) THEN
+                ALTER TABLE fulfillment_centers ALTER COLUMN capacity DROP NOT NULL;
+            END IF;
+        END $$;
+
+        ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS capacity_packages INTEGER;
+        ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS total_area_sqft NUMERIC(10,2);
+        ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS storage_type TEXT;
+        ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS operating_hours TEXT;
+        ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS manager_name TEXT;
+        ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS contact_phone TEXT;
+        ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS contact_email CITEXT;
     `);
 }
+
