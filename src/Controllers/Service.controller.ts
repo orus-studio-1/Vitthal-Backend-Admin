@@ -127,7 +127,7 @@ export async function adminCreateServiceController(req: Request, res: Response):
     const authUser = ensureAdminOrVendor(req, res);
     if (!authUser) return res as Response;
 
-    const { name, description, categoryId, status } = req.body as Record<string, unknown>;
+    const { name, description, categoryId, status, subcategoryId, newSubcategoryName } = req.body as Record<string, unknown>;
 
     const nameVal = normalizeText(name);
     if (!nameVal) {
@@ -154,11 +154,41 @@ export async function adminCreateServiceController(req: Request, res: Response):
         }
         const resolvedCategoryId = categoryCheck.rows[0].id;
 
+        let resolvedSubcategoryId: string | null = null;
+
+        if (newSubcategoryName && typeof newSubcategoryName === "string" && newSubcategoryName.trim()) {
+            const subName = newSubcategoryName.trim();
+            const subCheck = await marketplacePool.query(
+                `SELECT id FROM service_subcategories WHERE category_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+                [resolvedCategoryId, subName]
+            );
+            if (subCheck.rows.length > 0) {
+                resolvedSubcategoryId = subCheck.rows[0].id;
+            } else {
+                const subInsert = await marketplacePool.query(
+                    `INSERT INTO service_subcategories (category_id, name)
+                     VALUES ($1, $2)
+                     RETURNING id`,
+                    [resolvedCategoryId, subName]
+                );
+                resolvedSubcategoryId = subInsert.rows[0].id;
+            }
+        } else if (subcategoryId && typeof subcategoryId === "string" && subcategoryId.trim()) {
+            const subCheck = await marketplacePool.query(
+                `SELECT id FROM service_subcategories WHERE id = $1 AND category_id = $2 LIMIT 1`,
+                [subcategoryId.trim(), resolvedCategoryId]
+            );
+            if (subCheck.rows.length === 0) {
+                return res.status(400).json({ message: "Subcategory not found under this category" });
+            }
+            resolvedSubcategoryId = subCheck.rows[0].id;
+        }
+
         const result = await marketplacePool.query(
-            `INSERT INTO services (name, description, category_id, status)
-             VALUES ($1, $2, $3, $4)
-             RETURNING id, name, description, status, category_id, created_at`,
-            [nameVal, normalizeText(description), resolvedCategoryId, statusVal]
+            `INSERT INTO services (name, description, category_id, subcategory_id, status)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id, name, description, status, category_id, subcategory_id, created_at`,
+            [nameVal, normalizeText(description), resolvedCategoryId, resolvedSubcategoryId, statusVal]
         );
 
         return res.status(201).json({
@@ -176,11 +206,26 @@ export async function adminUpdateServiceController(req: Request, res: Response):
     if (!authUser) return res as Response;
 
     const { id } = req.params;
-    const { name, description, categoryId, status } = req.body as Record<string, unknown>;
+    const { name, description, categoryId, status, subcategoryId, newSubcategoryName } = req.body as Record<string, unknown>;
 
     const fields: string[] = [];
     const values: unknown[] = [];
     let idx = 1;
+
+    let resolvedCategoryId: string | null = null;
+    try {
+        const existingService = await marketplacePool.query(
+            `SELECT category_id FROM services WHERE id = $1 LIMIT 1`,
+            [id]
+        );
+        if (existingService.rows.length === 0) {
+            return res.status(404).json({ message: "Service not found" });
+        }
+        resolvedCategoryId = existingService.rows[0].category_id;
+    } catch (error) {
+        console.error("Error checking existing service:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
 
     if (name !== undefined) {
         const nameVal = normalizeText(name);
@@ -206,7 +251,7 @@ export async function adminUpdateServiceController(req: Request, res: Response):
             if (categoryCheck.rows.length === 0) {
                 return res.status(404).json({ message: "Category not found or inactive" });
             }
-            const resolvedCategoryId = categoryCheck.rows[0].id;
+            resolvedCategoryId = categoryCheck.rows[0].id;
             fields.push(`category_id = $${idx++}`);
             values.push(resolvedCategoryId);
         } catch (error) {
@@ -222,6 +267,49 @@ export async function adminUpdateServiceController(req: Request, res: Response):
         values.push(status);
     }
 
+    if (newSubcategoryName !== undefined || subcategoryId !== undefined) {
+        let resolvedSubcategoryId: string | null = null;
+        if (newSubcategoryName && typeof newSubcategoryName === "string" && newSubcategoryName.trim()) {
+            try {
+                const subName = newSubcategoryName.trim();
+                const subCheck = await marketplacePool.query(
+                    `SELECT id FROM service_subcategories WHERE category_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+                    [resolvedCategoryId, subName]
+                );
+                if (subCheck.rows.length > 0) {
+                    resolvedSubcategoryId = subCheck.rows[0].id;
+                } else {
+                    const subInsert = await marketplacePool.query(
+                        `INSERT INTO service_subcategories (category_id, name)
+                         VALUES ($1, $2)
+                         RETURNING id`,
+                        [resolvedCategoryId, subName]
+                    );
+                    resolvedSubcategoryId = subInsert.rows[0].id;
+                }
+            } catch (error) {
+                console.error("Error resolving/creating subcategory on update:", error);
+                return res.status(500).json({ message: "Internal server error" });
+            }
+        } else if (subcategoryId && typeof subcategoryId === "string" && subcategoryId.trim()) {
+            try {
+                const subCheck = await marketplacePool.query(
+                    `SELECT id FROM service_subcategories WHERE id = $1 AND category_id = $2 LIMIT 1`,
+                    [subcategoryId.trim(), resolvedCategoryId]
+                );
+                if (subCheck.rows.length === 0) {
+                    return res.status(400).json({ message: "Subcategory not found under this category" });
+                }
+                resolvedSubcategoryId = subCheck.rows[0].id;
+            } catch (error) {
+                console.error("Error validating subcategory during update:", error);
+                return res.status(500).json({ message: "Internal server error" });
+            }
+        }
+        fields.push(`subcategory_id = $${idx++}`);
+        values.push(resolvedSubcategoryId);
+    }
+
     if (fields.length === 0) {
         return res.status(400).json({ message: "No fields to update" });
     }
@@ -231,7 +319,7 @@ export async function adminUpdateServiceController(req: Request, res: Response):
 
     try {
         const result = await marketplacePool.query(
-            `UPDATE services SET ${fields.join(", ")} WHERE id = $${idx} RETURNING id, name, description, status, category_id, updated_at`,
+            `UPDATE services SET ${fields.join(", ")} WHERE id = $${idx} RETURNING id, name, description, status, category_id, subcategory_id, updated_at`,
             values
         );
         if (result.rows.length === 0) {

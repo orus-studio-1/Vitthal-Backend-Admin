@@ -23,7 +23,8 @@ import {
 } from "../Controllers/FulfillmentCenter.controller.js";
 import {
     getAllDeliveryAgents,
-    createDeliveryAgent
+    createDeliveryAgent,
+    getRiderDeliveries
 } from "../Controllers/Rider.controller.js";
 
 const router = Router();
@@ -50,6 +51,7 @@ router.delete("/fulfillment-centers/:id", deleteFulfillmentCenter);
 
 // Delivery Agents Routes
 router.get("/delivery-agents", getAllDeliveryAgents);
+router.get("/delivery-agents/:id/deliveries", getRiderDeliveries);
 router.post("/delivery-agents", createDeliveryAgent);
 
 export default router;

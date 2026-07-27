@@ -376,6 +376,7 @@ model Payment {
   split_percentage     Decimal?          @default(100.00) @db.Decimal(5, 2)
   created_at           DateTime?         @default(now()) @db.Timestamptz(6)
   updated_at           DateTime?         @default(now()) @db.Timestamptz(6)
+  booking_ids          String[]          @default([]) @db.Uuid
   quotation_request    QuotationRequest? @relation(fields: [quotation_request_id], references: [id], onUpdate: NoAction)
   user                 User              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -630,18 +631,19 @@ model order_status_history {
 }
 
 model product_category {
-  id                       String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code                     String              @unique(map: "idx_product_category_code")
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                     String                  @unique(map: "idx_product_category_code")
   label                    String
   description              String?
-  sort_order               Int                 @default(0)
-  is_active                Boolean             @default(true)
-  created_at               DateTime            @default(now()) @db.Timestamptz(6)
-  updated_at               DateTime            @default(now()) @db.Timestamptz(6)
-  min_commision_percentage Int                 @default(0)
-  max_commision_percentage Int                 @default(10)
+  sort_order               Int                     @default(0)
+  is_active                Boolean                 @default(true)
+  created_at               DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                @default(now()) @db.Timestamptz(6)
+  min_commision_percentage Int                     @default(0)
+  max_commision_percentage Int                     @default(10)
   image                    String?
-  category_type            String?             @default("product")
+  category_type            String?                 @default("product")
+  service_subcategories    service_subcategories[]
   services                 services[]
   vendor_categories        vendor_categories[]
 }
@@ -967,8 +969,8 @@ model service_bookings {
   created_at                     DateTime             @default(now()) @db.Timestamptz(6)
   updated_at                     DateTime             @default(now()) @db.Timestamptz(6)
   completion_otp_hash            String?              @db.VarChar(64)
-  completion_otp_expires_at      DateTime?            @db.Timestamptz(6)
   completion_otp_failed_attempts Int                  @default(0)
+  completion_otp_expires_at      DateTime?            @db.Timestamptz(6)
   users                          User                 @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_bookings_user")
   vendors                        Vendor               @relation(fields: [vendor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_bookings_vendor")
   vendor_services                vendor_services      @relation(fields: [vendor_service_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_bookings_vendor_service")
@@ -1030,6 +1032,13 @@ model service_quotations {
   booking_id                 String?                      @db.Uuid
   created_at                 DateTime                     @default(now()) @db.Timestamptz(6)
   updated_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  vendor_document_url        String?
+  vendor_document_s3_key     String?
+  delivery_days              Int?
+  token_percentage           Decimal?                     @db.Decimal(5, 2)
+  token_amount               Decimal?                     @db.Decimal(12, 2)
+  current_offer_price        Decimal?                     @db.Decimal(12, 2)
+  current_offer_by           String?
   service_quotation_messages service_quotation_messages[]
   services                   services                     @relation(fields: [service_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_quotes_service")
   users                      User                         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_quotes_user")
@@ -1065,25 +1074,27 @@ model service_reviews {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model services {
-  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name               String
-  description        String?
-  category_id        String               @db.Uuid
-  status             String               @default("pending")
-  created_by_user_id String?              @db.Uuid
-  is_active          Boolean              @default(false)
-  rating             Decimal              @default(0) @db.Decimal(2, 1)
-  review_count       Int                  @default(0)
-  created_at         DateTime             @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
-  service_cart_items service_cart_items[]
-  service_quotations service_quotations[]
-  service_reviews    service_reviews[]
-  product_category   product_category     @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "fk_services_category")
-  users              User?                @relation(fields: [created_by_user_id], references: [id], onUpdate: NoAction, map: "fk_services_created_by")
-  services_media     services_media?
-  vendor_services    vendor_services[]
-  wishlist_items     wishlist_items[]
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String
+  description           String?
+  category_id           String                 @db.Uuid
+  status                String                 @default("pending")
+  created_by_user_id    String?                @db.Uuid
+  is_active             Boolean                @default(false)
+  rating                Decimal                @default(0) @db.Decimal(2, 1)
+  review_count          Int                    @default(0)
+  created_at            DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime               @default(now()) @db.Timestamptz(6)
+  subcategory_id        String?                @db.Uuid
+  service_cart_items    service_cart_items[]
+  service_quotations    service_quotations[]
+  service_reviews       service_reviews[]
+  product_category      product_category       @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "fk_services_category")
+  users                 User?                  @relation(fields: [created_by_user_id], references: [id], onUpdate: NoAction, map: "fk_services_created_by")
+  service_subcategories service_subcategories? @relation(fields: [subcategory_id], references: [id], onUpdate: NoAction, map: "fk_services_subcategory")
+  services_media        services_media?
+  vendor_services       vendor_services[]
+  wishlist_items        wishlist_items[]
 
   @@index([category_id], map: "idx_services_category_id")
   @@index([status], map: "idx_services_status")
@@ -1120,6 +1131,8 @@ model vendor_services {
   is_active          Boolean              @default(false)
   created_at         DateTime             @default(now()) @db.Timestamptz(6)
   updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  delivery_days      Int?
+  token_percentage   Decimal?             @db.Decimal(5, 2)
   service_bookings   service_bookings[]
   service_cart_items service_cart_items[]
   services           services             @relation(fields: [service_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_services_service")
@@ -1128,6 +1141,32 @@ model vendor_services {
   @@unique([vendor_id, service_id], map: "unique_vendor_service")
   @@index([service_id], map: "idx_vendor_services_service_id")
   @@index([vendor_id], map: "idx_vendor_services_vendor_id")
+}
+
+model service_subcategories {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  category_id      String           @db.Uuid
+  name             String
+  description      String?
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime         @default(now()) @db.Timestamptz(6)
+  product_category product_category @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_subcategories_category")
+  services         services[]
+
+  @@unique([category_id, name], map: "unique_subcategory_name_per_category")
+  @@map("service_subcategories")
+}
+
+model service_quotation_documents {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  service_quotation_id String   @db.Uuid
+  quotation_number     String   @unique
+  document_url         String
+  s3_key               String
+  valid_until          DateTime @db.Date
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([service_quotation_id], map: "idx_service_quotation_documents_quote_id")
 }
 
 enum UserRole {
