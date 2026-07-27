@@ -85,57 +85,95 @@ export const createFulfillmentCenter = async (req: Request, res: Response): Prom
             );
         }
 
-        const fcResult = await client.query(
-            `
-                INSERT INTO fulfillment_centers (
-                    user_id, name, code, contact_phone, contact_email, manager_name,
-                    address, city, state, country, pincode, latitude, longitude,
-                    total_area_sqft, capacity_packages, storage_type, operating_hours, status
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-                ON CONFLICT (user_id)
-                DO UPDATE SET
-                    name = EXCLUDED.name,
-                    code = EXCLUDED.code,
-                    contact_phone = EXCLUDED.contact_phone,
-                    contact_email = EXCLUDED.contact_email,
-                    manager_name = EXCLUDED.manager_name,
-                    address = EXCLUDED.address,
-                    city = EXCLUDED.city,
-                    state = EXCLUDED.state,
-                    country = EXCLUDED.country,
-                    pincode = EXCLUDED.pincode,
-                    latitude = EXCLUDED.latitude,
-                    longitude = EXCLUDED.longitude,
-                    total_area_sqft = EXCLUDED.total_area_sqft,
-                    capacity_packages = EXCLUDED.capacity_packages,
-                    storage_type = EXCLUDED.storage_type,
-                    operating_hours = EXCLUDED.operating_hours,
-                    status = EXCLUDED.status,
-                    updated_at = NOW()
-                RETURNING *
-            `,
-            [
-                userId,
-                String(name).trim(),
-                String(code).trim().toUpperCase(),
-                contact_phone ? String(contact_phone).trim() : null,
-                contact_email ? String(contact_email).trim().toLowerCase() : null,
-                manager_name ? String(manager_name).trim() : null,
-                String(address).trim(),
-                String(city).trim(),
-                String(state).trim(),
-                String(country).trim(),
-                String(pincode).trim(),
-                latitude ? Number(latitude) : null,
-                longitude ? Number(longitude) : null,
-                total_area_sqft ? Number(total_area_sqft) : null,
-                capacity_packages ? Number(capacity_packages) : null,
-                storage_type ? String(storage_type).trim() : null,
-                operating_hours ? String(operating_hours).trim() : null,
-                status ? String(status).trim() : "active",
-            ]
+        const normalizedCode = String(code).trim().toUpperCase();
+
+        const existingFc = await client.query(
+            `SELECT id FROM fulfillment_centers WHERE user_id = $1 OR code = $2 LIMIT 1`,
+            [userId, normalizedCode]
         );
+
+        let fcResult;
+        if (existingFc.rows.length > 0) {
+            fcResult = await client.query(
+                `
+                    UPDATE fulfillment_centers SET
+                        user_id = $1,
+                        name = $2,
+                        code = $3,
+                        contact_phone = $4,
+                        contact_email = $5,
+                        manager_name = $6,
+                        address = $7,
+                        city = $8,
+                        state = $9,
+                        country = $10,
+                        pincode = $11,
+                        latitude = $12,
+                        longitude = $13,
+                        total_area_sqft = $14,
+                        capacity_packages = $15,
+                        storage_type = $16,
+                        operating_hours = $17,
+                        status = $18,
+                        updated_at = NOW()
+                    WHERE id = $19
+                    RETURNING *
+                `,
+                [
+                    userId,
+                    String(name).trim(),
+                    normalizedCode,
+                    contact_phone ? String(contact_phone).trim() : null,
+                    contact_email ? String(contact_email).trim().toLowerCase() : null,
+                    manager_name ? String(manager_name).trim() : null,
+                    String(address).trim(),
+                    String(city).trim(),
+                    String(state).trim(),
+                    String(country).trim(),
+                    String(pincode).trim(),
+                    latitude ? Number(latitude) : null,
+                    longitude ? Number(longitude) : null,
+                    total_area_sqft ? Number(total_area_sqft) : null,
+                    capacity_packages ? Number(capacity_packages) : null,
+                    storage_type ? String(storage_type).trim() : null,
+                    operating_hours ? String(operating_hours).trim() : null,
+                    status ? String(status).trim() : "active",
+                    existingFc.rows[0].id,
+                ]
+            );
+        } else {
+            fcResult = await client.query(
+                `
+                    INSERT INTO fulfillment_centers (
+                        user_id, name, code, contact_phone, contact_email, manager_name,
+                        address, city, state, country, pincode, latitude, longitude,
+                        total_area_sqft, capacity_packages, storage_type, operating_hours, status
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                    RETURNING *
+                `,
+                [
+                    userId,
+                    String(name).trim(),
+                    normalizedCode,
+                    contact_phone ? String(contact_phone).trim() : null,
+                    contact_email ? String(contact_email).trim().toLowerCase() : null,
+                    manager_name ? String(manager_name).trim() : null,
+                    String(address).trim(),
+                    String(city).trim(),
+                    String(state).trim(),
+                    String(country).trim(),
+                    String(pincode).trim(),
+                    latitude ? Number(latitude) : null,
+                    longitude ? Number(longitude) : null,
+                    total_area_sqft ? Number(total_area_sqft) : null,
+                    capacity_packages ? Number(capacity_packages) : null,
+                    storage_type ? String(storage_type).trim() : null,
+                    operating_hours ? String(operating_hours).trim() : null,
+                    status ? String(status).trim() : "active",
+                ]
+            );
+        }
 
         await client.query("COMMIT");
         return res.status(201).json({
