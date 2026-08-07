@@ -17,6 +17,8 @@
     "create-vendor": "npm run vendor:create --",
     "admin:setup": "tsx src/scripts/setup-admin.ts",
     "setup-admin": "npm run admin:setup --",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
@@ -43,6 +45,7 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/jsonwebtoken": "^9.0.10",
@@ -51,7 +54,9 @@
     "@types/nodemailer": "^8.0.0",
     "@types/pdfmake": "^0.2.11",
     "@types/pg": "^8.20.0",
+    "eslint": "^10.8.0",
     "prisma": "^7.8.0",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "typescript-eslint": "^8.66.0"
   }
 }

@@ -380,7 +380,7 @@ export const createDeliveryAgent = async (req: Request, res: Response): Promise<
         const hashedPassword = await bcrypt.hash(password, 10);
         const userRes = await client.query(
             `INSERT INTO users (name, email, password_hash, role, is_active, is_verified)
-             VALUES ($1, $2, $3, 'delivery_agent', TRUE, TRUE)
+             VALUES ($1, $2, $3, 'delivery_agent', TRUE, FALSE)
              RETURNING id`,
             [name.trim(), normalizedEmail, hashedPassword]
         );
@@ -403,8 +403,8 @@ export const createDeliveryAgent = async (req: Request, res: Response): Promise<
 
         await client.query("COMMIT");
         return res.status(201).json({
-            message: "Delivery agent registered successfully",
-            data: { specialRiderId, name, email: normalizedEmail }
+            message: "Delivery agent registered successfully (Pending verification)",
+            data: { specialRiderId, name, email: normalizedEmail, is_verified: false }
         });
     } catch (error) {
         await client.query("ROLLBACK");
@@ -424,7 +424,7 @@ export const getDeliveryAgents = async (req: Request, res: Response): Promise<Re
     try {
         const result = await marketplacePool.query(`
             SELECT da.id, da.special_rider_id, da.contact_phone, da.vehicle_type, da.vehicle_number, 
-                   da.status, da.is_online, da.created_at, u.name as rider_name, u.email as rider_email,
+                   da.status, da.is_online, da.created_at, u.name as rider_name, u.email as rider_email, u.is_verified,
                    fc.name as center_name, fc.code as center_code
             FROM delivery_agents da
             JOIN users u ON da.user_id = u.id

@@ -24,7 +24,8 @@ import {
 import {
     getAllDeliveryAgents,
     createDeliveryAgent,
-    getRiderDeliveries
+    getRiderDeliveries,
+    updateRiderKYCStatus
 } from "../Controllers/Rider.controller.js";
 
 const router = Router();
@@ -53,5 +54,6 @@ router.delete("/fulfillment-centers/:id", deleteFulfillmentCenter);
 router.get("/delivery-agents", getAllDeliveryAgents);
 router.get("/delivery-agents/:id/deliveries", getRiderDeliveries);
 router.post("/delivery-agents", createDeliveryAgent);
+router.patch("/delivery-agents/:riderId/kyc-status", updateRiderKYCStatus);
 
 export default router;

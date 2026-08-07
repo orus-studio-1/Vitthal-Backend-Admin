@@ -9,7 +9,8 @@ export const getAllDeliveryAgents = async (req: Request, res: Response): Promise
         const agents = await prisma.delivery_agents.findMany({
             include: {
                 users: true,
-                fulfillment_centers: true
+                fulfillment_centers: true,
+                kyc: true
             },
             orderBy: {
                 created_at: 'desc'
@@ -49,6 +50,17 @@ export const getAllDeliveryAgents = async (req: Request, res: Response): Promise
             vehicle_number: agent.vehicle_number,
             status: agent.status,
             is_online: agent.is_online,
+            kyc_status: agent.kyc_status || agent.kyc?.kyc_status || 'pending',
+            id_doc_type: agent.kyc?.id_doc_type || null,
+            id_doc_number: agent.kyc?.id_doc_number || null,
+            id_doc_image_url: agent.kyc?.id_doc_image_url || null,
+            bank_name: agent.kyc?.bank_name || null,
+            account_number: agent.kyc?.account_number || null,
+            ifsc_code: agent.kyc?.ifsc_code || null,
+            account_holder_name: agent.kyc?.account_holder_name || null,
+            rejection_reason: agent.kyc?.rejection_reason || null,
+            kyc_submitted_at: agent.kyc?.submitted_at?.toISOString() || null,
+            kyc_reviewed_at: agent.kyc?.reviewed_at?.toISOString() || null,
             created_at: agent.created_at.toISOString(),
             rider_name: agent.users?.name || '',
             rider_email: agent.users?.email || '',
@@ -188,5 +200,47 @@ export const createDeliveryAgent = async (req: Request, res: Response): Promise<
             return res.status(400).json({ message: "Email or Rider ID already exists." });
         }
         return res.status(500).json({ message: getPrismaErrorMessage(error) || "Failed to register Rider Partner." });
+    }
+};
+
+export const updateRiderKYCStatus = async (req: Request, res: Response): Promise<Response> => {
+    const riderId = req.params.riderId as string;
+    const { status, rejectionReason } = req.body;
+
+    if (!status || !['approved', 'rejected'].includes(status)) {
+        return res.status(400).json({ message: "Status must be 'approved' or 'rejected'." });
+    }
+
+    try {
+        await prisma.$transaction(async (tx) => {
+            // Update delivery_agent_kyc record
+            await tx.delivery_agent_kyc.updateMany({
+                where: { delivery_agent_id: riderId as string },
+                data: {
+                    kyc_status: status,
+                    reviewed_at: new Date(),
+                    rejection_reason: status === 'rejected' ? (rejectionReason || 'Documents verification failed') : null,
+                    updated_at: new Date()
+                }
+            });
+
+            // Update delivery_agents table flag & activate/block status
+            await tx.delivery_agents.update({
+                where: { id: riderId as string },
+                data: {
+                    kyc_status: status,
+                    status: status === 'approved' ? 'active' : 'blocked',
+                    updated_at: new Date()
+                }
+            });
+        });
+
+        return res.status(200).json({
+            message: `Rider KYC status successfully updated to ${status}.`,
+            data: { riderId, kycStatus: status }
+        });
+    } catch (error) {
+        console.error("Error approving/rejecting rider KYC:", error);
+        return res.status(500).json({ message: "Failed to update rider KYC status." });
     }
 };

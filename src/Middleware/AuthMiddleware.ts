@@ -110,6 +110,6 @@ const generateNewAccessToken = (refreshToken: string) => {
     }
     catch (error) {
         console.error("Error generating new access token:", error);
-        throw new Error("Failed to generate new access token");
+        throw new Error("Failed to generate new access token", { cause: error });
     }
 }
