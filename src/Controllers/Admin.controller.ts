@@ -380,7 +380,7 @@ export const createDeliveryAgent = async (req: Request, res: Response): Promise<
         const hashedPassword = await bcrypt.hash(password, 10);
         const userRes = await client.query(
             `INSERT INTO users (name, email, password_hash, role, is_active, is_verified)
-             VALUES ($1, $2, $3, 'delivery_agent', TRUE, FALSE)
+             VALUES ($1, $2, $3, 'delivery_agent', TRUE, TRUE)
              RETURNING id`,
             [name.trim(), normalizedEmail, hashedPassword]
         );
@@ -403,8 +403,8 @@ export const createDeliveryAgent = async (req: Request, res: Response): Promise<
 
         await client.query("COMMIT");
         return res.status(201).json({
-            message: "Delivery agent registered successfully (Pending verification)",
-            data: { specialRiderId, name, email: normalizedEmail, is_verified: false }
+            message: "Delivery agent registered successfully",
+            data: { specialRiderId, name, email: normalizedEmail, is_verified: true }
         });
     } catch (error) {
         await client.query("ROLLBACK");

@@ -173,7 +173,8 @@ export const createDeliveryAgent = async (req: Request, res: Response): Promise<
                     name: String(name).trim(),
                     email: String(email).trim().toLowerCase(),
                     password_hash: hashedPassword,
-                    role: UserRole.delivery_agent
+                    role: UserRole.delivery_agent,
+                    is_verified: true
                 }
             });
 
