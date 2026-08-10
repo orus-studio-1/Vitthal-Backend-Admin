@@ -53,7 +53,7 @@ export const getAllDeliveryAgents = async (req: Request, res: Response): Promise
             kyc_status: agent.kyc_status || agent.delivery_agent_kyc?.kyc_status || 'pending',
             id_doc_type: agent.delivery_agent_kyc?.id_doc_type || null,
             id_doc_number: agent.delivery_agent_kyc?.id_doc_number || null,
-            id_doc_image_url: null,
+            id_doc_image_url: agent.delivery_agent_kyc?.id_doc_image_url || null,
             bank_name: agent.delivery_agent_kyc?.bank_name || null,
             account_number: agent.delivery_agent_kyc?.account_number || null,
             ifsc_code: agent.delivery_agent_kyc?.ifsc_code || null,
