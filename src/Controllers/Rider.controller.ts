@@ -10,7 +10,7 @@ export const getAllDeliveryAgents = async (req: Request, res: Response): Promise
             include: {
                 users: true,
                 fulfillment_centers: true,
-                kyc: true
+                delivery_agent_kyc: true
             },
             orderBy: {
                 created_at: 'desc'
@@ -50,17 +50,17 @@ export const getAllDeliveryAgents = async (req: Request, res: Response): Promise
             vehicle_number: agent.vehicle_number,
             status: agent.status,
             is_online: agent.is_online,
-            kyc_status: agent.kyc_status || agent.kyc?.kyc_status || 'pending',
-            id_doc_type: agent.kyc?.id_doc_type || null,
-            id_doc_number: agent.kyc?.id_doc_number || null,
-            id_doc_image_url: agent.kyc?.id_doc_image_url || null,
-            bank_name: agent.kyc?.bank_name || null,
-            account_number: agent.kyc?.account_number || null,
-            ifsc_code: agent.kyc?.ifsc_code || null,
-            account_holder_name: agent.kyc?.account_holder_name || null,
-            rejection_reason: agent.kyc?.rejection_reason || null,
-            kyc_submitted_at: agent.kyc?.submitted_at?.toISOString() || null,
-            kyc_reviewed_at: agent.kyc?.reviewed_at?.toISOString() || null,
+            kyc_status: agent.kyc_status || agent.delivery_agent_kyc?.kyc_status || 'pending',
+            id_doc_type: agent.delivery_agent_kyc?.id_doc_type || null,
+            id_doc_number: agent.delivery_agent_kyc?.id_doc_number || null,
+            id_doc_image_url: null,
+            bank_name: agent.delivery_agent_kyc?.bank_name || null,
+            account_number: agent.delivery_agent_kyc?.account_number || null,
+            ifsc_code: agent.delivery_agent_kyc?.ifsc_code || null,
+            account_holder_name: agent.delivery_agent_kyc?.account_holder_name || null,
+            rejection_reason: agent.delivery_agent_kyc?.rejection_reason || null,
+            kyc_submitted_at: agent.delivery_agent_kyc?.submitted_at?.toISOString() || null,
+            kyc_reviewed_at: agent.delivery_agent_kyc?.reviewed_at?.toISOString() || null,
             created_at: agent.created_at.toISOString(),
             rider_name: agent.users?.name || '',
             rider_email: agent.users?.email || '',
