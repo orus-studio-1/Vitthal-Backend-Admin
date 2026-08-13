@@ -21,7 +21,12 @@ import {
     getPendingPriceChanges,
     reviewPendingPriceChange,
     getPendingVariants,
-    reviewProductVariant
+    reviewProductVariant,
+    replaceProductSpecifications,
+    deleteProductImage,
+    addProductVariant,
+    updateProductVariant,
+    deleteProductVariant
 } from "../Controllers/Product.controller.js";
 import { authMiddleware } from "../Middleware/AuthMiddleware.js";
 
@@ -46,6 +51,10 @@ productRouter.put("/pending-price/:id/review", reviewPendingPriceChange);
 productRouter.get("/pending-variants/all", getPendingVariants);
 productRouter.put("/pending-variants/:id/review", reviewProductVariant);
 productRouter.put("/image/set-primary", setProductPrimaryImage);
+productRouter.delete("/image/:id", deleteProductImage);
+productRouter.post("/:id/variants", addProductVariant);
+productRouter.put("/variant/:id", updateProductVariant);
+productRouter.delete("/variant/:id", deleteProductVariant);
 productRouter.get("/getCategories", getCategories);
 productRouter.post("/categories/add", upload.single("image"), addCategoryController);
 productRouter.put("/categories/:id", upload.single("image"), updateCategoryController);
@@ -54,9 +63,11 @@ productRouter.get("/:id", getProductById);
 productRouter.put("/:id/review", reviewProduct);
 productRouter.put("/image/:id/review", reviewProductImage);
 productRouter.put("/specification/:id/review", reviewProductSpecification);
+productRouter.put("/:id/specifications", replaceProductSpecifications);
 productRouter.post("/addProduct", addProductController);
 productRouter.post("/", addProductController);
 productRouter.post("/uploadProductImages", upload.array("images", 5), uploadProductImagesController);
+productRouter.post("/addProductVariant", addProductVariant);
 productRouter.delete("/deleteProduct", deleteProduct);
 productRouter.delete("/:id", deleteProduct);
 productRouter.put("/updateProduct", updateProduct);
