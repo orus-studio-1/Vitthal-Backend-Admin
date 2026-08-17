@@ -1240,6 +1240,8 @@ ALTER TABLE vendor_quotations
             END IF;
         END $$;
 
+        ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS capacity TEXT;
+        ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
         ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS capacity_packages INTEGER;
         ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS total_area_sqft NUMERIC(10,2);
         ALTER TABLE fulfillment_centers ADD COLUMN IF NOT EXISTS storage_type TEXT;
