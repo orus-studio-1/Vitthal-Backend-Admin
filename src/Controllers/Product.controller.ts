@@ -1,12 +1,50 @@
 import type { Request, Response } from "express";
 import { marketplacePool } from "../lib/marketplace.js";
-import { getPresignedUrlOrOriginal, s3Client, BUCKET_NAME } from "../services/s3.service.js";
+import { extractS3Key, getPresignedUrlOrOriginal, s3Client, BUCKET_NAME } from "../services/s3.service.js";
 import { createAndEmitNotification } from "../lib/notificationEmitter.js";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const adminRoles = ["admin", "super_admin"];
 const reviewDecisions = ["approved", "rejected"] as const;
 const categoryImageMimeTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const productImageMimeTypes = categoryImageMimeTypes;
+
+type EditableSpecification = { id?: string; key?: string; value?: string; spec_key?: string; spec_value?: string };
+
+function normalizeSpecifications(value: unknown): Array<{ key: string; value: string }> {
+    const parsed = parseSpecifications(value);
+    if (parsed === undefined) return [];
+    const entries: EditableSpecification[] = Array.isArray(parsed)
+        ? parsed as EditableSpecification[]
+        : Object.entries(parsed).map(([key, entryValue]) => ({ key, value: String(entryValue ?? "") }));
+
+    const seen = new Set<string>();
+    return entries.map((entry) => ({
+        key: String(entry.key ?? entry.spec_key ?? "").trim(),
+        value: String(entry.value ?? entry.spec_value ?? "").trim(),
+    })).filter((entry) => {
+        const normalizedKey = entry.key.toLowerCase();
+        if (!entry.key || seen.has(normalizedKey)) return false;
+        seen.add(normalizedKey);
+        return true;
+    });
+}
+
+function normalizeAttributes(value: unknown): Record<string, string> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    const normalized: Record<string, string> = {};
+    const keys = new Map<string, string>();
+    for (const [rawKey, rawValue] of Object.entries(value)) {
+        const key = rawKey.trim();
+        if (!key) continue;
+        const lowerKey = key.toLowerCase();
+        const existingKey = keys.get(lowerKey);
+        if (existingKey) delete normalized[existingKey];
+        keys.set(lowerKey, key);
+        normalized[key] = String(rawValue ?? "").trim();
+    }
+    return normalized;
+}
 
 function ensureAdmin(req: Request, res: Response) {
     const { role } = (req as any).user ?? {};
@@ -108,6 +146,7 @@ const productSelect = `
         p.category,
         p.product_type,
         p.item_code,
+        p.quotation_limit,
         p.specifications,
         p.attributes,
         p.attributes->>'material' AS material,
@@ -157,11 +196,15 @@ export const addProductController = async (req: Request, res: Response): Promise
         const parsedSpecifications = parseSpecifications(specifications ?? {});
         const resolvedCategoryId = await resolveCategoryId(category);
 
-        const attributesObj: Record<string, string> = {};
-        if (attributes && typeof attributes === 'object') {
-            Object.entries(attributes).forEach(([key, val]) => {
-                attributesObj[key.trim()] = String(val).trim();
-            });
+        const attributesObj = normalizeAttributes(attributes);
+        for (const key of Object.keys(attributesObj)) {
+            if (["material", "grade", "application", "standard"].includes(key.toLowerCase())) {
+                const canonicalKey = key.toLowerCase();
+                if (key !== canonicalKey) {
+                    attributesObj[canonicalKey] = attributesObj[key] ?? "";
+                    delete attributesObj[key];
+                }
+            }
         }
         if (material) attributesObj.material = String(material).trim();
         if (grade) attributesObj.grade = String(grade).trim();
@@ -320,7 +363,7 @@ export const getProductById = async (req: Request, res: Response): Promise<Respo
 
         // Fetch all variants (pending, approved, rejected) for this product
         const variantsResult = await marketplacePool.query(
-            `SELECT pv.id, pv.sku, pv.properties, pv.approval_status, pv.approval_notes, pv.created_at, u.name AS creator_name, u.email AS creator_email
+            `SELECT pv.id, pv.name, pv.sku, pv.properties, pv.approval_status, pv.approval_notes, pv.created_at, u.name AS creator_name, u.email AS creator_email
              FROM product_variants pv
              LEFT JOIN users u ON pv.created_by_user_id = u.id
              WHERE pv.product_id = $1
@@ -347,7 +390,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<Respon
         return res.status(400).json({ message: "Product ID is required." });
     }
 
-    const { name, description, category, productType, specifications, is_active, itemCode, item_code, material, grade, application, standard, attributes } = req.body;
+    const { name, description, category, productType, is_active, itemCode, item_code, material, grade, application, standard, attributes } = req.body;
     const finalItemCode = itemCode !== undefined ? itemCode : item_code;
 
     try {
@@ -355,8 +398,6 @@ export const updateProduct = async (req: Request, res: Response): Promise<Respon
         if (!existing.rows.length) {
             return res.status(404).json({ message: "Product not found" });
         }
-
-        const existingAttributes = existing.rows[0]?.attributes || {};
 
         const updates: string[] = [];
         const values: unknown[] = [];
@@ -382,18 +423,12 @@ export const updateProduct = async (req: Request, res: Response): Promise<Respon
             updates.push(`item_code = $${index++}`);
             values.push(finalItemCode ? String(finalItemCode).trim() : null);
         }
-        if (specifications !== undefined) {
-            updates.push(`specifications = $${index++}::jsonb`);
-            values.push(JSON.stringify(parseSpecifications(specifications)));
-        }
-
-        const newAttributes = { ...existingAttributes };
+        const newAttributes = attributes !== undefined
+            ? normalizeAttributes(attributes)
+            : normalizeAttributes(existing.rows[0]?.attributes || {});
         let attributesUpdated = false;
 
-        if (attributes && typeof attributes === 'object') {
-            Object.entries(attributes).forEach(([key, val]) => {
-                newAttributes[key.trim()] = String(val).trim();
-            });
+        if (attributes !== undefined) {
             attributesUpdated = true;
         }
 
@@ -438,6 +473,18 @@ export const updateProduct = async (req: Request, res: Response): Promise<Respon
         if (typeof is_active === "boolean") {
             updates.push(`is_active = $${index++}`);
             values.push(is_active);
+        }
+
+        const quotationLimit = req.body.quotationLimit !== undefined
+            ? req.body.quotationLimit
+            : req.body.quotation_limit;
+        if (quotationLimit !== undefined) {
+            const parsedLimit = quotationLimit === null || quotationLimit === "" ? null : Number(quotationLimit);
+            if (parsedLimit !== null && (!Number.isInteger(parsedLimit) || parsedLimit < 1)) {
+                return res.status(400).json({ message: "Quotation limit must be a positive integer or null." });
+            }
+            updates.push(`quotation_limit = $${index++}`);
+            values.push(parsedLimit);
         }
 
         if (!updates.length) {
@@ -1131,6 +1178,15 @@ export const uploadProductImagesController = async (req: Request, res: Response)
         return res.status(400).json({ message: "No images provided." });
     }
 
+    const invalidFile = files.find((file) => !productImageMimeTypes.has(file.mimetype));
+    if (invalidFile) {
+        return res.status(400).json({ message: `${invalidFile.originalname} must be a JPG, PNG, or WEBP image.` });
+    }
+
+    if (!BUCKET_NAME) {
+        return res.status(500).json({ message: "AWS_BUCKET_NAME is not configured." });
+    }
+
     try {
         const productResult = await marketplacePool.query(
             `SELECT id FROM products WHERE id = $1`,
@@ -1138,6 +1194,14 @@ export const uploadProductImagesController = async (req: Request, res: Response)
         );
         if (productResult.rows.length === 0) {
             return res.status(404).json({ message: "Product not found." });
+        }
+
+        const imageCountResult = await marketplacePool.query(
+            `SELECT COUNT(*)::int AS count FROM products_images WHERE product_id = $1`,
+            [productId]
+        );
+        if (Number(imageCountResult.rows[0]?.count || 0) + files.length > 5) {
+            return res.status(400).json({ message: "A product can have at most 5 images. Delete an existing image before uploading another." });
         }
 
         const targetPrimaryIndex = req.body.primaryImageIndex !== undefined ? Number(req.body.primaryImageIndex) : -1;
@@ -1196,6 +1260,149 @@ export const uploadProductImagesController = async (req: Request, res: Response)
     } catch (error) {
         console.error("Error uploading product images:", error);
         return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const replaceProductSpecifications = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+
+    const productId = String(req.params.id || "");
+    try {
+        const specifications = normalizeSpecifications(req.body.specifications ?? []);
+        const client = await marketplacePool.connect();
+        try {
+            await client.query("BEGIN");
+            const product = await client.query(`SELECT id FROM products WHERE id = $1 FOR UPDATE`, [productId]);
+            if (!product.rows.length) {
+                await client.query("ROLLBACK");
+                return res.status(404).json({ message: "Product not found." });
+            }
+            await client.query(`DELETE FROM product_specification WHERE product_id = $1`, [productId]);
+            for (const specification of specifications) {
+                await client.query(
+                    `INSERT INTO product_specification (product_id, spec_key, spec_value, approval_status, created_by_user_id)
+                     VALUES ($1, $2, $3, 'approved', $4)`,
+                    [productId, specification.key, specification.value, authUser.userId]
+                );
+            }
+            const specificationObject = Object.fromEntries(specifications.map((item) => [item.key, item.value]));
+            await client.query(
+                `UPDATE products SET specifications = $1::jsonb, updated_at = NOW() WHERE id = $2`,
+                [JSON.stringify(specificationObject), productId]
+            );
+            await client.query("COMMIT");
+            return res.status(200).json({ message: "Product specifications updated successfully.", data: specifications });
+        } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error("Error replacing product specifications:", error);
+        return res.status(400).json({ message: error instanceof Error ? error.message : "Internal server error" });
+    }
+};
+
+export const deleteProductImage = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+
+    try {
+        const result = await marketplacePool.query(
+            `DELETE FROM products_images WHERE id = $1 RETURNING product_id, image_url, is_primary`,
+            [req.params.id]
+        );
+        if (!result.rows.length) return res.status(404).json({ message: "Product image not found." });
+
+        const deletedImage = result.rows[0];
+        if (deletedImage.is_primary) {
+            await marketplacePool.query(
+                `UPDATE products_images SET is_primary = true
+                 WHERE id = (SELECT id FROM products_images WHERE product_id = $1 ORDER BY display_order, created_at LIMIT 1)`,
+                [deletedImage.product_id]
+            );
+        }
+        const key = extractS3Key(deletedImage.image_url);
+        if (BUCKET_NAME && key && (deletedImage.image_url.includes("amazonaws.com/") || key.startsWith("products/"))) {
+            try {
+                await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+            } catch (storageError) {
+                console.error("Product image row deleted, but S3 cleanup failed:", storageError);
+            }
+        }
+        return res.status(200).json({ message: "Product image deleted successfully." });
+    } catch (error) {
+        console.error("Error deleting product image:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const addProductVariant = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+    const productId = String(req.body.productId || req.params.id || "");
+    const sku = asOptionalTrimmedString(req.body.sku);
+    const properties = normalizeAttributes(req.body.properties);
+    if (!productId || !Object.keys(properties).length) {
+        return res.status(400).json({ message: "Product ID and at least one variant property are required." });
+    }
+    try {
+        const result = await marketplacePool.query(
+            `INSERT INTO product_variants (product_id, name, sku, properties, approval_status, created_by_user_id)
+             VALUES ($1, $2, $3, $4::jsonb, 'approved', $5)
+             RETURNING id, product_id, name, sku, properties, approval_status, approval_notes, created_at`,
+            [productId, asOptionalTrimmedString(req.body.name), sku, JSON.stringify(properties), authUser.userId]
+        );
+        return res.status(201).json({ message: "Product variant created successfully.", data: result.rows[0] });
+    } catch (error: any) {
+        console.error("Error creating product variant:", error);
+        return res.status(error?.code === "23505" ? 409 : 400).json({ message: error?.code === "23505" ? "That variant SKU already exists." : (error instanceof Error ? error.message : "Internal server error") });
+    }
+};
+
+export const updateProductVariant = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+    const properties = normalizeAttributes(req.body.properties);
+    if (!Object.keys(properties).length) return res.status(400).json({ message: "At least one variant property is required." });
+    try {
+        const result = await marketplacePool.query(
+            `UPDATE product_variants SET name = $1, sku = $2, properties = $3::jsonb, approval_status = 'approved', approval_notes = NULL, updated_at = NOW()
+             WHERE id = $4 RETURNING id, product_id, name, sku, properties, approval_status, approval_notes, created_at`,
+            [asOptionalTrimmedString(req.body.name), asOptionalTrimmedString(req.body.sku), JSON.stringify(properties), req.params.id]
+        );
+        if (!result.rows.length) return res.status(404).json({ message: "Product variant not found." });
+        return res.status(200).json({ message: "Product variant updated successfully.", data: result.rows[0] });
+    } catch (error: any) {
+        console.error("Error updating product variant:", error);
+        return res.status(error?.code === "23505" ? 409 : 400).json({ message: error?.code === "23505" ? "That variant SKU already exists." : (error instanceof Error ? error.message : "Internal server error") });
+    }
+};
+
+export const deleteProductVariant = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+    try {
+        const usage = await marketplacePool.query(
+            `SELECT
+                (SELECT COUNT(*)::int FROM vendor_products WHERE product_variant_id = $1) AS vendor_count,
+                (SELECT COUNT(*)::int FROM cart_items WHERE product_variant_id = $1) AS cart_count,
+                (SELECT COUNT(*)::int FROM order_items WHERE product_variant_id = $1) AS order_count`,
+            [req.params.id]
+        );
+        const counts = usage.rows[0];
+        if (Number(counts?.vendor_count || 0) + Number(counts?.cart_count || 0) + Number(counts?.order_count || 0) > 0) {
+            return res.status(409).json({ message: "This variant is used by a seller listing, cart, or order and cannot be deleted." });
+        }
+        const result = await marketplacePool.query(`DELETE FROM product_variants WHERE id = $1 RETURNING id`, [req.params.id]);
+        if (!result.rows.length) return res.status(404).json({ message: "Product variant not found." });
+        return res.status(200).json({ message: "Product variant deleted successfully." });
+    } catch (error: any) {
+        console.error("Error deleting product variant:", error);
+        const referenced = error?.code === "23503";
+        return res.status(referenced ? 409 : 500).json({ message: referenced ? "This variant is already in use and cannot be deleted." : "Internal server error" });
     }
 };
 
