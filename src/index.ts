@@ -11,6 +11,8 @@ import adminRouter from './Routers/Admin.router.js';
 import vendorQuotationRouter from './Routers/VendorQuotation.router.js';
 import clientQuotationRouter from './Routers/ClientQuotation.router.js';
 import serviceRouter from './Routers/Service.router.js';
+import hiringRouter from './Routers/Hiring.router.js';
+import serviceHubRouter from './Routers/ServiceHub.router.js';
 import { authMiddleware } from './Middleware/AuthMiddleware.js';
 import { validateEnv } from './lib/env.js';
 import { ensureMarketplaceSchema } from './lib/marketplace.js';
@@ -63,6 +65,8 @@ app.use("/api/admin", authMiddleware, adminRouter);
 app.use("/api/quotations", vendorQuotationRouter);
 app.use("/api/client-quotations", clientQuotationRouter);
 app.use("/api/services", serviceRouter);
+app.use("/api/hiring", authMiddleware, hiringRouter);
+app.use("/api/service-hub", authMiddleware, serviceHubRouter);
 
 async function startServer() {
     try {

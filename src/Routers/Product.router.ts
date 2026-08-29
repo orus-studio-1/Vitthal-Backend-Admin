@@ -16,6 +16,10 @@ import {
     addCategoryController,
     updateCategoryController,
     deleteCategoryController,
+    adminGetSubcategoriesController,
+    adminAddSubcategoryController,
+    adminUpdateSubcategoryController,
+    adminDeleteSubcategoryController,
     uploadProductImagesController,
     getProductTypes,
     getPendingPriceChanges,
@@ -59,6 +63,12 @@ productRouter.get("/getCategories", getCategories);
 productRouter.post("/categories/add", upload.single("image"), addCategoryController);
 productRouter.put("/categories/:id", upload.single("image"), updateCategoryController);
 productRouter.delete("/categories/:id", deleteCategoryController);
+productRouter.get("/categories/:categoryId/subcategories", adminGetSubcategoriesController);
+productRouter.post("/categories/:categoryId/subcategories", adminAddSubcategoryController);
+productRouter.get("/subcategories", adminGetSubcategoriesController);
+productRouter.post("/subcategories", adminAddSubcategoryController);
+productRouter.put("/subcategories/:id", adminUpdateSubcategoryController);
+productRouter.delete("/subcategories/:id", adminDeleteSubcategoryController);
 productRouter.get("/:id", getProductById);
 productRouter.put("/:id/review", reviewProduct);
 productRouter.put("/image/:id/review", reviewProductImage);

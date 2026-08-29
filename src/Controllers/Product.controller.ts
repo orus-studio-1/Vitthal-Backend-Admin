@@ -144,6 +144,9 @@ const productSelect = `
         p.name,
         p.description,
         p.category,
+        pc.label AS category_label,
+        p.subcategory_id,
+        sub.name AS subcategory_name,
         p.product_type,
         p.item_code,
         p.quotation_limit,
@@ -170,6 +173,8 @@ const productSelect = `
         v.company_name AS creator_vendor_name,
         COALESCE(vp_stats.vendor_count, 0) AS vendor_count
     FROM products p
+    LEFT JOIN product_category pc ON pc.id = p.category
+    LEFT JOIN subcategories sub ON sub.id = p.subcategory_id
     LEFT JOIN users creator ON creator.id = p.created_by_user_id
     LEFT JOIN vendors v ON v.user_id = creator.id
     LEFT JOIN LATERAL (
@@ -217,12 +222,25 @@ export const addProductController = async (req: Request, res: Response): Promise
             return res.status(400).json({ message: "Quotation limit must be a positive integer" });
         }
 
+        const subcategoryId = req.body.subcategoryId || req.body.subcategory_id || null;
+        let resolvedSubcategoryId: string | null = null;
+        if (subcategoryId && typeof subcategoryId === "string" && subcategoryId.trim()) {
+            const subCheck = await marketplacePool.query(
+                `SELECT id FROM subcategories WHERE id = $1 AND category_id = $2 LIMIT 1`,
+                [subcategoryId.trim(), resolvedCategoryId]
+            );
+            if (subCheck.rows.length > 0) {
+                resolvedSubcategoryId = subCheck.rows[0].id;
+            }
+        }
+
         const result = await marketplacePool.query(
             `
                 INSERT INTO products (
                     name,
                     description,
                     category,
+                    subcategory_id,
                     product_type,
                     specifications,
                     attributes,
@@ -232,13 +250,14 @@ export const addProductController = async (req: Request, res: Response): Promise
                     quotation_limit,
                     created_by_user_id
                 )
-                VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, 'approved', TRUE, $7, $8, $9)
+                VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, 'approved', TRUE, $8, $9, $10)
                 RETURNING id
             `,
             [
                 name.trim(),
                 description ? description.trim() : null,
                 resolvedCategoryId,
+                resolvedSubcategoryId,
                 String(productType).trim(),
                 JSON.stringify(parsedSpecifications),
                 JSON.stringify(attributesObj),
@@ -485,6 +504,15 @@ export const updateProduct = async (req: Request, res: Response): Promise<Respon
             }
             updates.push(`quotation_limit = $${index++}`);
             values.push(parsedLimit);
+        }
+
+        const subcategoryId = req.body.subcategoryId !== undefined
+            ? req.body.subcategoryId
+            : req.body.subcategory_id;
+        if (subcategoryId !== undefined) {
+            const parsedSubId = subcategoryId === null || subcategoryId === "" ? null : String(subcategoryId).trim();
+            updates.push(`subcategory_id = $${index++}`);
+            values.push(parsedSubId);
         }
 
         if (!updates.length) {
@@ -949,9 +977,18 @@ export const getCategories = async (req: Request, res: Response): Promise<Respon
 
     try {
         const result = await marketplacePool.query(
-            `SELECT id, code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, category_type
-             FROM product_category
-             ORDER BY sort_order ASC, label ASC`
+            `SELECT pc.id, pc.code, pc.label, pc.description, pc.image, pc.min_commision_percentage, pc.max_commision_percentage, pc.sort_order, pc.is_active, pc.category_type,
+                    COALESCE(
+                        (SELECT json_agg(json_build_object('id', s.id, 'name', s.name, 'description', s.description) ORDER BY s.name ASC)
+                         FROM subcategories s WHERE s.category_id = pc.id),
+                        '[]'::json
+                    ) AS subcategories,
+                    COALESCE(
+                        (SELECT COUNT(*)::int FROM subcategories s WHERE s.category_id = pc.id),
+                        0
+                    ) AS subcategory_count
+             FROM product_category pc
+             ORDER BY pc.sort_order ASC, pc.label ASC`
         );
 
         for (const category of result.rows) {
@@ -1157,6 +1194,163 @@ export const deleteCategoryController = async (req: Request, res: Response): Pro
                 message: "Cannot delete this category because it has products or services associated with it. Please delete them first or deactivate the category instead."
             });
         }
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const adminGetSubcategoriesController = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+
+    const categoryId = req.params.categoryId || req.query.categoryId;
+    try {
+        let query = `SELECT id, category_id, name, description, created_at, updated_at FROM subcategories`;
+        const params: any[] = [];
+        if (categoryId && typeof categoryId === "string") {
+            query += ` WHERE category_id = $1`;
+            params.push(categoryId);
+        }
+        query += ` ORDER BY name ASC`;
+        const result = await marketplacePool.query(query, params);
+        return res.status(200).json({ message: "Subcategories fetched successfully", data: result.rows });
+    } catch (error) {
+        console.error("Error fetching subcategories (admin):", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const adminAddSubcategoryController = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+
+    const categoryId = req.params.categoryId || req.body.categoryId || req.body.category_id;
+    const { name, description } = req.body;
+
+    if (!categoryId || typeof categoryId !== "string") {
+        return res.status(400).json({ message: "Category ID is required" });
+    }
+    const nameVal = typeof name === "string" ? name.trim() : "";
+    if (!nameVal) {
+        return res.status(400).json({ message: "Subcategory name is required" });
+    }
+
+    try {
+        const catCheck = await marketplacePool.query(`SELECT id, category_type FROM product_category WHERE id = $1 LIMIT 1`, [categoryId]);
+        if (catCheck.rows.length === 0) {
+            return res.status(404).json({ message: "Category not found" });
+        }
+
+        const existing = await marketplacePool.query(
+            `SELECT id FROM subcategories WHERE category_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+            [categoryId, nameVal]
+        );
+        if (existing.rows.length > 0) {
+            return res.status(400).json({ message: `Subcategory "${nameVal}" already exists in this category.` });
+        }
+
+        const result = await marketplacePool.query(
+            `INSERT INTO subcategories (category_id, name, description)
+             VALUES ($1, $2, $3)
+             RETURNING id, category_id, name, description, created_at, updated_at`,
+            [categoryId, nameVal, description ? String(description).trim() : null]
+        );
+
+        // Also ensure present in service_subcategories if category is a service for backward compatibility
+        try {
+            await marketplacePool.query(
+                `INSERT INTO service_subcategories (id, category_id, name, description)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT (category_id, name) DO NOTHING`,
+                [result.rows[0].id, categoryId, nameVal, description ? String(description).trim() : null]
+            );
+        } catch (_) {}
+
+        return res.status(201).json({ message: "Subcategory created successfully", data: result.rows[0] });
+    } catch (error) {
+        console.error("Error creating subcategory:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const adminUpdateSubcategoryController = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    if (!name && description === undefined) {
+        return res.status(400).json({ message: "At least name or description is required to update" });
+    }
+
+    try {
+        const existing = await marketplacePool.query(`SELECT id, category_id FROM subcategories WHERE id = $1 LIMIT 1`, [id]);
+        if (existing.rows.length === 0) {
+            return res.status(404).json({ message: "Subcategory not found" });
+        }
+
+        const updates: string[] = [];
+        const values: any[] = [];
+        let idx = 1;
+
+        if (name && typeof name === "string" && name.trim()) {
+            const nameVal = name.trim();
+            const dupCheck = await marketplacePool.query(
+                `SELECT id FROM subcategories WHERE category_id = $1 AND LOWER(name) = LOWER($2) AND id != $3 LIMIT 1`,
+                [existing.rows[0].category_id, nameVal, id]
+            );
+            if (dupCheck.rows.length > 0) {
+                return res.status(400).json({ message: `Subcategory "${nameVal}" already exists in this category.` });
+            }
+            updates.push(`name = $${idx++}`);
+            values.push(nameVal);
+        }
+
+        if (description !== undefined) {
+            updates.push(`description = $${idx++}`);
+            values.push(description ? String(description).trim() : null);
+        }
+
+        updates.push(`updated_at = NOW()`);
+        values.push(id);
+
+        const result = await marketplacePool.query(
+            `UPDATE subcategories SET ${updates.join(", ")} WHERE id = $${idx} RETURNING id, category_id, name, description, updated_at`,
+            values
+        );
+
+        // Also update service_subcategories if present
+        try {
+            if (name) {
+                await marketplacePool.query(`UPDATE service_subcategories SET name = $1, description = $2, updated_at = NOW() WHERE id = $3`, [name, description || null, id]);
+            }
+        } catch (_) {}
+
+        return res.status(200).json({ message: "Subcategory updated successfully", data: result.rows[0] });
+    } catch (error) {
+        console.error("Error updating subcategory:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const adminDeleteSubcategoryController = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+
+    const { id } = req.params;
+    try {
+        const result = await marketplacePool.query(`DELETE FROM subcategories WHERE id = $1 RETURNING id`, [id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Subcategory not found" });
+        }
+
+        try {
+            await marketplacePool.query(`DELETE FROM service_subcategories WHERE id = $1`, [id]);
+        } catch (_) {}
+
+        return res.status(200).json({ message: "Subcategory deleted successfully" });
+    } catch (error: any) {
+        console.error("Error deleting subcategory:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };
