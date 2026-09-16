@@ -31,6 +31,7 @@ const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:4000',
+    'http://localhost:8081',
     'https://vendor.mtwo.in',
     'https://admin.mtwo.in',
     'https://client.mtwo.in',
