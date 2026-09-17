@@ -19,16 +19,18 @@ export function getMailTransporter() {
     }
 
     const host = requireEnv("SMTP_HOST");
-    const port = Number(process.env.SMTP_PORT || 587);
+    const port = Number(process.env.SMTP_PORT || 465);
     const secure = process.env.SMTP_SECURE === "true" || port === 465;
-    const user = process.env.SMTP_USER?.trim();
-    const pass = process.env.SMTP_PASS?.trim();
+    
+    // Enforce these so it never silently connects without auth
+    const user = requireEnv("SMTP_USER");
+    const pass = requireEnv("SMTP_PASS");
 
     cachedTransporter = nodemailer.createTransport({
         host,
         port,
         secure,
-        auth: user && pass ? { user, pass } : undefined,
+        auth: { user, pass },
     });
 
     return cachedTransporter;
