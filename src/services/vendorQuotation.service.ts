@@ -1156,27 +1156,45 @@ export async function createAndSendVendorQuotation(input: {
             vendor_email: string;
         };
 
+        const previousApprovalStatus = vendor.approval_status;
+
         let productId: string | null = null;
         if (quotationKind === "vendor_agreement") {
-            if (vendor.approval_status !== "pending") {
+            if (!["pending", "reconsideration", "agreement_sent"].includes(vendor.approval_status)) {
                 await client.query("ROLLBACK");
-                throw new Error("Agreement can only be sent once while the vendor is pending approval.");
+                throw new Error("Agreement can only be sent while the vendor is pending approval or under reconsideration.");
             }
 
             const existingAgreement = await client.query(
                 `
-                    SELECT id
+                    SELECT id, status
                     FROM vendor_quotations
                     WHERE vendor_id = $1
                       AND quotation_kind = 'vendor_agreement'
+                    ORDER BY created_at DESC
                     LIMIT 1
                 `,
                 [input.vendorId]
             );
 
             if (existingAgreement.rows.length) {
-                await client.query("ROLLBACK");
-                throw new Error("Agreement has already been sent for this vendor.");
+                const prevStatus = existingAgreement.rows[0].status;
+                if (["vendor_approved", "admin_approved"].includes(prevStatus)) {
+                    await client.query("ROLLBACK");
+                    throw new Error("Agreement has already been signed and approved for this vendor.");
+                }
+
+                // Supersede older unsigned agreement
+                await client.query(
+                    `
+                        UPDATE vendor_quotations
+                        SET status = 'admin_rejected', admin_review_notes = 'Superseded by new agreement draft', updated_at = NOW()
+                        WHERE vendor_id = $1
+                          AND quotation_kind = 'vendor_agreement'
+                          AND status NOT IN ('vendor_approved', 'admin_approved')
+                    `,
+                    [input.vendorId]
+                );
             }
 
             if (input.vendorUpdates) {
@@ -1369,7 +1387,19 @@ export async function createAndSendVendorQuotation(input: {
                 `,
                 [quotation.id, message]
             );
-            throw emailError;
+
+            if (quotationKind === "vendor_agreement") {
+                const revertStatus = ["pending", "reconsideration"].includes(previousApprovalStatus) ? previousApprovalStatus : "pending";
+                await marketplacePool.query(
+                    `
+                        UPDATE vendors
+                        SET approval_status = $2, approval_notes = 'Email failed to send agreement', updated_at = NOW()
+                        WHERE id = $1
+                    `,
+                    [input.vendorId, revertStatus]
+                );
+            }
+            throw new Error(`Failed to send agreement email to vendor (${vendor.vendor_email}): ${message}. Vendor status remains '${previousApprovalStatus}'.`);
         }
 
         return {
