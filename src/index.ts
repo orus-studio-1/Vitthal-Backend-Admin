@@ -18,6 +18,7 @@ import { validateEnv } from './lib/env.js';
 import { ensureMarketplaceSchema } from './lib/marketplace.js';
 import { initSocket } from './lib/socket.js';
 import { initNotificationEmitter } from './lib/notificationEmitter.js';
+import contactQueriesRouter from './Routers/ContactQueries.router.js';
 
 validateEnv();
 
@@ -68,6 +69,7 @@ app.use("/api/client-quotations", clientQuotationRouter);
 app.use("/api/services", serviceRouter);
 app.use("/api/hiring", authMiddleware, hiringRouter);
 app.use("/api/service-hub", authMiddleware, serviceHubRouter);
+app.use("/api/contact",authMiddleware,contactQueriesRouter)
 
 async function startServer() {
     try {
