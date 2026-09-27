@@ -19,6 +19,7 @@ import {
     vendorGetMyServiceOfferingsController,
     adminGetServiceOfferingsController,
 } from "../Controllers/Service.controller.js";
+import { adminGetSubcategoriesController } from "../Controllers/Product.controller.js";
 
 const serviceRouter = Router();
 
@@ -31,6 +32,9 @@ const upload = multer({
 
 serviceRouter.use(authMiddleware);
 
+// --- Subcategories ---
+serviceRouter.get("/subcategories", adminGetSubcategoriesController);
+
 // --- Vendor routes (must be before /:id to avoid route clash) ---
 serviceRouter.get("/vendor/offerings", vendorGetMyServiceOfferingsController);
 serviceRouter.post("/vendor/offerings", vendorOfferServiceController);
@@ -38,6 +42,7 @@ serviceRouter.put("/vendor/offerings/:id", vendorUpdateServiceOfferingController
 serviceRouter.delete("/vendor/offerings/:id", vendorDeleteServiceOfferingController);
 
 // --- Admin monitoring routes (must be before /:id to avoid route clash) ---
+serviceRouter.get("/admin/list", adminListServicesController);
 serviceRouter.get("/admin/bookings", adminListServiceBookingsController);
 serviceRouter.get("/admin/quotations", adminListServiceQuotationsController);
 serviceRouter.get("/admin/reviews", adminGetServiceReviewsController);
