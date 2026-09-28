@@ -44,10 +44,11 @@ app.use("/", cors({
             callback(null, true);
             return;
         }
-
+        const isVercelDomain = /^https:\/\/.*\.vercel\.app$/.test(origin || '');
         const isAllowedOrigin = allowedOrigins.includes(origin)
             || /^http:\/\/localhost:\d+$/.test(origin)
-            || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+            || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
+            || isVercelDomain;
 
         callback(isAllowedOrigin ? null : new Error("Not allowed by CORS"), isAllowedOrigin);
     },
