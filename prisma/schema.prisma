@@ -1485,3 +1485,19 @@ model service_ticket_documents {
 
   @@index([ticket_id], map: "idx_srv_ticket_docs_ticket")
 }
+
+model contact_queries {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  email      String
+  company    String?
+  phone      String?
+  subject    String
+  message    String
+  status     String   @default("new")
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([status], map: "idx_contact_queries_status")
+  @@index([created_at(sort: Desc)], map: "idx_contact_queries_created_at")
+}
