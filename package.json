@@ -40,6 +40,7 @@
     "pdf-lib": "^1.17.1",
     "pdfmake": "^0.2.18",
     "pg": "^8.21.0",
+    "resend": "^6.30.0",
     "socket.io-client": "^4.8.3",
     "typescript": "^6.0.3",
     "ws": "^8.20.0"
@@ -60,5 +61,3 @@
     "typescript-eslint": "^8.66.0"
   }
 }
-
-

@@ -1,43 +1,82 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-let cachedTransporter: nodemailer.Transporter | null = null;
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-function requireEnv(name: string) {
-    const value = process.env[name]?.trim();
-    if (!value) {
-        throw new Error(`Missing required environment variable: ${name}`);
-    }
-    return value;
+export interface EmailPayload {
+    to: string | string[];
+    subject: string;
+    htmlContent: string;
+    textContent?: string;
+    attachments?: Array<{
+        filename: string;
+        content: Buffer;
+    }>;
+    replyTo?: string;
 }
 
-export function getMailTransporter() {
-    if (cachedTransporter) {
-        return cachedTransporter;
-    }
-
-    const host = requireEnv("SMTP_HOST");
-    const port = Number(process.env.SMTP_PORT || 465);
-    const secure = process.env.SMTP_SECURE === "true" || port === 465;
-    
-    // Enforce these so it never silently connects without auth
-    const user = requireEnv("SMTP_USER");
-    const pass = requireEnv("SMTP_PASS");
-
-    cachedTransporter = nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: { user, pass },
-    });
-
-    return cachedTransporter;
+export interface EmailResult {
+    success: boolean;
+    messageId?: string;
+    error?: string;
 }
 
-export function getMailFrom() {
-    return requireEnv("MAIL_FROM");
+export async function sendEmail(payload: EmailPayload): Promise<EmailResult> {
+    try {
+        if (!process.env.RESEND_API_KEY) {
+            console.error("RESEND_API_KEY environment variable is missing");
+            return {
+                success: false,
+                error: "RESEND_API_KEY environment variable is missing",
+            };
+        }
+
+        const fromAddress =
+            process.env.MAIL_FROM ||
+            process.env.EMAIL_FROM ||
+            "onboarding@resend.dev";
+
+        const sendOptions: any = {
+            from: fromAddress,
+            to: payload.to,
+            subject: payload.subject,
+            html: payload.htmlContent,
+        };
+
+        if (payload.textContent) {
+            sendOptions.text = payload.textContent;
+        }
+        if (payload.replyTo || process.env.EMAIL_REPLY_TO) {
+            sendOptions.replyTo = payload.replyTo || process.env.EMAIL_REPLY_TO;
+        }
+        if (payload.attachments && payload.attachments.length > 0) {
+            sendOptions.attachments = payload.attachments;
+        }
+
+        const { data, error } = await resend.emails.send(sendOptions);
+
+        if (error) {
+            console.error(`Failed to send email to ${payload.to}: ${error.message}`);
+            return {
+                success: false,
+                error: error.message,
+            };
+        }
+
+        console.log(`Email sent successfully to ${payload.to}. Message ID: ${data?.id}`);
+        return {
+            success: true,
+            messageId: data?.id,
+        };
+    } catch (err: any) {
+        console.error(`Unexpected error sending email to ${payload.to}:`, err);
+        return {
+            success: false,
+            error: err.message || "Unknown email error",
+        };
+    }
 }
 
 export interface SendReconsiderationInput {
@@ -53,16 +92,12 @@ export async function sendVendorReconsiderationEmail({
     companyName,
     notes,
 }: SendReconsiderationInput) {
-    const transporter = getMailTransporter();
-    const from = getMailFrom();
+    const portalUrl = process.env.VENDOR_PORTAL_URL || "https://vendor.mtwo.in/login";
 
-    const portalUrl = process.env.VENDOR_PORTAL_URL || "http://localhost:4000/login"; // Default vendor portal login url
-
-    await transporter.sendMail({
-        from,
+    return await sendEmail({
         to: vendorEmail,
         subject: `Action Required: Reconsideration of your Vendor Application - ${companyName}`,
-        html: `
+        htmlContent: `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
                 <!-- Header -->
                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 24px;">
@@ -109,7 +144,6 @@ export async function sendVendorReconsiderationEmail({
                     </p>
                 </div>
             </div>
-        </div>
         `,
     });
 }
