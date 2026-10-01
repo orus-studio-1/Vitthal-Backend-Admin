@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { marketplacePool } from "../lib/marketplace.js";
+import { getPresignedUrlOrOriginal } from "../services/s3.service.js";
 
 const adminRoles = ["admin", "super_admin"];
 const allowedStatuses = ["pending", "confirmed", "shipped", "delivered", "cancelled"] as const;
@@ -459,7 +460,22 @@ export const getOrderById = async (req: Request, res: Response): Promise<Respons
                     FROM order_fulfillment_tracking oft
                     LEFT JOIN fulfillment_centers fc ON fc.id = oft.fulfillment_center_id
                     WHERE oft.order_id = o.id
-                ) AS fulfillment_tracking
+                ) AS fulfillment_tracking,
+                                 (
+                    SELECT json_build_object(
+                        'lr_number', odd.lr_number,
+                        'eway_bill_number', odd.eway_bill_number,
+                        'transporter_name', odd.transporter_name,
+                        'eway_bill_url', odd.eway_bill_url,
+                        'delivery_challan_url', odd.delivery_challan_url,
+                        'invoice_url', odd.invoice_url,
+                        'lr_document_url', odd.lr_document_url,
+                        'updated_at', odd.updated_at
+                    )
+                    FROM order_dispatch_details odd
+                    WHERE odd.order_id = o.id
+                    LIMIT 1
+                ) AS dispatch_details
             FROM orders o
             LEFT JOIN users u ON u.id = o.user_id
             LEFT JOIN client c ON c.user_id = o.user_id
@@ -474,7 +490,26 @@ export const getOrderById = async (req: Request, res: Response): Promise<Respons
             return res.status(404).json({ message: "Order not found" });
         }
 
-        return res.status(200).json({ message: "Order retrieved successfully", data: result.rows[0] });
+        const order = result.rows[0];
+
+        if (order.dispatch_details) {
+            const resolveDocument = async (url: string | null) =>
+                url ? await getPresignedUrlOrOriginal(url) : null;
+
+            order.dispatch_details.eway_bill_url =
+                await resolveDocument(order.dispatch_details.eway_bill_url);
+
+            order.dispatch_details.delivery_challan_url =
+                await resolveDocument(order.dispatch_details.delivery_challan_url);
+
+            order.dispatch_details.invoice_url =
+                await resolveDocument(order.dispatch_details.invoice_url);
+
+            order.dispatch_details.lr_document_url =
+                await resolveDocument(order.dispatch_details.lr_document_url);
+        }
+
+        return res.status(200).json({ message: "Order retrieved successfully", data: order });
     } catch (error) {
         console.error("Error fetching order:", error);
         return res.status(500).json({ message: "Internal server error" });
