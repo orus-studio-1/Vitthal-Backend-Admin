@@ -35,7 +35,8 @@ const allowedOrigins = [
     'http://localhost:8081',
     'https://vendor.mtwo.in',
     'https://admin.mtwo.in',
-    'https://client.mtwo.in',
+    'https://www.mtwo.in',
+    'https://mtwo.in',
 ];
 
 app.use("/", cors({
@@ -44,10 +45,13 @@ app.use("/", cors({
             callback(null, true);
             return;
         }
-
+        const isVercelDomain = /^https:\/\/.*\.vercel\.app$/.test(origin || '');
+        const isMtwoDomain = /^https:\/\/(.*\.)?mtwo\.in$/.test(origin || '');
         const isAllowedOrigin = allowedOrigins.includes(origin)
             || /^http:\/\/localhost:\d+$/.test(origin)
-            || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+            || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
+            || isVercelDomain
+            || isMtwoDomain;
 
         callback(isAllowedOrigin ? null : new Error("Not allowed by CORS"), isAllowedOrigin);
     },
@@ -91,3 +95,4 @@ async function startServer() {
 }
 
 void startServer();
+
