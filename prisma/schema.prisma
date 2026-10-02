@@ -180,6 +180,7 @@ model Vendor {
   service_ticket_quotations    service_ticket_quotations[]
   users                        User                   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendors_user")
   wishlist_items               wishlist_items[]
+  order_dispatch_details       order_dispatch_details[]
 
   @@index([rating(sort: Desc)], map: "idx_vendors_rating", where: raw("(is_active = true)"))
   @@map("vendors")
@@ -230,6 +231,7 @@ model Order {
   rider_earnings             rider_earnings[]
   vendor_payouts             vendor_payouts?
   vendor_reviews             vendor_reviews[]
+  order_dispatch_details     order_dispatch_details?
 
   @@index([status], map: "idx_orders_status")
   @@index([user_id], map: "idx_orders_user_id")
@@ -1498,4 +1500,24 @@ model contact_queries {
 
   @@index([status], map: "idx_contact_queries_status")
   @@index([created_at(sort: Desc)], map: "idx_contact_queries_created_at")
+}
+
+model order_dispatch_details {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id             String   @unique @db.Uuid
+  vendor_id            String   @db.Uuid
+  lr_number            String   @db.VarChar(100)
+  eway_bill_number     String?  @db.VarChar(100)
+  transporter_name     String?  @db.VarChar(150)
+  eway_bill_url        String
+  delivery_challan_url String
+  invoice_url          String
+  lr_document_url      String?
+  dispatched_at        DateTime @default(now()) @db.Timestamptz(6)
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @default(now()) @db.Timestamptz(6)
+  orders               Order    @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  vendors              Vendor   @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([vendor_id], map: "idx_order_dispatch_vendor")
 }
