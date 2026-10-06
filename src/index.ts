@@ -18,6 +18,7 @@ import { validateEnv } from './lib/env.js';
 import { ensureMarketplaceSchema } from './lib/marketplace.js';
 import { initSocket } from './lib/socket.js';
 import { initNotificationEmitter } from './lib/notificationEmitter.js';
+import contactQueriesRouter from './Routers/ContactQueries.router.js';
 
 validateEnv();
 
@@ -34,7 +35,8 @@ const allowedOrigins = [
     'http://localhost:8081',
     'https://vendor.mtwo.in',
     'https://admin.mtwo.in',
-    'https://client.mtwo.in',
+    'https://www.mtwo.in',
+    'https://mtwo.in',
 ];
 
 app.use("/", cors({
@@ -43,10 +45,13 @@ app.use("/", cors({
             callback(null, true);
             return;
         }
-
+        const isVercelDomain = /^https:\/\/.*\.vercel\.app$/.test(origin || '');
+        const isMtwoDomain = /^https:\/\/(.*\.)?mtwo\.in$/.test(origin || '');
         const isAllowedOrigin = allowedOrigins.includes(origin)
             || /^http:\/\/localhost:\d+$/.test(origin)
-            || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+            || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
+            || isVercelDomain
+            || isMtwoDomain;
 
         callback(isAllowedOrigin ? null : new Error("Not allowed by CORS"), isAllowedOrigin);
     },
@@ -68,6 +73,7 @@ app.use("/api/client-quotations", clientQuotationRouter);
 app.use("/api/services", serviceRouter);
 app.use("/api/hiring", authMiddleware, hiringRouter);
 app.use("/api/service-hub", authMiddleware, serviceHubRouter);
+app.use("/api/contact",authMiddleware,contactQueriesRouter)
 
 async function startServer() {
     try {
@@ -89,3 +95,4 @@ async function startServer() {
 }
 
 void startServer();
+

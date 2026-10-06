@@ -1,6 +1,6 @@
 import "dotenv/config";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
+import { sendEmail } from "./mail.service.js";
 import { marketplacePool } from "../lib/marketplace.js";
 
 export type VendorQuotationStatus =
@@ -12,6 +12,14 @@ export type VendorQuotationStatus =
     | "admin_rejected";
 
 export type VendorQuotationKind = "vendor_agreement" | "order_request";
+
+function requireEnv(name: string) {
+    const value = process.env[name]?.trim();
+    if (!value) {
+        throw new Error(`Missing required environment variable: ${name}`);
+    }
+    return value;
+}
 
 type VendorQuotationRow = {
     id: string;
@@ -128,41 +136,7 @@ const vendorQuotationSelect = `
 
 const AUTO_SIGNATURE_MARKER = "__AUTO_TEXT_SIGNATURE__";
 
-let cachedTransporter: nodemailer.Transporter | null = null;
 
-function requireEnv(name: string) {
-    const value = process.env[name]?.trim();
-    if (!value) {
-        throw new Error(`Missing required environment variable: ${name}`);
-    }
-
-    return value;
-}
-
-function getMailTransporter() {
-    if (cachedTransporter) {
-        return cachedTransporter;
-    }
-
-    const host = requireEnv("SMTP_HOST");
-    const port = Number(process.env.SMTP_PORT || 587);
-    const secure = process.env.SMTP_SECURE === "true" || port === 465;
-    const user = process.env.SMTP_USER?.trim();
-    const pass = process.env.SMTP_PASS?.trim();
-
-    cachedTransporter = nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: user && pass ? { user, pass } : undefined,
-    });
-
-    return cachedTransporter;
-}
-
-function getMailFrom() {
-    return requireEnv("MAIL_FROM");
-}
 
 function buildVendorDocumentUrl(baseUrl: string, rawToken: string) {
     return `${baseUrl.replace(/\/$/, "")}?token=${encodeURIComponent(rawToken)}`;
@@ -946,7 +920,6 @@ export async function generateVendorQuotationPdf(quotation: VendorQuotationRow):
 }
 
 async function sendQuotationEmail({ quotation, rawToken, pdfBuffer }: SendQuotationEmailInput) {
-    const transporter = getMailTransporter();
     const vendorLink = getVendorQuotationAppUrl(rawToken);
     const isAgreement = quotation.quotation_kind === "vendor_agreement";
     const documentLabel = isAgreement ? "agreement" : "quotation request";
@@ -954,11 +927,10 @@ async function sendQuotationEmail({ quotation, rawToken, pdfBuffer }: SendQuotat
         ? "review the attached agreement, sign it, and submit your response"
         : "review the attached PDF, update pricing, add your notes, sign, and submit";
 
-    await transporter.sendMail({
-        from: getMailFrom(),
+    await sendEmail({
         to: quotation.sent_to_email,
         subject: `${isAgreement ? "Agreement" : "Quotation"} ${quotation.quotation_number} from ${quotation.created_by_admin_name}`,
-        html: `
+        htmlContent: `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
                 <!-- Header with Company Logo -->
                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 24px;">
@@ -1057,25 +1029,22 @@ async function sendQuotationEmail({ quotation, rawToken, pdfBuffer }: SendQuotat
                     ? `MTWO_Agreement_${quotation.id}.pdf`
                     : `MTWO_VQ_${quotation.id}.pdf`,
                 content: pdfBuffer,
-                contentType: "application/pdf",
-            },
+                            },
         ],
     });
 }
 
 async function sendAdminNotificationEmail(quotation: VendorQuotationRow) {
-    const transporter = getMailTransporter();
     const adminLink = getAdminQuotationAppUrl(quotation.id);
     const documentLabel = quotation.quotation_kind === "vendor_agreement" ? "agreement" : "quotation";
     const vendorSummary = quotation.status === "vendor_rejected"
         ? `The vendor rejected this ${documentLabel}. Reason: ${quotation.vendor_rejection_reason || "Not provided"}.`
         : `The vendor submitted pricing ${formatCurrency(quotation.vendor_price)} with MOQ ${quotation.vendor_moq ?? "Not specified"}.`;
 
-    await transporter.sendMail({
-        from: getMailFrom(),
+    await sendEmail({
         to: quotation.created_by_admin_email,
         subject: `Vendor response for ${documentLabel} ${quotation.quotation_number}`,
-        html: `
+        htmlContent: `
             <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
                 <h2 style="margin-bottom: 8px;">Vendor Response Received</h2>
                 <p>Hello ${quotation.created_by_admin_name},</p>
@@ -1156,27 +1125,45 @@ export async function createAndSendVendorQuotation(input: {
             vendor_email: string;
         };
 
+        const previousApprovalStatus = vendor.approval_status;
+
         let productId: string | null = null;
         if (quotationKind === "vendor_agreement") {
-            if (vendor.approval_status !== "pending") {
+            if (!["pending", "reconsideration", "agreement_sent"].includes(vendor.approval_status)) {
                 await client.query("ROLLBACK");
-                throw new Error("Agreement can only be sent once while the vendor is pending approval.");
+                throw new Error("Agreement can only be sent while the vendor is pending approval or under reconsideration.");
             }
 
             const existingAgreement = await client.query(
                 `
-                    SELECT id
+                    SELECT id, status
                     FROM vendor_quotations
                     WHERE vendor_id = $1
                       AND quotation_kind = 'vendor_agreement'
+                    ORDER BY created_at DESC
                     LIMIT 1
                 `,
                 [input.vendorId]
             );
 
             if (existingAgreement.rows.length) {
-                await client.query("ROLLBACK");
-                throw new Error("Agreement has already been sent for this vendor.");
+                const prevStatus = existingAgreement.rows[0].status;
+                if (["vendor_approved", "admin_approved"].includes(prevStatus)) {
+                    await client.query("ROLLBACK");
+                    throw new Error("Agreement has already been signed and approved for this vendor.");
+                }
+
+                // Supersede older unsigned agreement
+                await client.query(
+                    `
+                        UPDATE vendor_quotations
+                        SET status = 'admin_rejected', admin_review_notes = 'Superseded by new agreement draft', updated_at = NOW()
+                        WHERE vendor_id = $1
+                          AND quotation_kind = 'vendor_agreement'
+                          AND status NOT IN ('vendor_approved', 'admin_approved')
+                    `,
+                    [input.vendorId]
+                );
             }
 
             if (input.vendorUpdates) {
@@ -1369,7 +1356,19 @@ export async function createAndSendVendorQuotation(input: {
                 `,
                 [quotation.id, message]
             );
-            throw emailError;
+
+            if (quotationKind === "vendor_agreement") {
+                const revertStatus = ["pending", "reconsideration"].includes(previousApprovalStatus) ? previousApprovalStatus : "pending";
+                await marketplacePool.query(
+                    `
+                        UPDATE vendors
+                        SET approval_status = $2, approval_notes = 'Email failed to send agreement', updated_at = NOW()
+                        WHERE id = $1
+                    `,
+                    [input.vendorId, revertStatus]
+                );
+            }
+            throw new Error(`Failed to send agreement email to vendor (${vendor.vendor_email}): ${message}. Vendor status remains '${previousApprovalStatus}'.`);
         }
 
         return {
@@ -1660,3 +1659,5 @@ export async function reviewVendorQuotation(input: {
 
     return getVendorQuotationById(input.quotationId);
 }
+
+

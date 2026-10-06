@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import { prisma } from "../lib/prisma.js";
 import { UserRole } from "../generated/prisma/enums.js";
 import { getPrismaErrorMessage } from "../helpers/prismaError.helper.js";
+import { getPresignedUrlOrOriginal } from "../services/s3.service.js";
 
 export const getAllDeliveryAgents = async (req: Request, res: Response): Promise<Response> => {
     try {
@@ -42,32 +43,35 @@ export const getAllDeliveryAgents = async (req: Request, res: Response): Promise
             });
         }
 
-        const mapped = agents.map(agent => ({
-            id: agent.id,
-            special_rider_id: agent.special_rider_id,
-            contact_phone: agent.contact_phone,
-            vehicle_type: agent.vehicle_type,
-            vehicle_number: agent.vehicle_number,
-            status: agent.status,
-            is_online: agent.is_online,
-            kyc_status: agent.kyc_status || agent.delivery_agent_kyc?.kyc_status || 'pending',
-            id_doc_type: agent.delivery_agent_kyc?.id_doc_type || null,
-            id_doc_number: agent.delivery_agent_kyc?.id_doc_number || null,
-            id_doc_image_url: agent.delivery_agent_kyc?.id_doc_image_url || null,
-            bank_name: agent.delivery_agent_kyc?.bank_name || null,
-            account_number: agent.delivery_agent_kyc?.account_number || null,
-            ifsc_code: agent.delivery_agent_kyc?.ifsc_code || null,
-            account_holder_name: agent.delivery_agent_kyc?.account_holder_name || null,
-            rejection_reason: agent.delivery_agent_kyc?.rejection_reason || null,
-            kyc_submitted_at: agent.delivery_agent_kyc?.submitted_at?.toISOString() || null,
-            kyc_reviewed_at: agent.delivery_agent_kyc?.reviewed_at?.toISOString() || null,
-            created_at: agent.created_at.toISOString(),
-            rider_name: agent.users?.name || '',
-            rider_email: agent.users?.email || '',
-            center_name: agent.fulfillment_centers?.name || '',
-            center_code: agent.fulfillment_centers?.code || '',
-            completed_deliveries_count: countsMap.get(agent.id) || 0
-        }));
+        const mapped = await Promise.all(agents.map(async (agent) => {
+            const rawKey = agent.delivery_agent_kyc?.id_doc_image_url;
+            const id_doc_image_url = await getPresignedUrlOrOriginal(rawKey)
+            return {
+                id: agent.id,
+                special_rider_id: agent.special_rider_id,
+                contact_phone: agent.contact_phone,
+                vehicle_type: agent.vehicle_type,
+                vehicle_number: agent.vehicle_number,
+                status: agent.status,
+                is_online: agent.is_online,
+                kyc_status: agent.kyc_status || agent.delivery_agent_kyc?.kyc_status || 'pending',
+                id_doc_type: agent.delivery_agent_kyc?.id_doc_type || null,
+                id_doc_number: agent.delivery_agent_kyc?.id_doc_number || null,
+                id_doc_image_url,
+                bank_name: agent.delivery_agent_kyc?.bank_name || null,
+                account_number: agent.delivery_agent_kyc?.account_number || null,
+                ifsc_code: agent.delivery_agent_kyc?.ifsc_code || null,
+                account_holder_name: agent.delivery_agent_kyc?.account_holder_name || null,
+                rejection_reason: agent.delivery_agent_kyc?.rejection_reason || null,
+                kyc_submitted_at: agent.delivery_agent_kyc?.submitted_at?.toISOString() || null,
+                kyc_reviewed_at: agent.delivery_agent_kyc?.reviewed_at?.toISOString() || null,
+                created_at: agent.created_at.toISOString(),
+                rider_name: agent.users?.name || '',
+                rider_email: agent.users?.email || '',
+                center_name: agent.fulfillment_centers?.name || '',
+                center_code: agent.fulfillment_centers?.code || '',
+                completed_deliveries_count: countsMap.get(agent.id) || 0
+            };}))
 
         return res.status(200).json({ data: mapped });
     } catch (error) {
