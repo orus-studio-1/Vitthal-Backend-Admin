@@ -2,6 +2,8 @@ import type { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { marketplacePool } from "../lib/marketplace.js";
 import { getPresignedUrlOrOriginal } from "../services/s3.service.js";
+import { decryptPayoutAccountNumber } from "../services/payoutBankEncryption.service.js";
+
 
 const adminRoles = ["admin", "super_admin"];
 const allowedStatuses = ["pending", "confirmed", "shipped", "delivered", "cancelled"] as const;
@@ -316,6 +318,268 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
         await client.query("ROLLBACK");
         console.error("Error creating order:", error);
         return res.status(400).json({ message: error instanceof Error ? error.message : "Internal server error" });
+    } finally {
+        client.release();
+    }
+};
+
+export const getAllPayoutRequests = async (req: Request, res: Response): Promise<Response> => {
+    if (!ensureAdmin(req, res)) return res as Response;
+
+    try {
+        const result = await marketplacePool.query(
+            `SELECT
+                r.id AS request_id,
+                r.vendor_id,
+                r.order_id,
+                r.booking_id,
+                r.status AS request_status,
+                r.eligible_amount,
+                r.paid_amount,
+                r.transfer_reference,
+                r.rejection_reason,
+                r.admin_note,
+                r.requested_at,
+                r.processed_at,
+                r.processed_by,
+                COALESCE((
+                    SELECT json_agg(json_build_object(
+                        'amount', t.amount,
+                        'reference', t.transfer_reference,
+                        'transferred_at', t.transferred_at
+                    ) ORDER BY t.transferred_at)
+                    FROM vendor_payout_transfers t
+                    WHERE t.request_id = r.id
+                ), '[]'::json) AS transfers,
+                v.company_name AS vendor_name,
+                v.bank_name,
+                v.account_holder_name,
+                v.ifsc_code,
+                v.account_number_last4 AS account_last_four,
+                (v.bank_name IS NOT NULL AND v.account_holder_name IS NOT NULL
+                    AND v.account_number IS NOT NULL AND v.ifsc_code IS NOT NULL
+                    AND v.cancelled_cheque_link IS NOT NULL) AS bank_details_complete,
+                COALESCE(o.customer_name, client_user.name, 'Service booking') AS customer_name,
+                COALESCE(o.status, sb.status) AS transaction_status,
+                COALESCE(o.payment_status, sb.payment_status) AS client_payment_status,
+                COALESCE(o.total_amount, sb.total_amount) AS transaction_amount,
+                CASE WHEN r.booking_id IS NOT NULL THEN 'service' ELSE 'order' END AS transaction_type
+             FROM vendor_payout_requests r
+             JOIN vendors v ON v.id = r.vendor_id
+             LEFT JOIN orders o ON o.id = r.order_id
+             LEFT JOIN service_bookings sb ON sb.id = r.booking_id
+             LEFT JOIN users client_user ON client_user.id = COALESCE(o.user_id, sb.user_id)
+             ORDER BY CASE WHEN r.status = 'requested' THEN 0 ELSE 1 END, r.requested_at DESC`
+        );
+        return res.status(200).json({ message: "Payout requests retrieved successfully", data: result.rows });
+    } catch (error) {
+        console.error("Error retrieving payout requests:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const revealPayoutBankDetails = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+
+    try {
+        const result = await marketplacePool.query(
+            `SELECT r.id AS request_id, v.bank_name, v.account_holder_name, v.account_number,
+                    v.ifsc_code, v.cancelled_cheque_link
+             FROM vendor_payout_requests r
+             JOIN vendors v ON v.id = r.vendor_id
+             WHERE r.id = $1`,
+            [req.params.requestId]
+        );
+        if (!result.rows.length) return res.status(404).json({ message: "Payout request not found" });
+
+        await marketplacePool.query(
+            `INSERT INTO vendor_payout_bank_access_audit (vendor_payout_request_id, admin_user_id)
+             VALUES ($1, $2)`,
+            [result.rows[0].request_id, authUser.userId]
+        );
+
+        const details = result.rows[0];
+        details.account_number = decryptPayoutAccountNumber(details.account_number);
+        details.cancelled_cheque_link = await getPresignedUrlOrOriginal(details.cancelled_cheque_link);
+        return res.status(200).json({ message: "Bank details retrieved", data: details });
+    } catch (error) {
+        console.error("Error revealing payout bank details:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const rejectPayoutRequest = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (!reason) return res.status(400).json({ message: "A rejection reason is required" });
+
+    try {
+        const result = await marketplacePool.query(
+            `UPDATE vendor_payout_requests
+             SET status = 'rejected', rejection_reason = $1, processed_at = NOW(), processed_by = $2
+             WHERE id = $3 AND status = 'requested'
+             RETURNING id, status, rejection_reason, processed_at`,
+            [reason, authUser.userId, req.params.requestId]
+        );
+        if (!result.rows.length) return res.status(409).json({ message: "Request is no longer pending" });
+        return res.status(200).json({ message: "Payout request rejected", data: result.rows[0] });
+    } catch (error) {
+        console.error("Error rejecting payout request:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const payPayoutRequest = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+
+    const amount = Number(req.body?.amount);
+    const transferReference = typeof req.body?.transferReference === "string" ? req.body.transferReference.trim() : "";
+    if (!Number.isFinite(amount) || amount <= 0 || !transferReference) {
+        return res.status(400).json({ message: "A positive amount and bank transfer reference are required" });
+    }
+
+    const client = await marketplacePool.connect();
+    try {
+        await client.query("BEGIN");
+        const requestResult = await client.query(
+            `SELECT r.*, v.bank_name, v.account_holder_name, v.account_number, v.ifsc_code,
+                    COALESCE(o.status, sb.status) AS transaction_status,
+                    COALESCE(o.payment_status, sb.payment_status) AS client_payment_status,
+                    COALESCE(o.total_amount, sb.total_amount) AS transaction_amount,
+                    vp.due_date,
+                    COALESCE((SELECT SUM(t.amount) FROM vendor_payout_transfers t WHERE t.request_id = r.id), 0) AS already_paid_amount
+             FROM vendor_payout_requests r
+             JOIN vendors v ON v.id = r.vendor_id
+             LEFT JOIN vendor_payouts vp ON vp.order_id = r.order_id
+             LEFT JOIN orders o ON o.id = r.order_id
+             LEFT JOIN service_bookings sb ON sb.id = r.booking_id
+             WHERE r.id = $1
+             FOR UPDATE OF r`,
+            [req.params.requestId]
+        );
+        if (!requestResult.rows.length) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ message: "Payout request not found" });
+        }
+
+        const payoutRequest = requestResult.rows[0];
+        if (!["requested", "partially_paid"].includes(payoutRequest.status)) {
+            await client.query("ROLLBACK");
+            return res.status(409).json({ message: "Request is no longer payable" });
+        }
+        const amountAlreadyPaid = Number(payoutRequest.already_paid_amount);
+        const remainingAmount = Math.max(0, Number(payoutRequest.eligible_amount) - amountAlreadyPaid);
+        if (amount > remainingAmount) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ message: "Payout amount exceeds the remaining verified amount" });
+        }
+        if (![payoutRequest.bank_name, payoutRequest.account_holder_name, payoutRequest.account_number, payoutRequest.ifsc_code]
+            .every((value) => typeof value === "string" && value.trim())) {
+            await client.query("ROLLBACK");
+            return res.status(409).json({ message: "Vendor bank details are incomplete" });
+        }
+        const bankAccess = await client.query(
+            `SELECT 1 FROM vendor_payout_bank_access_audit
+             WHERE vendor_payout_request_id = $1 AND admin_user_id = $2
+               AND accessed_at > NOW() - INTERVAL '15 minutes'
+             LIMIT 1`,
+            [payoutRequest.id, authUser.userId]
+        );
+        if (!bankAccess.rows.length) {
+            await client.query("ROLLBACK");
+            return res.status(403).json({ message: "Reveal and verify the beneficiary details before recording a transfer" });
+        }
+        const eligibleStatus = payoutRequest.booking_id
+            ? payoutRequest.transaction_status === "completed" && payoutRequest.client_payment_status === "paid"
+            : payoutRequest.transaction_status === "delivered"
+                && payoutRequest.client_payment_status === "paid"
+                && payoutRequest.due_date
+                && new Date(payoutRequest.due_date).getTime() <= Date.now();
+        if (!eligibleStatus) {
+            await client.query("ROLLBACK");
+            return res.status(409).json({ message: "Transaction is no longer eligible for payout" });
+        }
+
+        const totalPaidAmount = Math.round((amountAlreadyPaid + amount) * 100) / 100;
+        const nextStatus = totalPaidAmount >= Number(payoutRequest.eligible_amount) ? "paid" : "partially_paid";
+        const updateResult = await client.query(
+            `UPDATE vendor_payout_requests
+             SET status = $1,
+                 paid_amount = $2::numeric,
+                 transfer_reference = $3,
+                 processed_at = NOW(),
+                 processed_by = $4::uuid
+             WHERE id = $5::uuid AND status IN ('requested', 'partially_paid')
+             RETURNING *`,
+            [nextStatus, totalPaidAmount, transferReference, authUser.userId, payoutRequest.id]
+        );
+        if (!updateResult.rows.length) {
+            await client.query("ROLLBACK");
+            return res.status(409).json({ message: "Request is no longer payable" });
+        }
+
+        await client.query(
+            `INSERT INTO vendor_payout_transfers (request_id, amount, transfer_reference, transferred_by)
+             VALUES ($1::uuid, $2::numeric, $3, $4::uuid)`,
+            [payoutRequest.id, amount, transferReference, authUser.userId]
+        );
+
+        // if (payoutRequest.order_id) {
+        //     await client.query(
+        //         `UPDATE vendor_payouts
+        //          SET payout_amount = $1::numeric,
+        //              payout_percentage = CASE WHEN $2::numeric > 0 THEN ROUND(($1::numeric / $2::numeric) * 100, 2) ELSE 100 END,
+        //              status = $3,
+        //              last_paid_at = NOW(),
+        //              notes = CONCAT_WS(E'\\n', notes, $4),
+        //              updated_at = NOW()
+        //          WHERE order_id = $5::uuid`,
+        //         [totalPaidAmount, payoutRequest.transaction_amount ?? 0, nextStatus, `UTR/Reference: ${transferReference}`, payoutRequest.order_id]
+        //     );
+        // }
+
+        if (payoutRequest.order_id) {
+            const transactionAmount = Number(payoutRequest.transaction_amount ?? 0);
+
+            const payoutPercentage =
+                transactionAmount > 0
+                    ? Math.round((totalPaidAmount / transactionAmount) * 10000) / 100
+                    : 100;
+            console.log(`Updating vendor_payouts for order ${payoutRequest.order_id}: totalPaidAmount=${totalPaidAmount}, transactionAmount=${transactionAmount}, payoutPercentage=${payoutPercentage}, nextStatus=${nextStatus}, transferReference=${transferReference}`);
+
+            const varNotes = `UTR/Reference: ${transferReference}`;
+
+            await client.query(
+                `UPDATE vendor_payouts
+                SET payout_amount = $1::numeric,
+                    payout_percentage = $2::numeric,
+                    status = $3,
+                    last_paid_at = NOW(),
+                    notes = CONCAT_WS(E'\n', notes, $4::text),
+                    updated_at = NOW()
+                WHERE order_id = $5::uuid`,
+                [
+                    totalPaidAmount,
+                    payoutPercentage,
+                    nextStatus,
+                    varNotes,
+                    payoutRequest.order_id,
+                ]
+            );
+
+        }
+
+        await client.query("COMMIT");
+        return res.status(200).json({ message: nextStatus === "paid" ? "Payout fully settled" : "Partial payout recorded", data: updateResult.rows[0] });
+    } catch (error: any) {
+        await client.query("ROLLBACK");
+        if (error?.code === "23505") return res.status(409).json({ message: "Transfer reference already used" });
+        console.error("Error processing payout request:", error);
+        return res.status(500).json({ message: "Internal server error" });
     } finally {
         client.release();
     }

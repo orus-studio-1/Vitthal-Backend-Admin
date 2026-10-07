@@ -138,6 +138,12 @@ model Vendor {
   company_name                 String
   gst_number                   String?                @unique(map: "idx_vendors_gst_number_unique", where: raw("(gst_number IS NOT NULL)"))
   gst_certificate_link         String?
+  bank_name                    String?                @db.VarChar(100)
+  account_holder_name          String?                @db.VarChar(100)
+  account_number               String?                @db.Text
+  account_number_last4         String?                @db.Char(4)
+  ifsc_code                    String?                @db.VarChar(20)
+  cancelled_cheque_link        String?
   business_type                String?
   company_website              String?
   phone                        String?
@@ -753,6 +759,49 @@ model vendor_payouts {
   @@index([order_id], map: "idx_vendor_payouts_order_id")
   @@index([status], map: "idx_vendor_payouts_status")
   @@index([vendor_id], map: "idx_vendor_payouts_vendor_id")
+}
+
+model vendor_payout_requests {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vendor_id          String    @db.Uuid
+  order_id           String?   @db.Uuid
+  booking_id         String?   @db.Uuid
+  status             String    @default("requested") @db.VarChar(20)
+  eligible_amount    Decimal   @db.Decimal(12, 2)
+  paid_amount        Decimal?  @db.Decimal(12, 2)
+  transfer_reference String?
+  rejection_reason   String?
+  requested_at       DateTime  @default(now()) @db.Timestamptz(6)
+  processed_at       DateTime? @db.Timestamptz(6)
+  processed_by       String?   @db.Uuid
+
+  @@index([vendor_id, status, requested_at], map: "idx_vendor_payout_requests_vendor_status")
+  @@index([order_id], map: "idx_vendor_payout_requests_order")
+  @@index([booking_id], map: "idx_vendor_payout_requests_booking")
+  @@unique([order_id], where: raw("(order_id IS NOT NULL AND status IN ('requested', 'paid'))"), map: "uq_vendor_payout_requests_active_order")
+  @@unique([booking_id], where: raw("(booking_id IS NOT NULL AND status IN ('requested', 'paid'))"), map: "uq_vendor_payout_requests_active_booking")
+  @@unique([transfer_reference], where: raw("(transfer_reference IS NOT NULL)"), map: "uq_vendor_payout_requests_transfer_reference")
+}
+
+model vendor_payout_bank_access_audit {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vendor_payout_request_id String   @db.Uuid
+  admin_user_id            String   @db.Uuid
+  accessed_at              DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([vendor_payout_request_id], map: "idx_vendor_payout_bank_audit_request")
+  @@index([admin_user_id, accessed_at], map: "idx_vendor_payout_bank_audit_admin")
+}
+
+model vendor_payout_transfers {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id        String   @db.Uuid
+  amount            Decimal  @db.Decimal(12, 2)
+  transfer_reference String  @unique
+  transferred_by    String   @db.Uuid
+  transferred_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([request_id, transferred_at], map: "idx_vendor_payout_transfers_request")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
