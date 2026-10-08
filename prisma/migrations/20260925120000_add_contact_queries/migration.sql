@@ -1,4 +1,4 @@
-CREATE TABLE contact_queries (
+CREATE TABLE IF NOT EXISTS contact_queries (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name       TEXT NOT NULL,
   email      TEXT NOT NULL,
@@ -11,5 +11,5 @@ CREATE TABLE contact_queries (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_contact_queries_status ON contact_queries(status);
-CREATE INDEX idx_contact_queries_created_at ON contact_queries(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contact_queries_status ON contact_queries(status);
+CREATE INDEX IF NOT EXISTS idx_contact_queries_created_at ON contact_queries(created_at DESC);
