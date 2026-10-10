@@ -682,12 +682,29 @@ model product_category {
   maximum_commision_percentage Int                     @default(10)
   category_type                String?                 @default("product")
   products                     Product[]
-  service_subcategories        service_subcategories[]
   subcategories                subcategories[]
-  services                     services[]
   vendor_categories            vendor_categories[]
   client_assets                client_assets[]
-  service_tickets              service_tickets[]
+}
+
+model service_categories {
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                     String                  @unique(map: "service_categories_code_key")
+  label                    String
+  description              String?
+  image                    String                  @default("")
+  min_commision_percentage Int                     @default(0)
+  max_commision_percentage Int                     @default(10)
+  sort_order               Int                     @default(0)
+  is_active                Boolean                 @default(true)
+  created_at               DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                @default(now()) @db.Timestamptz(6)
+  service_subcategories    service_subcategories[]
+  services                 services[]
+  service_tickets           service_tickets[]
+  client_assets             client_assets[]
+
+  @@map("service_categories")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -1139,7 +1156,7 @@ model services {
   service_cart_items    service_cart_items[]
   service_quotations    service_quotations[]
   service_reviews       service_reviews[]
-  product_category      product_category       @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "fk_services_category")
+  service_category      service_categories     @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "fk_services_service_category")
   users                 User?                  @relation(fields: [created_by_user_id], references: [id], onUpdate: NoAction, map: "fk_services_created_by")
   service_subcategories service_subcategories? @relation(fields: [subcategory_id], references: [id], onUpdate: NoAction, map: "fk_services_subcategory")
   services_media        services_media?
@@ -1196,14 +1213,24 @@ model vendor_services {
 model service_subcategories {
   id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   category_id      String           @db.Uuid
+  parent_id        String?          @db.Uuid
   name             String
   description      String?
+  form_schema      Json             @default("[]")
   created_at       DateTime         @default(now()) @db.Timestamptz(6)
   updated_at       DateTime         @default(now()) @db.Timestamptz(6)
-  product_category product_category @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_subcategories_category")
+  service_category service_categories @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_subcategories_service_category")
+  parent           service_subcategories? @relation("service_subcategory_tree", fields: [parent_id, category_id], references: [id, category_id], onDelete: NoAction, onUpdate: NoAction)
+  children         service_subcategories[] @relation("service_subcategory_tree")
   services         services[]
+  client_assets    client_assets[]
+  tickets_as_subcategory service_tickets[] @relation("ticket_service_subcategory")
+  tickets_as_sub_subcategory service_tickets[] @relation("ticket_service_sub_subcategory")
 
-  @@unique([category_id, name], map: "unique_subcategory_name_per_category")
+  @@unique([id, category_id], map: "uq_service_subcategory_id_category")
+  @@index([category_id], map: "idx_service_subcategories_category_id")
+  @@index([parent_id], map: "idx_service_subcategories_parent_id")
+  @@index([category_id, parent_id], map: "idx_service_subcategories_category_parent")
   @@map("service_subcategories")
 }
 
@@ -1447,6 +1474,8 @@ model client_assets {
   user_id           String            @db.Uuid
   category_id       String?           @db.Uuid
   subcategory_id    String?           @db.Uuid
+  service_subcategory_id String?      @db.Uuid
+  service_category_id String?         @db.Uuid
   asset_name        String
   asset_code        String?           @db.VarChar(100)
   brand             String?
@@ -1462,10 +1491,14 @@ model client_assets {
   users             User              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   product_category  product_category? @relation(fields: [category_id], references: [id], onUpdate: NoAction)
   subcategories     subcategories?    @relation(fields: [subcategory_id], references: [id], onUpdate: NoAction)
+  service_subcategory service_subcategories? @relation(fields: [service_subcategory_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  service_category service_categories? @relation(fields: [service_category_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   service_tickets   service_tickets[]
 
   @@index([user_id], map: "idx_client_assets_user")
   @@index([category_id], map: "idx_client_assets_category")
+  @@index([service_subcategory_id], map: "idx_client_assets_service_subcategory")
+  @@index([service_category_id], map: "idx_client_assets_service_category")
 }
 
 model service_tickets {
@@ -1473,6 +1506,8 @@ model service_tickets {
   ticket_number             String                      @unique @db.VarChar(50)
   category_id               String                      @db.Uuid
   subcategory_id            String?                     @db.Uuid
+  service_subcategory_id    String?                     @db.Uuid
+  service_sub_subcategory_id String?                    @db.Uuid
   client_user_id            String                      @db.Uuid
   vendor_id                 String?                     @db.Uuid
   assigned_agent_id         String?                     @db.Uuid
@@ -1488,8 +1523,10 @@ model service_tickets {
   timeline_logs             Json                        @default("[]")
   created_at                DateTime                    @default(now()) @db.Timestamptz(6)
   updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
-  product_category          product_category            @relation(fields: [category_id], references: [id], onUpdate: NoAction)
+  service_category          service_categories          @relation(fields: [category_id], references: [id], onUpdate: NoAction)
   subcategories             subcategories?              @relation(fields: [subcategory_id], references: [id], onUpdate: NoAction)
+  service_subcategory      service_subcategories?       @relation("ticket_service_subcategory", fields: [service_subcategory_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  service_sub_subcategory  service_subcategories?       @relation("ticket_service_sub_subcategory", fields: [service_sub_subcategory_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   client_user               User                        @relation("service_tickets_client", fields: [client_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   assigned_agent            User?                       @relation("service_tickets_agent", fields: [assigned_agent_id], references: [id], onUpdate: NoAction)
   vendors                   Vendor?                     @relation(fields: [vendor_id], references: [id], onUpdate: NoAction)
@@ -1501,6 +1538,8 @@ model service_tickets {
   @@index([vendor_id], map: "idx_srv_tickets_vendor")
   @@index([status], map: "idx_srv_tickets_status")
   @@index([category_id], map: "idx_srv_tickets_cat")
+  @@index([service_subcategory_id], map: "idx_service_tickets_service_subcategory")
+  @@index([service_sub_subcategory_id], map: "idx_service_tickets_service_sub_subcategory")
 }
 
 model service_ticket_quotations {

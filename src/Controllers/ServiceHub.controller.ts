@@ -84,7 +84,7 @@ export const getAllServiceTickets = async (req: Request, res: Response): Promise
             prisma.service_tickets.findMany({
                 where: whereClause,
                 include: {
-                    product_category: { select: { id: true, label: true, code: true } },
+                    service_category: { select: { id: true, label: true, code: true } },
                     subcategories: { select: { id: true, name: true } },
                     client_user: { select: { id: true, name: true, email: true } },
                     vendors: { select: { id: true, company_name: true, phone: true } },
@@ -100,7 +100,7 @@ export const getAllServiceTickets = async (req: Request, res: Response): Promise
 
         return res.status(200).json({
             success: true,
-            tickets,
+                tickets: tickets.map((ticket) => ({ ...ticket, product_category: ticket.service_category })),
             pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
         });
     } catch (error) {
@@ -116,7 +116,9 @@ export const getServiceTicketById = async (req: Request, res: Response): Promise
         const ticket = await prisma.service_tickets.findUnique({
             where: { id },
             include: {
-                product_category: true,
+                service_category: true,
+                service_subcategory: true,
+                service_sub_subcategory: true,
                 subcategories: true,
                 client_user: { select: { id: true, name: true, email: true } },
                 vendors: { select: { id: true, company_name: true, phone: true, rating: true } },
@@ -141,7 +143,7 @@ export const getServiceTicketById = async (req: Request, res: Response): Promise
             return res.status(404).json({ success: false, message: "Ticket not found." });
         }
 
-        return res.status(200).json({ success: true, ticket });
+        return res.status(200).json({ success: true, ticket: { ...ticket, product_category: ticket.service_category } });
     } catch (error) {
         console.error("Error fetching ticket detail:", error);
         return res.status(500).json({ success: false, message: "Failed to load ticket." });
@@ -256,7 +258,7 @@ export const updateSubcategorySchema = async (req: Request, res: Response): Prom
     }
 
     try {
-        const updated = await prisma.subcategories.update({
+        const updated = await prisma.service_subcategories.update({
             where: { id },
             data: {
                 form_schema,
@@ -280,18 +282,12 @@ export const updateSubcategorySchema = async (req: Request, res: Response): Prom
 // ────────────────────────────────────────────────────────────────────
 export const getServiceCategories = async (_req: Request, res: Response): Promise<Response> => {
     try {
-        const categories = await prisma.product_category.findMany({
-            where: { category_type: "service", is_active: true },
+        const categories = await prisma.service_categories.findMany({
+            where: { is_active: true },
             include: {
-                subcategories: {
-                    select: {
-                        id: true,
-                        name: true,
-                        description: true,
-                        form_schema: true,
-                        created_at: true,
-                        updated_at: true,
-                    },
+                service_subcategories: {
+                    where: { parent_id: null },
+                    include: { children: { orderBy: { name: "asc" } } },
                     orderBy: { name: "asc" },
                 },
             },
@@ -301,6 +297,7 @@ export const getServiceCategories = async (_req: Request, res: Response): Promis
         const resolvedCategories = await Promise.all(
             categories.map(async (cat) => ({
                 ...cat,
+                subcategories: cat.service_subcategories,
                 image: await getPresignedUrlOrOriginal(cat.image),
             }))
         );
@@ -320,17 +317,16 @@ export const createServiceCategory = async (req: Request, res: Response): Promis
     }
 
     try {
-        const category = await prisma.product_category.create({
+        const category = await prisma.service_categories.create({
             data: {
                 code: String(code).trim().toLowerCase().replace(/\s+/g, "_"),
                 label: String(label).trim(),
                 description: description ? String(description).trim() : null,
                 image: image ? String(image).trim() : "",
-                category_type: "service",
                 sort_order: parseInt(String(sort_order || 0), 10),
                 min_commision_percentage: parseInt(String(min_commision_percentage || 0), 10),
                 max_commision_percentage: parseInt(String(max_commision_percentage || 10), 10),
-                is_active: true,
+                is_active: req.body.is_active !== false,
             },
         });
 
@@ -346,7 +342,7 @@ export const updateServiceCategory = async (req: Request, res: Response): Promis
     const { label, description, image, sort_order, is_active, min_commision_percentage, max_commision_percentage } = req.body;
 
     try {
-        const category = await prisma.product_category.update({
+        const category = await prisma.service_categories.update({
             where: { id },
             data: {
                 ...(label !== undefined && { label: String(label).trim() }),
@@ -369,7 +365,7 @@ export const updateServiceCategory = async (req: Request, res: Response): Promis
 export const deleteServiceCategory = async (req: Request, res: Response): Promise<Response> => {
     const id = String(req.params.id);
     try {
-        await prisma.product_category.delete({ where: { id } });
+        await prisma.service_categories.delete({ where: { id } });
         return res.status(200).json({ success: true, message: "Service category deleted." });
     } catch (error: any) {
         console.error("Error deleting service category:", error);
@@ -378,16 +374,17 @@ export const deleteServiceCategory = async (req: Request, res: Response): Promis
 };
 
 export const createServiceSubcategory = async (req: Request, res: Response): Promise<Response> => {
-    const { category_id, name, description, form_schema } = req.body;
+    const { category_id, parent_id, name, description, form_schema } = req.body;
 
     if (!category_id || !name) {
         return res.status(400).json({ success: false, message: "Category ID and Subcategory Name are required." });
     }
 
     try {
-        const subcategory = await prisma.subcategories.create({
+        const subcategory = await prisma.service_subcategories.create({
             data: {
                 category_id: String(category_id),
+                parent_id: parent_id ? String(parent_id) : null,
                 name: String(name).trim(),
                 description: description ? String(description).trim() : null,
                 form_schema: Array.isArray(form_schema) ? form_schema : [],
@@ -403,15 +400,16 @@ export const createServiceSubcategory = async (req: Request, res: Response): Pro
 
 export const updateServiceSubcategory = async (req: Request, res: Response): Promise<Response> => {
     const id = String(req.params.id);
-    const { name, description, form_schema } = req.body;
+    const { name, description, form_schema, parent_id } = req.body;
 
     try {
-        const subcategory = await prisma.subcategories.update({
+        const subcategory = await prisma.service_subcategories.update({
             where: { id },
             data: {
                 ...(name !== undefined && { name: String(name).trim() }),
                 ...(description !== undefined && { description: String(description).trim() }),
                 ...(form_schema !== undefined && { form_schema: Array.isArray(form_schema) ? form_schema : [] }),
+                ...(parent_id !== undefined && { parent_id: parent_id ? String(parent_id) : null }),
                 updated_at: new Date(),
             },
         });
@@ -426,7 +424,7 @@ export const updateServiceSubcategory = async (req: Request, res: Response): Pro
 export const deleteServiceSubcategory = async (req: Request, res: Response): Promise<Response> => {
     const id = String(req.params.id);
     try {
-        await prisma.subcategories.delete({ where: { id } });
+        await prisma.service_subcategories.delete({ where: { id } });
         return res.status(200).json({ success: true, message: "Subcategory deleted successfully." });
     } catch (error: any) {
         console.error("Error deleting subcategory:", error);
@@ -462,7 +460,7 @@ export const getAllClientAssets = async (req: Request, res: Response): Promise<R
                 where: whereClause,
                 include: {
                     users: { select: { id: true, name: true, email: true } },
-                    product_category: { select: { id: true, label: true } },
+                    service_category: { select: { id: true, label: true } },
                     subcategories: { select: { id: true, name: true } },
                     _count: { select: { service_tickets: true } },
                 },
@@ -474,7 +472,7 @@ export const getAllClientAssets = async (req: Request, res: Response): Promise<R
 
         return res.status(200).json({
             success: true,
-            assets,
+            assets: assets.map((asset) => ({ ...asset, product_category: asset.service_category })),
             pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
         });
     } catch (error) {
