@@ -666,6 +666,8 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
                 p.razorpay_payment_id,
                 p.razorpay_signature,
                 p.order_ids,
+                p.booking_ids,
+                p.payment_type,
                 p.quotation_request_id,
                 p.split_number,
                 p.split_percentage,

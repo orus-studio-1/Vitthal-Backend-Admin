@@ -94,7 +94,7 @@ export async function adminListServicesController(req: Request, res: Response): 
                     COUNT(DISTINCT vs.id) AS vendor_count,
                     COUNT(DISTINCT sb.id) AS booking_count
                  FROM services s
-                 LEFT JOIN product_category pc ON pc.id = s.category_id
+                 LEFT JOIN service_categories pc ON pc.id = s.category_id
                  LEFT JOIN vendor_services vs ON vs.service_id = s.id
                  LEFT JOIN service_bookings sb ON sb.vendor_service_id = vs.id
                  ${where}
@@ -145,8 +145,8 @@ export async function adminCreateServiceController(req: Request, res: Response):
     try {
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId);
         const query = isUuid
-            ? `SELECT id FROM product_category WHERE id = $1 AND is_active = true LIMIT 1`
-            : `SELECT id FROM product_category WHERE (LOWER(code) = LOWER($1) OR LOWER(label) = LOWER($1)) AND is_active = true LIMIT 1`;
+            ? `SELECT id FROM service_categories WHERE id = $1 AND is_active = true LIMIT 1`
+            : `SELECT id FROM service_categories WHERE (LOWER(code) = LOWER($1) OR LOWER(label) = LOWER($1)) AND is_active = true LIMIT 1`;
         
         const categoryCheck = await marketplacePool.query(query, [categoryId]);
         if (categoryCheck.rows.length === 0) {
@@ -244,8 +244,8 @@ export async function adminUpdateServiceController(req: Request, res: Response):
         try {
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId);
             const query = isUuid
-                ? `SELECT id FROM product_category WHERE id = $1 AND is_active = true LIMIT 1`
-                : `SELECT id FROM product_category WHERE (LOWER(code) = LOWER($1) OR LOWER(label) = LOWER($1)) AND is_active = true LIMIT 1`;
+                ? `SELECT id FROM service_categories WHERE id = $1 AND is_active = true LIMIT 1`
+                : `SELECT id FROM service_categories WHERE (LOWER(code) = LOWER($1) OR LOWER(label) = LOWER($1)) AND is_active = true LIMIT 1`;
             
             const categoryCheck = await marketplacePool.query(query, [categoryId]);
             if (categoryCheck.rows.length === 0) {
@@ -909,11 +909,11 @@ export async function vendorGetMyServiceOfferingsController(req: Request, res: R
                     SELECT COALESCE(
                         (SELECT sm.media_url FROM services_media sm WHERE sm.service_id = s.id AND sm.is_primary = true LIMIT 1),
                         (SELECT sm.media_url FROM services_media sm WHERE sm.service_id = s.id LIMIT 1),
-                        (SELECT pc.image FROM product_category pc WHERE pc.id = s.category_id LIMIT 1),
+                        (SELECT pc.image FROM service_categories pc WHERE pc.id = s.category_id LIMIT 1),
                         ''
                     )
                 ) AS service_image,
-                (SELECT pc.label FROM product_category pc WHERE pc.id = s.category_id LIMIT 1) AS category_name,
+                (SELECT pc.label FROM service_categories pc WHERE pc.id = s.category_id LIMIT 1) AS category_name,
                 COUNT(sb.id) AS booking_count
              FROM vendor_services vs
              JOIN services s ON s.id = vs.service_id
@@ -952,3 +952,4 @@ export async function adminGetServiceOfferingsController(req: Request, res: Resp
         return res.status(500).json({ message: "Internal server error" });
     }
 }
+
