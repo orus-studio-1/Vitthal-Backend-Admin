@@ -66,7 +66,17 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
             return res.status(401).json({ message: "Unauthorized" });
         }
 
-        if (!accessToken) {
+        let decodedAccessToken: { userId: string, username: string, email: string, role: string, vendorType?: string | undefined } | null = null;
+        if (accessToken) {
+            try {
+                decodedAccessToken = verifyToken(accessToken, "access");
+            } catch (err) {
+                // Access token might be expired or invalid; regenerate using the valid refresh token
+                decodedAccessToken = null;
+            }
+        }
+
+        if (!decodedAccessToken || decodedAccessToken.userId !== decodedRefreshToken.userId) {
             const newAccessToken = generateNewAccessToken(refreshToken);
             const cookieName = requestFrom === "vendor" ? "vendorAccessToken" : requestFrom === "client" ? "clientAccessToken" : "accessToken";
             res.cookie(cookieName, newAccessToken, {
@@ -76,10 +86,6 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
             (req as any).user = decodedRefreshToken;
             return next();
         }
-
-        const decodedAccessToken = verifyToken(accessToken, "access");
-        if (decodedAccessToken.userId !== decodedRefreshToken.userId)
-            return res.status(401).json({ message: "Refresh Token and Access Token are not issued for same user!!" });
 
         const { userId, username, email, role, vendorType } = decodedAccessToken;
         (req as any).user = { userId, username, email, role, vendorType };

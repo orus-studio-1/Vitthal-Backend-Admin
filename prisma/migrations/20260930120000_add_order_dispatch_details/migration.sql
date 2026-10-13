@@ -1,4 +1,4 @@
-CREATE TABLE order_dispatch_details (
+CREATE TABLE IF NOT EXISTS order_dispatch_details (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id              UUID NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
     vendor_id             UUID NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
@@ -13,4 +13,4 @@ CREATE TABLE order_dispatch_details (
     created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_order_dispatch_vendor ON order_dispatch_details(vendor_id);
+CREATE INDEX IF NOT EXISTS idx_order_dispatch_vendor ON order_dispatch_details(vendor_id);
