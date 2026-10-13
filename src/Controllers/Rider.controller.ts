@@ -164,7 +164,18 @@ export const createDeliveryAgent = async (req: Request, res: Response): Promise<
         return res.status(400).json({ message: "Name, email, password, and Fulfillment Center are required." });
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase();
+
     try {
+        const existingUser = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+            select: { id: true }
+        });
+
+        if (existingUser) {
+            return res.status(400).json({ message: "A user with this email already exists." });
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
         
         const prefix = "RID";
@@ -175,7 +186,7 @@ export const createDeliveryAgent = async (req: Request, res: Response): Promise<
             const user = await tx.user.create({
                 data: {
                     name: String(name).trim(),
-                    email: String(email).trim().toLowerCase(),
+                    email: normalizedEmail,
                     password_hash: hashedPassword,
                     role: UserRole.delivery_agent,
                     is_verified: true
@@ -200,10 +211,10 @@ export const createDeliveryAgent = async (req: Request, res: Response): Promise<
 
         return res.status(201).json({ message: "Rider Partner registered successfully!", data: result });
     } catch (error: any) {
-        console.error("Error creating delivery agent:", error);
         if (error.code === 'P2002') {
             return res.status(400).json({ message: "Email or Rider ID already exists." });
         }
+        console.error("Error creating delivery agent:", error);
         return res.status(500).json({ message: getPrismaErrorMessage(error) || "Failed to register Rider Partner." });
     }
 };
