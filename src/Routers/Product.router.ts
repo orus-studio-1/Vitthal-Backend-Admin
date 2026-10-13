@@ -23,6 +23,8 @@ import {
     uploadProductImagesController,
     getProductTypes,
     getPendingPriceChanges,
+    getPendingProductModifications,
+    reviewProductModification,
     reviewPendingPriceChange,
     getPendingVariants,
     reviewProductVariant,
@@ -51,6 +53,8 @@ productRouter.get("/getProductTypes", getProductTypes);
 productRouter.get("/pending-vendor/all", getPendingVendorProducts);
 productRouter.put("/pending-vendor/:id/review", reviewVendorProduct);
 productRouter.get("/pending-price/all", getPendingPriceChanges);
+productRouter.get("/pending-modifications/all", getPendingProductModifications);
+productRouter.put("/pending-modifications/:id/review", reviewProductModification);
 productRouter.put("/pending-price/:id/review", reviewPendingPriceChange);
 productRouter.get("/pending-variants/all", getPendingVariants);
 productRouter.put("/pending-variants/:id/review", reviewProductVariant);

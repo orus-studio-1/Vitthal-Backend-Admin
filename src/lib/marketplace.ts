@@ -1261,6 +1261,8 @@ ALTER TABLE vendor_quotations
 
         -- V3 schema updates - Stock & Price approvals
         ALTER TABLE vendor_products ADD COLUMN IF NOT EXISTS pending_price NUMERIC(12,2) DEFAULT NULL CHECK (pending_price >= 0);
+        ALTER TABLE vendor_products ADD COLUMN IF NOT EXISTS pending_modifications JSONB DEFAULT NULL;
+        ALTER TABLE vendor_products ADD COLUMN IF NOT EXISTS modification_status VARCHAR(50) DEFAULT NULL;
         ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS product_variant_id UUID;
 
         DO $$

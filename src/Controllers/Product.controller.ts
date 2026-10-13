@@ -1617,6 +1617,10 @@ export const getProductTypes = async (req: Request, res: Response): Promise<Resp
 };
 
 export const getPendingPriceChanges = async (req: Request, res: Response): Promise<Response> => {
+    return getPendingProductModifications(req, res);
+};
+
+export const getPendingProductModifications = async (req: Request, res: Response): Promise<Response> => {
     const authUser = ensureAdmin(req, res);
     if (!authUser) return res;
 
@@ -1624,34 +1628,63 @@ export const getPendingPriceChanges = async (req: Request, res: Response): Promi
         const query = `
             SELECT 
                 vp.id AS id,
+                vp.id AS vendor_product_id,
                 vp.product_id,
+                vp.product_variant_id,
                 vp.vendor_id,
                 vp.price AS current_price,
                 vp.pending_price,
+                vp.moq AS current_moq,
+                vp.stock_quantity AS current_stock_quantity,
+                vp.gst_percentage AS current_gst_percentage,
+                vp.pending_modifications,
+                vp.modification_status,
                 vp.updated_at,
                 p.name AS product_name,
+                p.description AS product_description,
+                p.category,
+                p.product_type,
+                p.attributes AS current_attributes,
+                p.specifications AS current_specifications,
+                p.size AS current_size,
+                COALESCE(p.brand, p.attributes->>'brand') AS current_brand,
+                COALESCE(p.grade, p.attributes->>'grade') AS current_grade,
+                p.colour AS current_colour,
+                p.warranty AS current_warranty,
+                p.manufacturer AS current_manufacturer,
+                COALESCE(p.unit, p.attributes->>'unit', 'nos') AS current_unit,
+                pv.properties AS variant_properties,
+                pv.sku AS variant_sku,
                 v.company_name AS vendor_company_name,
                 v.phone AS vendor_phone,
-                u.email AS vendor_email
+                u.email AS vendor_email,
+                u.name AS vendor_user_name
             FROM vendor_products vp
             JOIN products p ON vp.product_id = p.id
+            LEFT JOIN product_variants pv ON vp.product_variant_id = pv.id
             JOIN vendors v ON vp.vendor_id = v.id
             JOIN users u ON v.user_id = u.id
-            WHERE vp.pending_price IS NOT NULL
+            WHERE vp.pending_modifications IS NOT NULL 
+               OR vp.pending_price IS NOT NULL 
+               OR vp.modification_status = 'pending'
             ORDER BY vp.updated_at DESC
         `;
         const result = await marketplacePool.query(query);
         return res.status(200).json({
-            message: "Pending price changes fetched successfully",
+            message: "Pending product modifications fetched successfully",
             data: result.rows
         });
     } catch (error) {
-        console.error("Error while fetching pending price changes:", error);
+        console.error("Error while fetching pending product modifications:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };
 
 export const reviewPendingPriceChange = async (req: Request, res: Response): Promise<Response> => {
+    return reviewProductModification(req, res);
+};
+
+export const reviewProductModification = async (req: Request, res: Response): Promise<Response> => {
     const authUser = ensureAdmin(req, res);
     if (!authUser) return res;
 
@@ -1667,9 +1700,8 @@ export const reviewPendingPriceChange = async (req: Request, res: Response): Pro
     }
 
     try {
-        // Find the vendor product
         const checkQuery = `
-            SELECT vp.id, vp.price, vp.pending_price, vp.vendor_id, vp.product_id, v.user_id, p.name AS product_name
+            SELECT vp.id, vp.price, vp.pending_price, vp.pending_modifications, vp.vendor_id, vp.product_id, v.user_id, p.name AS product_name
             FROM vendor_products vp
             JOIN vendors v ON vp.vendor_id = v.id
             JOIN products p ON vp.product_id = p.id
@@ -1682,63 +1714,117 @@ export const reviewPendingPriceChange = async (req: Request, res: Response): Pro
         }
 
         const vp = checkResult.rows[0];
-        if (vp.pending_price === null) {
-            return res.status(400).json({ message: "This listing does not have a pending price change" });
-        }
-
-        const pendingPrice = vp.pending_price;
+        const pendingMods = vp.pending_modifications || {};
+        const pendingPrice = pendingMods.price !== undefined ? pendingMods.price : vp.pending_price;
 
         if (decision === "approved") {
-            // Commit price change
+            // 1. Update vendor_products fields (price, moq, stock, gst)
+            const newPrice = pendingPrice !== null && pendingPrice !== undefined ? Number(pendingPrice) : Number(vp.price);
+            const newMoq = pendingMods.moq !== undefined ? Number(pendingMods.moq) : null;
+            const newStock = pendingMods.stock_quantity !== undefined ? Number(pendingMods.stock_quantity) : null;
+            const newGst = pendingMods.gst_percentage !== undefined ? Number(pendingMods.gst_percentage) : null;
+
             await marketplacePool.query(
-                `UPDATE vendor_products SET price = pending_price, pending_price = NULL, updated_at = NOW() WHERE id = $1`,
-                [id]
+                `UPDATE vendor_products 
+                 SET price = $1,
+                     moq = COALESCE($2, moq),
+                     stock_quantity = COALESCE($3, stock_quantity),
+                     gst_percentage = COALESCE($4, gst_percentage),
+                     pending_price = NULL,
+                     pending_modifications = NULL,
+                     modification_status = 'approved',
+                     updated_at = NOW()
+                 WHERE id = $5`,
+                [newPrice, newMoq, newStock, newGst, id]
             );
 
-            // Create notification for the vendor
+            // 2. If catalog attributes or specifications changed, update products table
+            if (pendingMods.attributes && typeof pendingMods.attributes === 'object') {
+                const attrs = pendingMods.attributes;
+                await marketplacePool.query(
+                    `UPDATE products 
+                     SET attributes = COALESCE(attributes, '{}'::jsonb) || $1::jsonb,
+                         size = COALESCE($2, size),
+                         brand = COALESCE($3, brand),
+                         grade = COALESCE($4, grade),
+                         colour = COALESCE($5, colour),
+                         warranty = COALESCE($6, warranty),
+                         manufacturer = COALESCE($7, manufacturer),
+                         unit = COALESCE($8, unit),
+                         updated_at = NOW()
+                     WHERE id = $9`,
+                    [
+                        JSON.stringify(attrs),
+                        attrs.size ?? null,
+                        attrs.brand ?? null,
+                        attrs.grade ?? null,
+                        attrs.colour ?? null,
+                        attrs.warranty ?? null,
+                        attrs.manufacturer ?? null,
+                        attrs.unit ?? null,
+                        vp.product_id
+                    ]
+                );
+            }
+
+            if (pendingMods.specifications && typeof pendingMods.specifications === 'object') {
+                await marketplacePool.query(
+                    `UPDATE products 
+                     SET specifications = COALESCE(specifications, '{}'::jsonb) || $1::jsonb,
+                         updated_at = NOW()
+                     WHERE id = $2`,
+                    [JSON.stringify(pendingMods.specifications), vp.product_id]
+                );
+            }
+
+            // 3. Emit notification to vendor
             try {
                 await createAndEmitNotification({
                     userId: vp.user_id,
                     type: "vendor_product_approved",
-                    title: "Price Update Approved",
-                    body: `Your price update request for "${vp.product_name}" (to ₹${pendingPrice}) has been approved and is now active.`,
+                    title: "Product Modifications Approved",
+                    body: `Your modification request for "${vp.product_name}" has been approved by admin and all changes are now live.`,
                     referenceType: "product",
                     referenceId: vp.product_id
                 });
             } catch (notifyErr) {
-                console.error("Failed to create/emit approved notification:", notifyErr);
+                console.error("Failed to emit approved notification:", notifyErr);
             }
 
             return res.status(200).json({
-                message: "Price update approved successfully. The new price is now active."
+                message: "Product modifications approved successfully. Changes are now live on storefront."
             });
         } else {
-            // Reject price change
+            // Reject modifications: clear pending state without modifying live data
             await marketplacePool.query(
-                `UPDATE vendor_products SET pending_price = NULL, updated_at = NOW() WHERE id = $1`,
+                `UPDATE vendor_products 
+                 SET pending_price = NULL,
+                     pending_modifications = NULL,
+                     modification_status = 'rejected',
+                     updated_at = NOW() 
+                 WHERE id = $1`,
                 [id]
             );
 
-            // Create notification for the vendor
             try {
                 await createAndEmitNotification({
                     userId: vp.user_id,
                     type: "vendor_product_rejected",
-                    title: "Price Update Rejected",
-                    body: `Your price update request for "${vp.product_name}" (to ₹${pendingPrice}) has been rejected.`,
+                    title: "Product Modifications Rejected",
+                    body: `Your proposed changes for "${vp.product_name}" were not approved by admin.`,
                     referenceType: "product",
                     referenceId: vp.product_id
                 });
             } catch (notifyErr) {
-                console.error("Failed to create/emit rejected notification:", notifyErr);
+                console.error("Failed to emit rejected notification:", notifyErr);
             }
 
             return res.status(200).json({
-                message: "Price update request rejected successfully."
+                message: "Product modification request rejected."
             });
         }
     } catch (error) {
-        console.error("Error while reviewing pending price change:", error);
+        console.error("Error while reviewing product modification:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };
