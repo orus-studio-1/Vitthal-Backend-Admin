@@ -1088,6 +1088,7 @@ ALTER TABLE vendor_quotations
                 'image_rejected',
                 'vendor_product_approved',
                 'vendor_product_rejected',
+                'service_completed',
                 'general'
             ));
 

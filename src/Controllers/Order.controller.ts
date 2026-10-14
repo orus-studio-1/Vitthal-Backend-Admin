@@ -362,7 +362,7 @@ export const getAllPayoutRequests = async (req: Request, res: Response): Promise
                 COALESCE(o.customer_name, client_user.name, 'Service booking') AS customer_name,
                 COALESCE(o.status, sb.status, st.status) AS transaction_status,
                 COALESCE(o.payment_status, sb.payment_status, CASE WHEN EXISTS (
-                    SELECT 1 FROM payments p WHERE p.status = 'successful' AND p.payment_type IN ('service_maintenance', 'service_job_inquiry') AND st.id = ANY(p.booking_ids)
+                    SELECT 1 FROM payments p WHERE p.status = 'successful' AND p.payment_type IN ('service_maintenance', 'service_job_inquiry', 'service_logistics', 'service_goods_ticket') AND st.id = ANY(p.booking_ids)
                 ) THEN 'paid' ELSE 'pending' END) AS client_payment_status,
                 COALESCE(o.total_amount, sb.total_amount, st.total_amount) AS transaction_amount,
                 CASE WHEN r.booking_id IS NOT NULL THEN 'service' ELSE 'order' END AS transaction_type
@@ -452,7 +452,7 @@ export const payPayoutRequest = async (req: Request, res: Response): Promise<Res
             `SELECT r.*, v.bank_name, v.account_holder_name, v.account_number, v.ifsc_code,
                     COALESCE(o.status, sb.status, st.status) AS transaction_status,
                     COALESCE(o.payment_status, sb.payment_status, CASE WHEN EXISTS (
-                        SELECT 1 FROM payments p WHERE p.status = 'successful' AND p.payment_type IN ('service_maintenance', 'service_job_inquiry') AND st.id = ANY(p.booking_ids)
+                        SELECT 1 FROM payments p WHERE p.status = 'successful' AND p.payment_type IN ('service_maintenance', 'service_job_inquiry', 'service_logistics', 'service_goods_ticket') AND st.id = ANY(p.booking_ids)
                     ) THEN 'paid' ELSE 'pending' END) AS client_payment_status,
                     COALESCE(o.total_amount, sb.total_amount, st.total_amount) AS transaction_amount,
                     vp.due_date,
@@ -965,16 +965,16 @@ export const getAllPayouts = async (req: Request, res: Response): Promise<Respon
                 st.otp_verified_at AS delivered_at,
                 NULL::timestamptz AS due_date,
                 pr.processed_at AS last_paid_at,
-                COALESCE(pr.transfer_reference, 'Machine maintenance service ticket')::text AS payout_notes,
+                COALESCE(pr.transfer_reference, CASE WHEN st.ticket_payload->>'service_code' = 'goods_ticket_inquiry' THEN 'Goods ticket inquiry' WHEN st.ticket_payload->>'service_code' = 'logistics' THEN 'Logistics service ticket' WHEN st.ticket_payload->>'service_code' = 'job_inquiry' THEN 'Job inquiry service ticket' ELSE 'Machine maintenance service ticket' END)::text AS payout_notes,
                 st.total_amount AS order_total_amount,
                 st.status AS order_status,
                 'paid'::text AS client_payment_status,
                 u.name AS customer_name,
                 v.company_name AS vendor_name,
                 v.credit_cycle AS vendor_credit_cycle,
-                COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.status = 'successful' AND p.payment_type IN ('service_maintenance', 'service_job_inquiry') AND st.id = ANY(p.booking_ids)), 0) AS client_paid_amount,
-                CASE WHEN st.total_amount > 0 THEN ROUND((COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.status = 'successful' AND p.payment_type IN ('service_maintenance', 'service_job_inquiry') AND st.id = ANY(p.booking_ids)), 0) / st.total_amount) * 100, 2) ELSE 0 END AS client_paid_percentage,
-                CASE WHEN st.ticket_payload->>'service_code' = 'job_inquiry' THEN 'service_job_inquiry' ELSE 'service_maintenance' END::text AS payout_source
+                COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.status = 'successful' AND p.payment_type IN ('service_maintenance', 'service_job_inquiry', 'service_logistics', 'service_goods_ticket') AND st.id = ANY(p.booking_ids)), 0) AS client_paid_amount,
+                CASE WHEN st.total_amount > 0 THEN ROUND((COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.status = 'successful' AND p.payment_type IN ('service_maintenance', 'service_job_inquiry', 'service_logistics', 'service_goods_ticket') AND st.id = ANY(p.booking_ids)), 0) / st.total_amount) * 100, 2) ELSE 0 END AS client_paid_percentage,
+                CASE WHEN st.ticket_payload->>'service_code' = 'job_inquiry' THEN 'service_job_inquiry' WHEN st.ticket_payload->>'service_code' = 'logistics' THEN 'service_logistics' WHEN st.ticket_payload->>'service_code' = 'goods_ticket_inquiry' THEN 'service_goods_ticket' ELSE 'service_maintenance' END::text AS payout_source
             FROM service_tickets st
             JOIN service_categories sc ON sc.id = st.category_id
             JOIN vendors v ON v.id = st.vendor_id
@@ -989,8 +989,8 @@ export const getAllPayouts = async (req: Request, res: Response): Promise<Respon
                 FROM vendor_payout_transfers t WHERE t.request_id = pr.id
             ) transfers ON TRUE
             WHERE st.status IN ('accepted', 'in_progress', 'completed')
-              AND (LOWER(sc.label) LIKE '%machine maintenance%' OR st.ticket_payload->>'service_code' IN ('machine_maintenance', 'job_inquiry'))
-              AND EXISTS (SELECT 1 FROM payments p WHERE p.status = 'successful' AND p.payment_type IN ('service_maintenance', 'service_job_inquiry') AND st.id = ANY(p.booking_ids))
+              AND (LOWER(sc.label) LIKE '%machine maintenance%' OR st.ticket_payload->>'service_code' IN ('machine_maintenance', 'job_inquiry', 'logistics', 'goods_ticket_inquiry'))
+              AND EXISTS (SELECT 1 FROM payments p WHERE p.status = 'successful' AND p.payment_type IN ('service_maintenance', 'service_job_inquiry', 'service_logistics', 'service_goods_ticket') AND st.id = ANY(p.booking_ids))
             ORDER BY payout_id DESC
         `;
         const result = await marketplacePool.query(query);
