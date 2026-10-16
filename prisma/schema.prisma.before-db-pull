@@ -1,0 +1,1536 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                                                                     String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                                                                   String
+  email                                                                  String                       @unique(map: "idx_users_email_unique") @db.Citext
+  password_hash                                                          String
+  role                                                                   UserRole                     @default(client)
+  is_active                                                              Boolean                      @default(true)
+  otp                                                                    String?
+  refresh_token                                                          String?
+  otp_expiry                                                             DateTime?                    @db.Timestamptz(6)
+  is_verified                                                            Boolean                      @default(false)
+  created_at                                                             DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                                                             DateTime                     @default(now()) @db.Timestamptz(6)
+  deletion_requested_at                                                  DateTime?                    @db.Timestamptz(6)
+  abandoned_reminder_logs                                                abandoned_reminder_logs[]
+  addresses                                                              addresses?
+  carts                                                                  Cart[]
+  client                                                                 client?
+  delivery_agent_kyc                                                     delivery_agent_kyc[]
+  delivery_agents                                                        delivery_agents?
+  fulfillment_centers                                                    FulfillmentCenter?
+  notifications                                                          notifications[]
+  order_item_reviews                                                     order_item_reviews[]
+  orders                                                                 Order[]
+  payments                                                               Payment[]
+  product_specification_product_specification_created_by_user_idTousers  product_specification[]      @relation("product_specification_created_by_user_idTousers")
+  product_specification_product_specification_reviewed_by_user_idTousers product_specification[]      @relation("product_specification_reviewed_by_user_idTousers")
+  product_variants_product_variants_created_by_user_idTousers            ProductVariant[]             @relation("product_variants_created_by_user_idTousers")
+  product_variants_product_variants_reviewed_by_user_idTousers           ProductVariant[]             @relation("product_variants_reviewed_by_user_idTousers")
+  products_images_products_images_created_by_user_idTousers              ProductImage[]               @relation("products_images_created_by_user_idTousers")
+  products_images_products_images_reviewed_by_user_idTousers             ProductImage[]               @relation("products_images_reviewed_by_user_idTousers")
+  quotation_documents                                                    quotation_documents[]
+  quotation_messages                                                     QuotationMessage[]
+  quotation_requests_quotation_requests_admin_user_idTousers             QuotationRequest[]           @relation("quotation_requests_admin_user_idTousers")
+  quotation_requests_quotation_requests_user_idTousers                   QuotationRequest[]           @relation("quotation_requests_user_idTousers")
+  service_bookings                                                       service_bookings[]
+  service_quotation_messages                                             service_quotation_messages[]
+  service_quotations                                                     service_quotations[]
+  service_reviews                                                        service_reviews[]
+  services                                                               services[]
+  services_media_services_media_created_by_user_idTousers                services_media[]             @relation("services_media_created_by_user_idTousers")
+  services_media_services_media_reviewed_by_user_idTousers               services_media[]             @relation("services_media_reviewed_by_user_idTousers")
+  vendor_chat_messages                                                   vendor_chat_messages[]
+  vendor_quotations_vendor_quotations_created_by_admin_idTousers         vendor_quotations[]          @relation("vendor_quotations_created_by_admin_idTousers")
+  vendor_quotations_vendor_quotations_reviewed_by_admin_idTousers        vendor_quotations[]          @relation("vendor_quotations_reviewed_by_admin_idTousers")
+  vendor_reviews                                                         vendor_reviews[]
+  vendors                                                                Vendor?
+  wishlists                                                              wishlists?
+  employee_candidates_registered                                         employee_candidates[]        @relation("employee_candidates_registered_by")
+  employee_candidates_verified                                           employee_candidates[]        @relation("employee_candidates_verified_by")
+  employee_documents_uploaded                                            employee_documents[]         @relation("employee_documents_uploaded_by")
+  hire_requests_requested                                                hire_requests[]              @relation("hire_requests_requested_by")
+  hire_requests_reviewed                                                 hire_requests[]              @relation("hire_requests_reviewed_by")
+  client_assets                                                          client_assets[]
+  service_tickets_client                                                 service_tickets[]            @relation("service_tickets_client")
+  service_tickets_agent                                                  service_tickets[]            @relation("service_tickets_agent")
+  service_ticket_documents_uploaded                                      service_ticket_documents[]   @relation("service_ticket_documents_uploaded_by")
+
+  @@map("users")
+}
+
+model Product {
+  id                             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                           String
+  description                    String?
+  category                       String?                 @db.Uuid
+  product_type                   String?
+  approval_status                String                  @default("pending")
+  approval_notes                 String?
+  created_by_user_id             String?                 @db.Uuid
+  is_active                      Boolean                 @default(false)
+  rating                         Decimal                 @default(0) @db.Decimal(2, 1)
+  review_count                   Int                     @default(0)
+  created_at                     DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at                     DateTime                @default(now()) @db.Timestamptz(6)
+  quotation_limit                Int?
+  vendor_can_set_quotation_limit Boolean                 @default(false)
+  item_code                      String?
+  attributes                     Json                    @default("{}")
+  specifications                 Json                    @default("{}")
+  subcategory_id                 String?                 @db.Uuid
+  cart_items                     cart_items[]
+  order_item_reviews             order_item_reviews[]
+  order_items                    order_items[]
+  product_specification          product_specification[]
+  variants                       ProductVariant[]
+  product_category               product_category?       @relation(fields: [category], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_products_category")
+  subcategories                  subcategories?          @relation(fields: [subcategory_id], references: [id], onUpdate: NoAction, map: "fk_products_subcategory")
+  products_images                ProductImage[]
+  quotation_documents            quotation_documents[]
+  quotationRequests              QuotationRequest[]
+  vendorProducts                 VendorProduct[]
+  vendor_quotations              vendor_quotations[]
+  wishlist_items                 wishlist_items[]
+
+  @@index([category], map: "idx_products_category")
+  @@index([subcategory_id], map: "idx_products_subcategory_id")
+  @@index([product_type], map: "idx_products_product_type")
+  @@map("products")
+}
+
+model ProductImage {
+  id                                               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id                                       String          @db.Uuid
+  image_url                                        String
+  is_primary                                       Boolean         @default(false)
+  display_order                                    Int             @default(0)
+  is_approved                                      Boolean         @default(false)
+  approval_status                                  String          @default("pending")
+  created_by_user_id                               String?         @db.Uuid
+  reviewed_by_user_id                              String?         @db.Uuid
+  created_at                                       DateTime        @default(now()) @db.Timestamptz(6)
+  media_type                                       String?         @default("image")
+  product_variant_id                               String?         @db.Uuid
+  users_products_images_created_by_user_idTousers  User?           @relation("products_images_created_by_user_idTousers", fields: [created_by_user_id], references: [id], onUpdate: NoAction, map: "fk_products_images_created_by")
+  product                                          Product         @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_products_images_product")
+  product_variants                                 ProductVariant? @relation(fields: [product_variant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_products_images_product_variant")
+  users_products_images_reviewed_by_user_idTousers User?           @relation("products_images_reviewed_by_user_idTousers", fields: [reviewed_by_user_id], references: [id], onUpdate: NoAction, map: "fk_products_images_reviewed_by")
+
+  @@index([product_id], map: "idx_products_images_product_id")
+  @@index([product_variant_id], map: "idx_products_images_variant_id")
+  @@map("products_images")
+}
+
+model Vendor {
+  id                           String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                      String                 @unique(map: "idx_vendors_user_id_unique") @db.Uuid
+  company_name                 String
+  gst_number                   String?                @unique(map: "idx_vendors_gst_number_unique", where: raw("(gst_number IS NOT NULL)"))
+  gst_certificate_link         String?
+  bank_name                    String?                @db.VarChar(100)
+  account_holder_name          String?                @db.VarChar(100)
+  account_number               String?                @db.Text
+  account_number_last4         String?                @db.Char(4)
+  ifsc_code                    String?                @db.VarChar(20)
+  cancelled_cheque_link        String?
+  business_type                String?
+  company_website              String?
+  phone                        String?
+  alternative_number           String?
+  designation                  String?
+  business_description         String?
+  credit_cycle                 String?
+  minimum_commision_percentage Int?                   @default(0)
+  maximum_commision_percentage Int?                   @default(0)
+  rating                       Decimal                @default(0) @db.Decimal(2, 1)
+  review_count                 Int                    @default(0)
+  is_approved                  Boolean                @default(false)
+  is_active                    Boolean                @default(true)
+  is_blocked                   Boolean                @default(false)
+  approval_status              vendor_approval_status @default(pending)
+  approval_notes               String?
+  created_at                   DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at                   DateTime               @default(now()) @db.Timestamptz(6)
+  application_number           String?                @unique
+  reconsideration_notes        String?
+  vendor_signature_image_link  String?
+  vendor_type                  String                 @default("product")
+  cart_items                   cart_items[]
+  order_item_reviews           order_item_reviews[]
+  order_items                  order_items[]
+  orders                       Order[]
+  quotationRequests            QuotationRequest[]
+  service_bookings             service_bookings[]
+  service_cart_items           service_cart_items[]
+  service_quotations           service_quotations[]
+  service_reviews              service_reviews[]
+  vendor_categories            vendor_categories[]
+  vendor_chat_messages         vendor_chat_messages[]
+  vendor_payouts               vendor_payouts[]
+  vendorProducts               VendorProduct[]
+  vendor_quotations            vendor_quotations[]
+  vendor_reviews               vendor_reviews[]
+  vendor_services              vendor_services[]
+  service_tickets              service_tickets[]
+  service_ticket_quotations    service_ticket_quotations[]
+  users                        User                   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendors_user")
+  wishlist_items               wishlist_items[]
+
+  @@index([rating(sort: Desc)], map: "idx_vendors_rating", where: raw("(is_active = true)"))
+  @@map("vendors")
+}
+
+model Order {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                    String                       @db.Uuid
+  vendor_id                  String                       @db.Uuid
+  cart_id                    String?                      @db.Uuid
+  status                     String                       @default("pending")
+  payment_status             String?                      @default("pending")
+  total_amount               Decimal                      @db.Decimal(12, 2)
+  source                     String                       @default("client")
+  order_reference            String?
+  order_notes                String?
+  customer_name              String?
+  customer_email             String?
+  customer_phone             String?
+  created_by_admin_id        String?
+  address_line               String
+  city                       String
+  state                      String
+  country                    String
+  pincode                    String                       @db.VarChar(6)
+  latitude                   String
+  langitude                  String
+  created_at                 DateTime?                    @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime?                    @default(now()) @db.Timestamptz(6)
+  order_type                 String                       @default("direct")
+  vendor_city                String?
+  vendor_state               String?
+  vendor_latitude            Float?
+  vendor_longitude           Float?
+  pickup_otp                 String?                      @db.VarChar(6)
+  pickup_qr_token            String?                      @db.VarChar(255)
+  delivery_otp               String?                      @db.VarChar(6)
+  delivery_qr_token          String?                      @db.VarChar(255)
+  order_fulfillment_tracking order_fulfillment_tracking[]
+  order_item_reviews         order_item_reviews[]
+  order_items                order_items[]
+  order_route_plan           order_route_plan[]
+  order_status_history       order_status_history[]
+  carts                      Cart?                        @relation(fields: [cart_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orders_cart")
+  users                      User                         @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orders_user")
+  vendor                     Vendor                       @relation(fields: [vendor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orders_vendor")
+  quotationRequests          QuotationRequest[]
+  rider_earnings             rider_earnings[]
+  vendor_payouts             vendor_payouts?
+  vendor_reviews             vendor_reviews[]
+
+  @@index([status], map: "idx_orders_status")
+  @@index([user_id], map: "idx_orders_user_id")
+  @@index([vendor_id], map: "idx_orders_vendor_id")
+  @@map("orders")
+}
+
+model VendorProduct {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id           String                @db.Uuid
+  vendor_id            String                @db.Uuid
+  price                Decimal               @db.Decimal(12, 2)
+  moq                  Int
+  stock_quantity       Int                   @default(0)
+  commision_percentage Int?                  @default(0)
+  is_active            Boolean               @default(false)
+  status               vendor_product_status @default(waiting)
+  created_at           DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime              @default(now()) @db.Timestamptz(6)
+  quotation_enabled    Boolean               @default(false)
+  quotation_min_qty    Int?
+  gst_percentage       Decimal?              @default(0.00) @db.Decimal(5, 2)
+  pending_price        Decimal?              @db.Decimal(12, 2)
+  product_variant_id   String                @db.Uuid
+  discounted_price     Decimal?              @db.Decimal(12, 2)
+  product              Product               @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_products_product")
+  variant              ProductVariant        @relation(fields: [product_variant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_products_variant")
+  vendor               Vendor                @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_products_vendor")
+
+  @@unique([vendor_id, product_variant_id], map: "unique_vendor_product_variant")
+  @@index([product_id], map: "idx_vendor_products_product_id")
+  @@index([status], map: "idx_vendor_products_status")
+  @@map("vendor_products")
+}
+
+model ProductVariant {
+  id                                                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id                                        String             @db.Uuid
+  sku                                               String?
+  properties                                        Json               @default("{}")
+  approval_status                                   String             @default("approved")
+  approval_notes                                    String?
+  created_by_user_id                                String?            @db.Uuid
+  reviewed_by_user_id                               String?            @db.Uuid
+  reviewed_at                                       DateTime?          @db.Timestamptz(6)
+  is_active                                         Boolean            @default(true)
+  created_at                                        DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at                                        DateTime           @default(now()) @db.Timestamptz(6)
+  name                                              String?
+  cart_items                                        cart_items[]
+  order_items                                       order_items[]
+  users_product_variants_created_by_user_idTousers  User?              @relation("product_variants_created_by_user_idTousers", fields: [created_by_user_id], references: [id], onUpdate: NoAction, map: "fk_product_variants_created_by")
+  product                                           Product            @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_product_variants_product")
+  users_product_variants_reviewed_by_user_idTousers User?              @relation("product_variants_reviewed_by_user_idTousers", fields: [reviewed_by_user_id], references: [id], onUpdate: NoAction, map: "fk_product_variants_reviewed_by")
+  products_images                                   ProductImage[]
+  quotationRequests                                 QuotationRequest[]
+  vendorProducts                                    VendorProduct[]
+  wishlist_items                                    wishlist_items[]
+
+  @@unique([product_id, properties], map: "uq_product_id_properties")
+  @@index([approval_status], map: "idx_product_variants_approval_status")
+  @@index([product_id], map: "idx_product_variants_product_id")
+  @@map("product_variants")
+}
+
+model Cart {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String               @db.Uuid
+  status             String               @default("active")
+  total_amount       Decimal?             @default(0) @db.Decimal(12, 2)
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  cart_type          CartType             @default(direct)
+  cart_items         cart_items[]
+  users              User                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_carts_user")
+  orders             Order[]
+  service_cart_items service_cart_items[]
+
+  @@unique([user_id, cart_type], map: "idx_carts_user_type_status", where: raw("(status = 'active'::text)"))
+  @@map("carts")
+}
+
+model QuotationRequest {
+  id                                            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                       String             @db.Uuid
+  vendor_id                                     String             @db.Uuid
+  product_id                                    String             @db.Uuid
+  requested_quantity                            Int
+  requested_price                               Decimal?           @db.Decimal(12, 2)
+  status                                        QuotationStatus    @default(pending_vendor)
+  request_note                                  String?
+  buyer_city                                    String?
+  buyer_state                                   String?
+  buyer_country                                 String?
+  buyer_pincode                                 String?            @db.VarChar(6)
+  current_offer_price                           Decimal?           @db.Decimal(12, 2)
+  current_offer_quantity                        Int?
+  current_offer_by                              String?
+  accepted_price                                Decimal?           @db.Decimal(12, 2)
+  accepted_quantity                             Int?
+  rejection_reason                              String?
+  order_id                                      String?            @db.Uuid
+  created_at                                    DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at                                    DateTime           @default(now()) @db.Timestamptz(6)
+  admin_confirmation_status                     String?
+  admin_confirmation_message                    String?
+  admin_confirmed_at                            DateTime?          @db.Timestamptz(6)
+  admin_user_id                                 String?            @db.Uuid
+  quotation_group_id                            String?            @db.Uuid
+  delivery_days                                 Int?
+  token_percentage                              Decimal?           @db.Decimal(5, 2)
+  token_amount                                  Decimal?           @db.Decimal(12, 2)
+  vendor_document_url                           String?
+  vendor_document_s3_key                        String?
+  product_variant_id                            String?            @db.Uuid
+  payments                                      Payment[]
+  messages                                      QuotationMessage[]
+  users_quotation_requests_admin_user_idTousers User?              @relation("quotation_requests_admin_user_idTousers", fields: [admin_user_id], references: [id], onUpdate: NoAction, map: "fk_quotation_requests_admin_user")
+  order                                         Order?             @relation(fields: [order_id], references: [id], onUpdate: NoAction, map: "fk_quotation_requests_order")
+  product                                       Product            @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_quotation_requests_product")
+  users_quotation_requests_user_idTousers       User               @relation("quotation_requests_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_quotation_requests_user")
+  variant                                       ProductVariant?    @relation(fields: [product_variant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_quotation_requests_variant")
+  vendor                                        Vendor             @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_quotation_requests_vendor")
+
+  @@index([admin_confirmation_status], map: "idx_quotation_requests_admin_status", where: raw("(admin_confirmation_status IS NOT NULL)"))
+  @@index([quotation_group_id], map: "idx_quotation_requests_group_id", where: raw("(quotation_group_id IS NOT NULL)"))
+  @@index([product_id], map: "idx_quotation_requests_product_id")
+  @@index([status], map: "idx_quotation_requests_status")
+  @@index([user_id], map: "idx_quotation_requests_user_id")
+  @@index([vendor_id], map: "idx_quotation_requests_vendor_id")
+  @@map("quotation_requests")
+}
+
+model QuotationMessage {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotation_id   String                 @db.Uuid
+  sender_user_id String                 @db.Uuid
+  sender_role    String
+  action         QuotationMessageAction
+  offer_price    Decimal?               @db.Decimal(12, 2)
+  offer_quantity Int?
+  note           String?
+  reason         String?
+  created_at     DateTime               @default(now()) @db.Timestamptz(6)
+  quotation      QuotationRequest       @relation(fields: [quotation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_quotation_messages_quotation")
+  users          User                   @relation(fields: [sender_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_quotation_messages_sender")
+
+  @@index([quotation_id, created_at], map: "idx_quotation_messages_quotation_id")
+  @@map("quotation_messages")
+}
+
+model Payment {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id              String            @db.Uuid
+  amount               Decimal           @db.Decimal(12, 2)
+  currency             String?           @default("INR") @db.VarChar(10)
+  status               String?           @default("pending") @db.VarChar(50)
+  payment_method       String?           @default("razorpay") @db.VarChar(50)
+  razorpay_order_id    String?           @unique @db.VarChar(255)
+  razorpay_payment_id  String?           @db.VarChar(255)
+  razorpay_signature   String?
+  order_ids            String[]          @default([]) @db.Uuid
+  quotation_request_id String?           @db.Uuid
+  split_number         Int?              @default(1)
+  split_percentage     Decimal?          @default(100.00) @db.Decimal(5, 2)
+  created_at           DateTime?         @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime?         @default(now()) @db.Timestamptz(6)
+  booking_ids          String[]          @default([]) @db.Uuid
+  quotation_request    QuotationRequest? @relation(fields: [quotation_request_id], references: [id], onUpdate: NoAction)
+  user                 User              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([razorpay_order_id], map: "idx_payments_razorpay_order_id")
+  @@index([user_id], map: "idx_payments_user_id")
+  @@map("payments")
+}
+
+model FulfillmentCenter {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                    String                       @unique @db.Uuid
+  name                       String
+  address                    String
+  city                       String
+  state                      String
+  country                    String
+  pincode                    String                       @db.VarChar(6)
+  latitude                   Float?
+  longitude                  Float?
+  capacity                   String?
+  is_active                  Boolean                      @default(true)
+  created_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  code                       String                       @unique
+  contact_phone              String?
+  contact_email              String?                      @db.Citext
+  manager_name               String?
+  total_area_sqft            Decimal?                     @db.Decimal(10, 2)
+  capacity_packages          Int?
+  storage_type               String?
+  operating_hours            String?
+  status                     String                       @default("active")
+  delivery_agents            delivery_agents[]
+  users                      User                         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_fulfillment_centers_user")
+  order_fulfillment_tracking order_fulfillment_tracking[]
+  order_route_plan           order_route_plan[]
+
+  @@index([user_id], map: "idx_fulfillment_centers_user_id")
+  @@map("fulfillment_centers")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model abandoned_reminder_logs {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @db.Uuid
+  source_type    String
+  source_item_id String   @db.Uuid
+  reminder_type  String   @default("24h_abandoned_reminder")
+  sent_at        DateTime @default(now()) @db.Timestamptz(6)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @default(now()) @db.Timestamptz(6)
+  users          User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_abandoned_reminder_logs_user")
+
+  @@unique([source_type, source_item_id, reminder_type], map: "unique_abandoned_reminder_source")
+  @@index([source_type, source_item_id], map: "idx_abandoned_reminder_logs_source")
+  @@index([user_id], map: "idx_abandoned_reminder_logs_user_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model addresses {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String   @unique(map: "idx_addresses_user_id_unique") @db.Uuid
+  address       String
+  city          String
+  state         String
+  country       String
+  pincode       String   @db.VarChar(6)
+  latitude      Float?
+  longitude     Float?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @db.Timestamptz(6)
+  address_line1 String?
+  address_line2 String?
+  landmark      String?
+  address_phone String?
+  users         User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_addresses_user")
+
+  @@index([user_id], map: "idx_addresses_user_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model cart_items {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cart_id            String         @db.Uuid
+  product_id         String         @db.Uuid
+  vendor_id          String         @db.Uuid
+  quantity           Int
+  price_at_added     Decimal        @db.Decimal(12, 2)
+  created_at         DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime       @default(now()) @db.Timestamptz(6)
+  product_variant_id String         @db.Uuid
+  carts              Cart           @relation(fields: [cart_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_cart_items_cart")
+  products           Product        @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_cart_items_product")
+  product_variants   ProductVariant @relation(fields: [product_variant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_cart_items_variant")
+  vendors            Vendor         @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_cart_items_vendor")
+
+  @@unique([cart_id, product_variant_id, vendor_id], map: "unique_cart_product_variant_vendor")
+  @@index([cart_id], map: "idx_cart_items_cart_id")
+  @@index([product_id], map: "idx_cart_items_product_id")
+  @@index([product_variant_id], map: "idx_cart_items_product_variant_id")
+}
+
+model client {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @unique @db.Uuid
+  phone      String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  users      User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_client_user")
+}
+
+model delivery_agents {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                    String                       @unique @db.Uuid
+  fulfillment_center_id      String                       @db.Uuid
+  special_rider_id           String                       @unique
+  contact_phone              String?
+  vehicle_type               String?
+  vehicle_number             String?
+  status                     String                       @default("active")
+  is_online                  Boolean                      @default(false)
+  created_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  current_latitude           Float?
+  current_longitude          Float?
+  last_located_at            DateTime?                    @db.Timestamptz(6)
+  kyc_status                 String                       @default("pending") @db.VarChar(50)
+  push_token                 String?
+  delivery_agent_kyc         delivery_agent_kyc?
+  fulfillment_centers        FulfillmentCenter            @relation(fields: [fulfillment_center_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                      User                         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  order_fulfillment_tracking order_fulfillment_tracking[]
+  order_route_plan           order_route_plan[]
+  rider_earnings             rider_earnings[]
+
+  @@index([fulfillment_center_id], map: "idx_delivery_agents_fc")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model notifications {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @db.Uuid
+  type           String
+  title          String
+  body           String
+  reference_type String?
+  reference_id   String?  @db.Uuid
+  is_read        Boolean  @default(false)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  users          User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_notifications_user")
+
+  @@index([created_at(sort: Desc)], map: "idx_notifications_created_at")
+  @@index([reference_type, reference_id], map: "idx_notifications_reference")
+  @@index([user_id], map: "idx_notifications_user_id")
+  @@index([user_id, is_read], map: "idx_notifications_user_unread", where: raw("(is_read = false)"))
+}
+
+model order_fulfillment_tracking {
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id              String             @db.Uuid
+  fulfillment_center_id String?            @db.Uuid
+  status                order_status
+  note                  String?
+  created_at            DateTime?          @default(now()) @db.Timestamptz(6)
+  stop_sequence         Int?
+  location_label        String?
+  delivery_agent_id     String?            @db.Uuid
+  fulfillment_centers   FulfillmentCenter? @relation(fields: [fulfillment_center_id], references: [id], onUpdate: NoAction, map: "fk_oft_center")
+  delivery_agents       delivery_agents?   @relation(fields: [delivery_agent_id], references: [id], onUpdate: NoAction, map: "fk_oft_delivery_agent")
+  orders                Order              @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_oft_order")
+
+  @@index([order_id, stop_sequence], map: "idx_oft_order_sequence")
+  @@index([delivery_agent_id], map: "idx_oft_delivery_agent_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model order_item_reviews {
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id             String      @db.Uuid
+  order_item_id        String      @unique @db.Uuid
+  user_id              String      @db.Uuid
+  product_id           String      @db.Uuid
+  vendor_id            String      @db.Uuid
+  rating               Int
+  review_title         String?
+  review_text          String?
+  is_verified_purchase Boolean     @default(true)
+  created_at           DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime    @default(now()) @db.Timestamptz(6)
+  images               String[]    @default([])
+  orders               Order       @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_order_item_reviews_order")
+  order_items          order_items @relation(fields: [order_item_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_order_item_reviews_order_item")
+  products             Product     @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_order_item_reviews_product")
+  users                User        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_order_item_reviews_user")
+  vendors              Vendor      @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_order_item_reviews_vendor")
+
+  @@index([order_id], map: "idx_order_item_reviews_order_id")
+  @@index([product_id], map: "idx_order_item_reviews_product_id")
+  @@index([user_id], map: "idx_order_item_reviews_user_id")
+  @@index([vendor_id], map: "idx_order_item_reviews_vendor_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model order_items {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id           String              @db.Uuid
+  product_id         String              @db.Uuid
+  vendor_id          String              @db.Uuid
+  quantity           Int
+  price              Decimal             @db.Decimal(12, 2)
+  created_at         DateTime?           @default(now()) @db.Timestamptz(6)
+  product_variant_id String?             @db.Uuid
+  original_price     Decimal?            @db.Decimal(12, 2)
+  order_item_reviews order_item_reviews?
+  orders             Order               @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_order_items_order")
+  products           Product             @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_items_product")
+  product_variants   ProductVariant?     @relation(fields: [product_variant_id], references: [id], onUpdate: NoAction, map: "fk_order_items_variant")
+  vendors            Vendor              @relation(fields: [vendor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_items_vendor")
+
+  @@index([order_id], map: "idx_order_items_order_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model order_route_plan {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id              String            @db.Uuid
+  fulfillment_center_id String            @db.Uuid
+  stop_sequence         Int
+  center_name           String
+  center_city           String
+  center_state          String
+  center_pincode        String?           @db.VarChar(6)
+  center_latitude       Float?
+  center_longitude      Float?
+  estimated_arrival     DateTime?         @db.Timestamptz(6)
+  actual_arrival        DateTime?         @db.Timestamptz(6)
+  status                String            @default("upcoming")
+  created_at            DateTime?         @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime?         @default(now()) @db.Timestamptz(6)
+  pickup_rider_id       String?           @db.Uuid
+  fulfillment_centers   FulfillmentCenter @relation(fields: [fulfillment_center_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_orp_fc")
+  orders                Order             @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_orp_order")
+  delivery_agents       delivery_agents?  @relation(fields: [pickup_rider_id], references: [id], onUpdate: NoAction)
+
+  @@unique([order_id, stop_sequence], map: "uq_orp_order_sequence")
+  @@index([fulfillment_center_id], map: "idx_order_route_plan_fc_id")
+  @@index([order_id], map: "idx_order_route_plan_order_id")
+  @@index([status], map: "idx_order_route_plan_status")
+  @@index([fulfillment_center_id, status], map: "idx_orp_pickup_status", where: raw("(status = ANY (ARRAY['pickup_pending'::text, 'pickup_assigned'::text]))"))
+}
+
+model order_status_history {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id   String       @db.Uuid
+  status     order_status
+  note       String?
+  created_at DateTime?    @default(now()) @db.Timestamptz(6)
+  orders     Order        @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_order_status_history_order")
+}
+
+model product_category {
+  id                           String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                         String                  @unique(map: "idx_product_category_code")
+  label                        String
+  description                  String?
+  sort_order                   Int                     @default(0)
+  is_active                    Boolean                 @default(true)
+  created_at                   DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at                   DateTime                @default(now()) @db.Timestamptz(6)
+  image                        String                  @default("")
+  min_commision_percentage     Int                     @default(0)
+  max_commision_percentage     Int                     @default(10)
+  minimum_commision_percentage Int                     @default(0)
+  maximum_commision_percentage Int                     @default(10)
+  category_type                String?                 @default("product")
+  products                     Product[]
+  service_subcategories        service_subcategories[]
+  subcategories                subcategories[]
+  services                     services[]
+  vendor_categories            vendor_categories[]
+  client_assets                client_assets[]
+  service_tickets              service_tickets[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model product_specification {
+  id                                                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id                                             String    @db.Uuid
+  spec_key                                               String
+  spec_value                                             String?
+  approval_status                                        String    @default("pending")
+  approval_notes                                         String?
+  created_by_user_id                                     String    @db.Uuid
+  reviewed_by_user_id                                    String?   @db.Uuid
+  reviewed_at                                            DateTime? @db.Timestamptz(6)
+  created_at                                             DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                                             DateTime  @default(now()) @db.Timestamptz(6)
+  users_product_specification_created_by_user_idTousers  User      @relation("product_specification_created_by_user_idTousers", fields: [created_by_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_product_specifications_created_by")
+  products                                               Product   @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_product_specifications_product")
+  users_product_specification_reviewed_by_user_idTousers User?     @relation("product_specification_reviewed_by_user_idTousers", fields: [reviewed_by_user_id], references: [id], onUpdate: NoAction, map: "fk_product_specifications_reviewed_by")
+
+  @@index([product_id], map: "idx_product_specification_product_id")
+  @@index([approval_status], map: "idx_product_specification_status")
+}
+
+model vendor_categories {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vendor_id        String           @db.Uuid
+  category_id      String           @db.Uuid
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  product_category product_category @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_categories_category")
+  vendors          Vendor           @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_categories_vendor")
+
+  @@unique([vendor_id, category_id], map: "unique_vendor_category_selection")
+  @@index([category_id], map: "idx_vendor_categories_category_id")
+  @@index([vendor_id], map: "idx_vendor_categories_vendor_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model vendor_chat_messages {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vendor_id      String   @db.Uuid
+  sender_user_id String   @db.Uuid
+  sender_role    String
+  body           String
+  is_read        Boolean  @default(false)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  users          User     @relation(fields: [sender_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_chat_messages_sender")
+  vendors        Vendor   @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_chat_messages_vendor")
+
+  @@index([vendor_id, is_read], map: "idx_vendor_chat_messages_is_read")
+  @@index([vendor_id, created_at], map: "idx_vendor_chat_messages_vendor_id")
+}
+
+model vendor_payouts {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id          String    @unique @db.Uuid
+  vendor_id         String    @db.Uuid
+  payout_percentage Decimal   @default(0.00) @db.Decimal(5, 2)
+  payout_amount     Decimal   @default(0.00) @db.Decimal(12, 2)
+  status            String    @default("pending") @db.VarChar(50)
+  delivered_at      DateTime? @db.Timestamptz(6)
+  due_date          DateTime? @db.Timestamptz(6)
+  last_paid_at      DateTime? @db.Timestamptz(6)
+  notes             String?
+  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime? @default(now()) @db.Timestamptz(6)
+  orders            Order     @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  vendors           Vendor    @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([order_id], map: "idx_vendor_payouts_order_id")
+  @@index([status], map: "idx_vendor_payouts_status")
+  @@index([vendor_id], map: "idx_vendor_payouts_vendor_id")
+}
+
+model vendor_payout_requests {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vendor_id          String    @db.Uuid
+  order_id           String?   @db.Uuid
+  booking_id         String?   @db.Uuid
+  status             String    @default("requested") @db.VarChar(20)
+  eligible_amount    Decimal   @db.Decimal(12, 2)
+  paid_amount        Decimal?  @db.Decimal(12, 2)
+  transfer_reference String?
+  rejection_reason   String?
+  requested_at       DateTime  @default(now()) @db.Timestamptz(6)
+  processed_at       DateTime? @db.Timestamptz(6)
+  processed_by       String?   @db.Uuid
+
+  @@index([vendor_id, status, requested_at], map: "idx_vendor_payout_requests_vendor_status")
+  @@index([order_id], map: "idx_vendor_payout_requests_order")
+  @@index([booking_id], map: "idx_vendor_payout_requests_booking")
+  @@unique([order_id], where: raw("(order_id IS NOT NULL AND status IN ('requested', 'paid'))"), map: "uq_vendor_payout_requests_active_order")
+  @@unique([booking_id], where: raw("(booking_id IS NOT NULL AND status IN ('requested', 'paid'))"), map: "uq_vendor_payout_requests_active_booking")
+  @@unique([transfer_reference], where: raw("(transfer_reference IS NOT NULL)"), map: "uq_vendor_payout_requests_transfer_reference")
+}
+
+model vendor_payout_bank_access_audit {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vendor_payout_request_id String   @db.Uuid
+  admin_user_id            String   @db.Uuid
+  accessed_at              DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([vendor_payout_request_id], map: "idx_vendor_payout_bank_audit_request")
+  @@index([admin_user_id, accessed_at], map: "idx_vendor_payout_bank_audit_admin")
+}
+
+model vendor_payout_transfers {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id        String   @db.Uuid
+  amount            Decimal  @db.Decimal(12, 2)
+  transfer_reference String  @unique
+  transferred_by    String   @db.Uuid
+  transferred_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([request_id, transferred_at], map: "idx_vendor_payout_transfers_request")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model vendor_quotations {
+  id                                                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotation_number                                    String    @unique(map: "idx_vendor_quotations_number_unique")
+  vendor_id                                           String    @db.Uuid
+  created_by_admin_id                                 String    @db.Uuid
+  sent_to_email                                       String    @db.Citext
+  title                                               String
+  quantity                                            Decimal   @db.Decimal(12, 2)
+  unit                                                String
+  target_price                                        Decimal?  @db.Decimal(12, 2)
+  requested_moq                                       Int?
+  request_notes                                       String?
+  validity_date                                       DateTime? @db.Timestamptz(6)
+  status                                              String    @default("sent")
+  vendor_price                                        Decimal?  @db.Decimal(12, 2)
+  vendor_moq                                          Int?
+  vendor_notes                                        String?
+  admin_signature_data                                String
+  vendor_signature_data                               String?
+  token_hash                                          String    @unique(map: "idx_vendor_quotations_token_hash_unique")
+  token_expires_at                                    DateTime  @db.Timestamptz(6)
+  vendor_opened_at                                    DateTime? @db.Timestamptz(6)
+  vendor_responded_at                                 DateTime? @db.Timestamptz(6)
+  admin_reviewed_at                                   DateTime? @db.Timestamptz(6)
+  admin_review_notes                                  String?
+  vendor_rejection_reason                             String?
+  email_sent_at                                       DateTime? @db.Timestamptz(6)
+  email_last_error                                    String?
+  created_at                                          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                                          DateTime  @default(now()) @db.Timestamptz(6)
+  vendor_response_ip                                  String?
+  vendor_response_user_agent                          String?
+  reviewed_by_admin_id                                String?   @db.Uuid
+  quotation_kind                                      String    @default("vendor_agreement")
+  product_id                                          String?   @db.Uuid
+  users_vendor_quotations_created_by_admin_idTousers  User      @relation("vendor_quotations_created_by_admin_idTousers", fields: [created_by_admin_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_quotations_admin")
+  products                                            Product?  @relation(fields: [product_id], references: [id], onUpdate: NoAction, map: "fk_vendor_quotations_product")
+  users_vendor_quotations_reviewed_by_admin_idTousers User?     @relation("vendor_quotations_reviewed_by_admin_idTousers", fields: [reviewed_by_admin_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_quotations_reviewed_by_admin")
+  vendors                                             Vendor    @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_quotations_vendor")
+
+  @@index([created_by_admin_id], map: "idx_vendor_quotations_created_by_admin_id")
+  @@index([reviewed_by_admin_id], map: "idx_vendor_quotations_reviewed_by_admin_id")
+  @@index([status], map: "idx_vendor_quotations_status")
+  @@index([vendor_id], map: "idx_vendor_quotations_vendor_id")
+  @@index([product_id], map: "idx_vendor_quotations_product_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model vendor_reviews {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id             String   @db.Uuid
+  user_id              String   @db.Uuid
+  vendor_id            String   @db.Uuid
+  rating               Int
+  review_title         String?
+  review_text          String?
+  is_verified_purchase Boolean  @default(true)
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @default(now()) @db.Timestamptz(6)
+  orders               Order    @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_reviews_order")
+  users                User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_reviews_user")
+  vendors              Vendor   @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_reviews_vendor")
+
+  @@unique([order_id, vendor_id], map: "unique_vendor_review_per_order")
+  @@index([order_id], map: "idx_vendor_reviews_order_id")
+  @@index([user_id], map: "idx_vendor_reviews_user_id")
+  @@index([vendor_id], map: "idx_vendor_reviews_vendor_id")
+}
+
+model wishlist_items {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  wishlist_id        String          @db.Uuid
+  product_id         String?         @db.Uuid
+  vendor_id          String?         @db.Uuid
+  created_at         DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime        @default(now()) @db.Timestamptz(6)
+  product_variant_id String?         @db.Uuid
+  service_id         String?         @db.Uuid
+  products           Product?        @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_wishlist_items_product")
+  product_variants   ProductVariant? @relation(fields: [product_variant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_wishlist_items_variant")
+  vendors            Vendor?         @relation(fields: [vendor_id], references: [id], onUpdate: NoAction, map: "fk_wishlist_items_vendor")
+  wishlists          wishlists       @relation(fields: [wishlist_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_wishlist_items_wishlist")
+  services           services?       @relation(fields: [service_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([wishlist_id, product_variant_id], map: "unique_wishlist_product_variant")
+  @@unique([wishlist_id, service_id], map: "unique_wishlist_service")
+  @@index([product_id], map: "idx_wishlist_items_product_id")
+  @@index([wishlist_id], map: "idx_wishlist_items_wishlist_id")
+}
+
+model wishlists {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String           @unique @db.Uuid
+  status         String           @default("active")
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
+  wishlist_items wishlist_items[]
+  users          User             @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_wishlists_user")
+
+  @@index([user_id], map: "idx_wishlists_user_id")
+}
+
+model public_Order {
+  id               String         @id @db.Uuid
+  customer_name    String
+  customer_email   String
+  customer_phone   String?
+  vendor_id        String         @db.Uuid
+  product_id       String         @db.Uuid
+  quantity         Int            @default(1)
+  total_amount     Float
+  status           OrderStatus    @default(placed)
+  qr_code          String?        @unique
+  order_notes      String?
+  delivery_address String?
+  created_at       DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime       @default(now()) @db.Timestamptz(6)
+  Product          public_Product @relation(fields: [product_id], references: [id])
+  Vendor           public_Vendor  @relation(fields: [vendor_id], references: [id])
+
+  @@map("Order")
+}
+
+model public_Product {
+  id             String                @id @db.Uuid
+  name           String
+  description    String?
+  category       String?
+  product_type   String?
+  specifications Json                  @default("{}")
+  created_at     DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime              @default(now()) @db.Timestamptz(6)
+  Order          public_Order[]
+  ProductImage   public_ProductImage[]
+
+  @@map("Product")
+}
+
+model public_ProductImage {
+  id            String         @id @db.Uuid
+  product_id    String         @db.Uuid
+  image_url     String
+  is_primary    Boolean        @default(false)
+  display_order Int            @default(0)
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  Product       public_Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@map("ProductImage")
+}
+
+model public_User {
+  id            String          @id @db.Uuid
+  name          String
+  email         String          @unique
+  password_hash String
+  role          public_UserRole @default(client)
+  is_active     Boolean         @default(true)
+  refresh_token String?
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @default(now()) @db.Timestamptz(6)
+
+  @@map("User")
+}
+
+model public_Vendor {
+  id            String         @id @db.Uuid
+  name          String
+  email         String         @unique
+  phone         String?
+  address       String?
+  business_type String?
+  is_active     Boolean        @default(true)
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime       @default(now()) @db.Timestamptz(6)
+  Order         public_Order[]
+
+  @@map("Vendor")
+}
+
+model quotation_documents {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotation_group_id String   @db.Uuid
+  quotation_number   String   @unique
+  document_url       String
+  s3_key             String
+  valid_until        DateTime @db.Date
+  product_id         String   @db.Uuid
+  user_id            String   @db.Uuid
+  metadata           Json?    @default("{}")
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @default(now()) @db.Timestamptz(6)
+  products           Product  @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_qd_product")
+  users              User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_qd_user")
+
+  @@index([quotation_group_id], map: "idx_qd_group_id")
+  @@index([quotation_number], map: "idx_qd_quotation_number")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model service_bookings {
+  id                             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                        String               @db.Uuid
+  vendor_id                      String               @db.Uuid
+  vendor_service_id              String               @db.Uuid
+  status                         String               @default("pending")
+  payment_status                 String               @default("pending")
+  total_amount                   Decimal              @db.Decimal(12, 2)
+  scheduled_start                DateTime?            @db.Timestamptz(6)
+  scheduled_end                  DateTime?            @db.Timestamptz(6)
+  booking_notes                  String?
+  created_at                     DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at                     DateTime             @default(now()) @db.Timestamptz(6)
+  completion_otp_hash            String?              @db.VarChar(64)
+  completion_otp_failed_attempts Int                  @default(0)
+  completion_otp_expires_at      DateTime?            @db.Timestamptz(6)
+  users                          User                 @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_bookings_user")
+  vendors                        Vendor               @relation(fields: [vendor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_bookings_vendor")
+  vendor_services                vendor_services      @relation(fields: [vendor_service_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_bookings_vendor_service")
+  service_quotations             service_quotations[]
+  service_reviews                service_reviews?
+
+  @@index([status], map: "idx_bookings_status")
+  @@index([user_id], map: "idx_bookings_user_id")
+  @@index([vendor_id], map: "idx_bookings_vendor_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model service_cart_items {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cart_id           String          @db.Uuid
+  service_id        String          @db.Uuid
+  vendor_service_id String          @db.Uuid
+  vendor_id         String          @db.Uuid
+  quantity          Int             @default(1)
+  price_at_added    Decimal         @db.Decimal(12, 2)
+  pricing_type      String          @default("flat")
+  created_at        DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime        @default(now()) @db.Timestamptz(6)
+  carts             Cart            @relation(fields: [cart_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  services          services        @relation(fields: [service_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  vendors           Vendor          @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  vendor_services   vendor_services @relation(fields: [vendor_service_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([cart_id, vendor_service_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model service_quotation_messages {
+  id                 String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotation_id       String                 @db.Uuid
+  sender_user_id     String                 @db.Uuid
+  sender_role        String
+  action             QuotationMessageAction
+  offer_price        Decimal?               @db.Decimal(12, 2)
+  note               String?
+  reason             String?
+  created_at         DateTime               @default(now()) @db.Timestamptz(6)
+  service_quotations service_quotations     @relation(fields: [quotation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_quotation_messages_quotation")
+  users              User                   @relation(fields: [sender_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_quotation_messages_sender")
+
+  @@index([quotation_id], map: "idx_service_quotation_messages_quotation_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model service_quotations {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                     String                        @db.Uuid
+  vendor_id                   String                        @db.Uuid
+  service_id                  String                        @db.Uuid
+  scope_of_work               String
+  requested_price             Decimal?                      @db.Decimal(12, 2)
+  status                      String                        @default("pending_vendor")
+  agreed_price                Decimal?                      @db.Decimal(12, 2)
+  booking_id                  String?                       @db.Uuid
+  created_at                  DateTime                      @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime                      @default(now()) @db.Timestamptz(6)
+  vendor_document_url         String?
+  vendor_document_s3_key      String?
+  delivery_days               Int?
+  token_percentage            Decimal?                      @db.Decimal(5, 2)
+  token_amount                Decimal?                      @db.Decimal(12, 2)
+  current_offer_price         Decimal?                      @db.Decimal(12, 2)
+  current_offer_by            String?
+  service_quotation_documents service_quotation_documents[]
+  service_quotation_messages  service_quotation_messages[]
+  services                    services                      @relation(fields: [service_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_quotes_service")
+  users                       User                          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_quotes_user")
+  vendors                     Vendor                        @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_quotes_vendor")
+  service_bookings            service_bookings?             @relation(fields: [booking_id], references: [id], onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_service_quotes_user_id")
+  @@index([vendor_id], map: "idx_service_quotes_vendor_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model service_reviews {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  booking_id       String           @unique @db.Uuid
+  user_id          String           @db.Uuid
+  service_id       String           @db.Uuid
+  vendor_id        String           @db.Uuid
+  rating           Int
+  review_title     String?
+  review_text      String?
+  images           String[]         @default([])
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime         @default(now()) @db.Timestamptz(6)
+  service_bookings service_bookings @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_reviews_booking")
+  services         services         @relation(fields: [service_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_reviews_service")
+  users            User             @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_reviews_user")
+  vendors          Vendor           @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_reviews_vendor")
+
+  @@index([service_id], map: "idx_service_reviews_service_id")
+  @@index([user_id], map: "idx_service_reviews_user_id")
+  @@index([vendor_id], map: "idx_service_reviews_vendor_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model services {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String
+  description           String?
+  category_id           String                 @db.Uuid
+  status                String                 @default("pending")
+  created_by_user_id    String?                @db.Uuid
+  is_active             Boolean                @default(false)
+  rating                Decimal                @default(0) @db.Decimal(2, 1)
+  review_count          Int                    @default(0)
+  created_at            DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime               @default(now()) @db.Timestamptz(6)
+  subcategory_id        String?                @db.Uuid
+  service_cart_items    service_cart_items[]
+  service_quotations    service_quotations[]
+  service_reviews       service_reviews[]
+  product_category      product_category       @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "fk_services_category")
+  users                 User?                  @relation(fields: [created_by_user_id], references: [id], onUpdate: NoAction, map: "fk_services_created_by")
+  service_subcategories service_subcategories? @relation(fields: [subcategory_id], references: [id], onUpdate: NoAction, map: "fk_services_subcategory")
+  services_media        services_media?
+  vendor_services       vendor_services[]
+  wishlist_items        wishlist_items[]
+
+  @@index([category_id], map: "idx_services_category_id")
+  @@index([status], map: "idx_services_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model services_media {
+  id                                              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  service_id                                      String   @unique(map: "unique_video_per_service", where: raw("(media_type = 'video'::text)")) @db.Uuid
+  media_url                                       String
+  media_type                                      String
+  is_primary                                      Boolean  @default(false)
+  display_order                                   Int      @default(0)
+  is_approved                                     Boolean  @default(false)
+  approval_status                                 String   @default("pending")
+  created_by_user_id                              String?  @db.Uuid
+  reviewed_by_user_id                             String?  @db.Uuid
+  created_at                                      DateTime @default(now()) @db.Timestamptz(6)
+  users_services_media_created_by_user_idTousers  User?    @relation("services_media_created_by_user_idTousers", fields: [created_by_user_id], references: [id], onUpdate: NoAction, map: "fk_services_media_created_by")
+  users_services_media_reviewed_by_user_idTousers User?    @relation("services_media_reviewed_by_user_idTousers", fields: [reviewed_by_user_id], references: [id], onUpdate: NoAction, map: "fk_services_media_reviewed_by")
+  services                                        services @relation(fields: [service_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_services_media_service")
+
+  @@index([service_id], map: "idx_services_media_service_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model vendor_services {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  service_id         String               @db.Uuid
+  vendor_id          String               @db.Uuid
+  pricing_type       String               @default("flat")
+  price              Decimal              @db.Decimal(12, 2)
+  moq                Int                  @default(1)
+  is_active          Boolean              @default(false)
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  delivery_days      Int?
+  token_percentage   Decimal?             @db.Decimal(5, 2)
+  service_bookings   service_bookings[]
+  service_cart_items service_cart_items[]
+  services           services             @relation(fields: [service_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_services_service")
+  vendors            Vendor               @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vendor_services_vendor")
+
+  @@unique([vendor_id, service_id], map: "unique_vendor_service")
+  @@index([service_id], map: "idx_vendor_services_service_id")
+  @@index([vendor_id], map: "idx_vendor_services_vendor_id")
+}
+
+model service_subcategories {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  category_id      String           @db.Uuid
+  name             String
+  description      String?
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime         @default(now()) @db.Timestamptz(6)
+  product_category product_category @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_subcategories_category")
+  services         services[]
+
+  @@unique([category_id, name], map: "unique_subcategory_name_per_category")
+  @@map("service_subcategories")
+}
+
+model subcategories {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  category_id      String           @db.Uuid
+  name             String
+  description      String?
+  form_schema      Json?            @default("[]")
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime         @default(now()) @db.Timestamptz(6)
+  product_category product_category @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_subcategories_category_unified")
+  products         Product[]
+  client_assets    client_assets[]
+  service_tickets  service_tickets[]
+
+  @@unique([category_id, name], map: "unique_category_subcategory_name")
+  @@map("subcategories")
+}
+
+model service_quotation_documents {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  service_quotation_id String             @db.Uuid
+  quotation_number     String             @unique
+  document_url         String
+  s3_key               String
+  valid_until          DateTime           @db.Date
+  created_at           DateTime           @default(now()) @db.Timestamptz(6)
+  service_quotations   service_quotations @relation(fields: [service_quotation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([service_quotation_id], map: "idx_service_quotation_documents_quote_id")
+}
+
+model delivery_agent_kyc {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  delivery_agent_id   String          @unique @db.Uuid
+  kyc_status          String          @default("pending") @db.VarChar(50)
+  id_doc_type         String          @db.VarChar(50)
+  id_doc_number       String          @db.VarChar(100)
+  bank_name           String          @db.VarChar(100)
+  account_number      String          @db.VarChar(50)
+  ifsc_code           String          @db.VarChar(20)
+  account_holder_name String          @db.VarChar(100)
+  rejection_reason    String?
+  submitted_at        DateTime?       @default(now()) @db.Timestamptz(6)
+  reviewed_at         DateTime?       @db.Timestamptz(6)
+  reviewed_by_user_id String?         @db.Uuid
+  created_at          DateTime?       @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?       @default(now()) @db.Timestamptz(6)
+  id_doc_image_url    String?
+  delivery_agents     delivery_agents @relation(fields: [delivery_agent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users               User?           @relation(fields: [reviewed_by_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([delivery_agent_id], map: "idx_delivery_agent_kyc_rider")
+}
+
+model rider_earnings {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  delivery_agent_id String          @db.Uuid
+  order_id          String?         @db.Uuid
+  order_reference   String?         @db.VarChar(100)
+  leg_type          String          @db.VarChar(50)
+  amount            Decimal         @db.Decimal(10, 2)
+  status            String          @default("credited") @db.VarChar(50)
+  created_at        DateTime?       @default(now()) @db.Timestamptz(6)
+  delivery_agents   delivery_agents @relation(fields: [delivery_agent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  orders            Order?          @relation(fields: [order_id], references: [id], onUpdate: NoAction)
+
+  @@index([delivery_agent_id], map: "idx_rider_earnings_rider")
+}
+
+enum UserRole {
+  client
+  vendor
+  admin
+  super_admin
+  fulfillment_center
+  delivery_agent
+
+  @@map("user_role")
+}
+
+enum CartType {
+  direct
+  quotation
+
+  @@map("cart_type")
+}
+
+enum QuotationStatus {
+  pending_vendor
+  vendor_offered
+  vendor_countered
+  client_countered
+  client_accepted
+  client_rejected
+  vendor_rejected
+  cancelled
+  expired
+  admin_confirmation_pending
+  admin_confirmed
+  admin_confirmation_rejected
+
+  @@map("quotation_status")
+}
+
+enum QuotationMessageAction {
+  request
+  offer
+  counter
+  accept
+  reject
+  note
+  admin_confirm_request
+  admin_confirmed
+  admin_rejected
+
+  @@map("quotation_message_action")
+}
+
+enum order_status {
+  pending
+  processing
+  shipped
+  delivered
+  cancelled
+  refunded
+  handed_over
+  received
+  dispatched
+}
+
+enum vendor_approval_status {
+  pending
+  agreement_sent
+  approved
+  rejected
+  reconsideration
+}
+
+enum vendor_product_status {
+  active
+  inactive
+  out_of_stock
+  discontinued
+  waiting
+}
+
+enum public_UserRole {
+  client
+  vendor
+  admin
+  super_admin
+
+  @@map("UserRole")
+}
+
+enum OrderStatus {
+  placed
+  payment_pending
+  payment_completed
+  processing
+  shipped
+  delivered
+  cancelled
+  refunded
+}
+
+model employee_candidates {
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  full_name             String
+  email                 String?
+  phone                 String               @db.VarChar(20)
+  city                  String?
+  state                 String?
+  pincode               String?              @db.VarChar(10)
+  address_line          String?
+  designation           String?
+  experience_years      Decimal?             @default(0) @db.Decimal(4, 1)
+  skills                Json                 @default("[]")
+  metadata              Json                 @default("{}")
+  photo_url             String?
+  verification_status   String               @default("pending") @db.VarChar(20)
+  rejection_reason      String?
+  verified_at           DateTime?            @db.Timestamptz(6)
+  verified_by_user_id   String?              @db.Uuid
+  is_available          Boolean              @default(true)
+  commission_percentage Decimal              @default(0.00) @db.Decimal(5, 2)
+  registered_by_user_id String?              @db.Uuid
+  created_at            DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime             @default(now()) @db.Timestamptz(6)
+  registered_by_user    User?                @relation("employee_candidates_registered_by", fields: [registered_by_user_id], references: [id], onUpdate: NoAction)
+  verified_by_user      User?                @relation("employee_candidates_verified_by", fields: [verified_by_user_id], references: [id], onUpdate: NoAction)
+  documents             employee_documents[]
+  hire_requests         hire_requests[]
+
+  @@index([verification_status], map: "idx_emp_cand_status")
+  @@index([city], map: "idx_emp_cand_city")
+  @@index([phone], map: "idx_emp_cand_phone")
+}
+
+model employee_documents {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id        String              @db.Uuid
+  doc_type            String              @db.VarChar(50)
+  doc_number          String?             @db.VarChar(100)
+  doc_url             String
+  doc_name            String?
+  metadata            Json                @default("{}")
+  uploaded_by_user_id String?             @db.Uuid
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  candidate           employee_candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  uploaded_by_user    User?               @relation("employee_documents_uploaded_by", fields: [uploaded_by_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([candidate_id], map: "idx_emp_doc_candidate")
+  @@index([doc_type], map: "idx_emp_doc_type")
+}
+
+model hire_requests {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id         String              @db.Uuid
+  requested_by_user_id String              @db.Uuid
+  status               String              @default("pending") @db.VarChar(20)
+  request_details      Json                @default("{}")
+  admin_notes          String?
+  reviewed_by_user_id  String?             @db.Uuid
+  reviewed_at          DateTime?           @db.Timestamptz(6)
+  created_at           DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime            @default(now()) @db.Timestamptz(6)
+  candidate            employee_candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  requested_by_user    User                @relation("hire_requests_requested_by", fields: [requested_by_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  reviewed_by_user     User?               @relation("hire_requests_reviewed_by", fields: [reviewed_by_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([candidate_id], map: "idx_hire_req_candidate")
+  @@index([requested_by_user_id], map: "idx_hire_req_user")
+  @@index([status], map: "idx_hire_req_status")
+}
+
+model client_assets {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String            @db.Uuid
+  category_id       String?           @db.Uuid
+  subcategory_id    String?           @db.Uuid
+  asset_name        String
+  asset_code        String?           @db.VarChar(100)
+  brand             String?
+  model_number      String?
+  serial_number     String?
+  installation_year Int?
+  specs             Json              @default("{}")
+  location_details  Json              @default("{}")
+  documents         Json              @default("[]")
+  is_active         Boolean           @default(true)
+  created_at        DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime          @default(now()) @db.Timestamptz(6)
+  users             User              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product_category  product_category? @relation(fields: [category_id], references: [id], onUpdate: NoAction)
+  subcategories     subcategories?    @relation(fields: [subcategory_id], references: [id], onUpdate: NoAction)
+  service_tickets   service_tickets[]
+
+  @@index([user_id], map: "idx_client_assets_user")
+  @@index([category_id], map: "idx_client_assets_category")
+}
+
+model service_tickets {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticket_number             String                      @unique @db.VarChar(50)
+  category_id               String                      @db.Uuid
+  subcategory_id            String?                     @db.Uuid
+  client_user_id            String                      @db.Uuid
+  vendor_id                 String?                     @db.Uuid
+  assigned_agent_id         String?                     @db.Uuid
+  asset_id                  String?                     @db.Uuid
+  status                    String                      @default("draft") @db.VarChar(30)
+  priority                  String                      @default("medium") @db.VarChar(20)
+  ticket_payload            Json                        @default("{}")
+  quotation_breakdown       Json                        @default("{}")
+  total_amount              Decimal?                    @default(0.00) @db.Decimal(12, 2)
+  advance_paid              Decimal?                    @default(0.00) @db.Decimal(12, 2)
+  completion_otp            String?                     @db.VarChar(6)
+  otp_verified_at           DateTime?                   @db.Timestamptz(6)
+  timeline_logs             Json                        @default("[]")
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  product_category          product_category            @relation(fields: [category_id], references: [id], onUpdate: NoAction)
+  subcategories             subcategories?              @relation(fields: [subcategory_id], references: [id], onUpdate: NoAction)
+  client_user               User                        @relation("service_tickets_client", fields: [client_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  assigned_agent            User?                       @relation("service_tickets_agent", fields: [assigned_agent_id], references: [id], onUpdate: NoAction)
+  vendors                   Vendor?                     @relation(fields: [vendor_id], references: [id], onUpdate: NoAction)
+  client_asset              client_assets?              @relation(fields: [asset_id], references: [id], onUpdate: NoAction)
+  service_ticket_quotations service_ticket_quotations[]
+  service_ticket_documents  service_ticket_documents[]
+
+  @@index([client_user_id], map: "idx_srv_tickets_client")
+  @@index([vendor_id], map: "idx_srv_tickets_vendor")
+  @@index([status], map: "idx_srv_tickets_status")
+  @@index([category_id], map: "idx_srv_tickets_cat")
+}
+
+model service_ticket_quotations {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticket_id        String          @db.Uuid
+  vendor_id        String          @db.Uuid
+  status           String          @default("submitted") @db.VarChar(20)
+  quote_breakdown  Json            @default("{}")
+  total_price      Decimal         @db.Decimal(12, 2)
+  token_percentage Decimal?        @default(0.00) @db.Decimal(5, 2)
+  token_amount     Decimal?        @default(0.00) @db.Decimal(12, 2)
+  valid_until      DateTime?       @db.Timestamptz(6)
+  created_at       DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime        @default(now()) @db.Timestamptz(6)
+  service_tickets  service_tickets @relation(fields: [ticket_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  vendors          Vendor          @relation(fields: [vendor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([ticket_id], map: "idx_srv_ticket_quotes_ticket")
+  @@index([vendor_id], map: "idx_srv_ticket_quotes_vendor")
+}
+
+model service_ticket_documents {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticket_id           String          @db.Uuid
+  doc_type            String          @db.VarChar(50)
+  doc_name            String?
+  doc_url             String
+  uploaded_by_user_id String?         @db.Uuid
+  metadata            Json            @default("{}")
+  created_at          DateTime        @default(now()) @db.Timestamptz(6)
+  service_tickets     service_tickets @relation(fields: [ticket_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  uploaded_by_user    User?           @relation("service_ticket_documents_uploaded_by", fields: [uploaded_by_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([ticket_id], map: "idx_srv_ticket_docs_ticket")
+}

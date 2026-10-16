@@ -334,6 +334,8 @@ export const getAllPayoutRequests = async (req: Request, res: Response): Promise
                 r.order_id,
                 r.booking_id,
                 r.status AS request_status,
+                r.gross_amount,
+                r.commission_percentage,
                 r.eligible_amount,
                 r.paid_amount,
                 r.transfer_reference,

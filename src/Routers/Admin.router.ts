@@ -27,6 +27,7 @@ import {
     getRiderDeliveries,
     updateRiderKYCStatus
 } from "../Controllers/Rider.controller.js";
+import { getPayoutCommissionSettings, updatePayoutCommissionSettings } from "../Controllers/PayoutCommission.controller.js";
 
 const router = Router();
 
@@ -41,6 +42,8 @@ router.get("/users", getUserManagement);
 router.get("/users/:id", getUserDetails);
 router.put("/users/:id/status", updateUserStatus);
 router.get("/payments", getAllPayments);
+router.get("/payout-commission-settings", getPayoutCommissionSettings);
+router.put("/payout-commission-settings", updatePayoutCommissionSettings);
 router.get("/delivery-agents/:riderId/live", getRiderLiveDetails);
 
 // Fulfillment Centers Routes
