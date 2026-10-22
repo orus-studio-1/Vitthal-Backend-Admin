@@ -464,17 +464,38 @@ export async function vendorUpdateServiceOfferingController(req: Request, res: R
     if (!authUser) return res as Response;
 
     const { id } = req.params;
-    const { price, pricingType, moq, isActive, deliveryDays, tokenPercentage } = req.body as Record<string, unknown>;
+    const { price, pricingType, moq, isActive, deliveryDays, tokenPercentage, serviceName, serviceDescription } = req.body as Record<string, unknown>;
 
     const fields: string[] = [];
     const values: unknown[] = [];
     let idx = 1;
+    const serviceFields: string[] = [];
+    const serviceValues: unknown[] = [];
+    let serviceIdx = 1;
+    const proposedChanges: Record<string, unknown> = {};
+
+    if (serviceName !== undefined) {
+        const normalizedName = normalizeText(serviceName);
+        if (!normalizedName) return res.status(400).json({ message: "serviceName cannot be empty" });
+        serviceFields.push(`name = $${serviceIdx++}`);
+        serviceValues.push(normalizedName);
+        proposedChanges.service_name = normalizedName;
+    }
+    if (serviceDescription !== undefined) {
+        if (typeof serviceDescription !== "string") {
+            return res.status(400).json({ message: "serviceDescription must be a string" });
+        }
+        serviceFields.push(`description = $${serviceIdx++}`);
+        serviceValues.push(normalizeText(serviceDescription));
+        proposedChanges.service_description = normalizeText(serviceDescription);
+    }
 
     if (price !== undefined) {
         const priceVal = parsePositiveDecimal(price);
         if (!priceVal) return res.status(400).json({ message: "price must be a positive number" });
         fields.push(`price = $${idx++}`);
         values.push(priceVal);
+        proposedChanges.price = priceVal;
     }
     if (pricingType !== undefined) {
         if (typeof pricingType !== "string" || !ALLOWED_PRICING_TYPES.has(pricingType)) {
@@ -482,57 +503,219 @@ export async function vendorUpdateServiceOfferingController(req: Request, res: R
         }
         fields.push(`pricing_type = $${idx++}`);
         values.push(pricingType);
+        proposedChanges.pricing_type = pricingType;
     }
     if (moq !== undefined) {
         const moqVal = parsePositiveInt(moq);
         if (!moqVal) return res.status(400).json({ message: "moq must be a positive integer" });
         fields.push(`moq = $${idx++}`);
         values.push(moqVal);
+        proposedChanges.moq = moqVal;
     }
 
     if (isActive !== undefined) {
         fields.push(`is_active = $${idx++}`);
         values.push(Boolean(isActive));
+        proposedChanges.is_active = Boolean(isActive);
     }
 
     if (deliveryDays !== undefined) {
         const val = deliveryDays != null ? parsePositiveInt(deliveryDays) : null;
         fields.push(`delivery_days = $${idx++}`);
         values.push(val);
+        proposedChanges.delivery_days = val;
     }
 
     if (tokenPercentage !== undefined) {
         const val = tokenPercentage != null ? parsePositiveDecimal(tokenPercentage) : null;
         fields.push(`token_percentage = $${idx++}`);
         values.push(val);
+        proposedChanges.token_percentage = val;
     }
 
-    if (fields.length === 0) {
+    if (fields.length === 0 && serviceFields.length === 0) {
         return res.status(400).json({ message: "No fields to update" });
     }
 
-    fields.push(`updated_at = NOW()`);
-    values.push(id);
-
     try {
-        let query: string;
+        let vendorId: string | null = null;
+        let serviceId: string | null = null;
+        let canEditServiceDetails = true;
         if (adminRoles.has(authUser.role)) {
-            query = `UPDATE vendor_services SET ${fields.join(", ")} WHERE id = $${idx} RETURNING id`;
+            const offering = await marketplacePool.query(
+                `SELECT service_id FROM vendor_services WHERE id = $1 LIMIT 1`,
+                [id]
+            );
+            if (offering.rows.length === 0) return res.status(404).json({ message: "Service offering not found" });
+            serviceId = offering.rows[0].service_id;
         } else {
-            const vendorId = await getVendorIdByUserId(authUser.userId);
+            vendorId = await getVendorIdByUserId(authUser.userId);
             if (!vendorId) return res.status(403).json({ message: "Vendor profile not found or not approved" });
-            values.push(vendorId);
-            query = `UPDATE vendor_services SET ${fields.join(", ")} WHERE id = $${idx} AND vendor_id = $${idx + 1} RETURNING id`;
+
+            const offering = await marketplacePool.query(
+                `SELECT s.id AS service_id,
+                        (s.created_by_user_id = $1 OR (
+                            s.created_by_user_id IS NULL AND NOT EXISTS (
+                                SELECT 1 FROM vendor_services other
+                                WHERE other.service_id = s.id AND other.vendor_id <> $2
+                            )
+                        )) AS can_edit_service_details
+                 FROM vendor_services vs
+                 JOIN services s ON s.id = vs.service_id
+                 WHERE vs.id = $3 AND vs.vendor_id = $2
+                 LIMIT 1`,
+                [authUser.userId, vendorId, id]
+            );
+            if (offering.rows.length === 0) return res.status(404).json({ message: "Service offering not found" });
+            serviceId = offering.rows[0].service_id;
+            canEditServiceDetails = Boolean(offering.rows[0].can_edit_service_details);
+            if (serviceFields.length > 0 && !canEditServiceDetails) {
+                return res.status(409).json({ message: "This service is shared in the catalog. Ask an administrator to change its name or description." });
+            }
+
+            const pending = await marketplacePool.query(
+                `SELECT modification_status FROM vendor_services WHERE id = $1 AND vendor_id = $2`,
+                [id, vendorId]
+            );
+            if (pending.rows[0]?.modification_status === "pending") {
+                return res.status(409).json({ message: "A service edit is already waiting for admin approval." });
+            }
+
+            await marketplacePool.query(
+                `UPDATE vendor_services
+                 SET pending_modifications = $1::jsonb,
+                     modification_status = 'pending',
+                     updated_at = NOW()
+                 WHERE id = $2 AND vendor_id = $3`,
+                [JSON.stringify(proposedChanges), id, vendorId]
+            );
+            return res.status(202).json({
+                message: "Service changes submitted and waiting for admin approval.",
+                data: { modification_status: "pending", pending_modifications: proposedChanges },
+            });
         }
 
-        const result = await marketplacePool.query(query, values);
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: "Service offering not found" });
+        if (fields.length > 0) {
+            fields.push(`updated_at = NOW()`);
+            values.push(id);
+            let query = `UPDATE vendor_services SET ${fields.join(", ")} WHERE id = $${idx} RETURNING id`;
+            if (vendorId) {
+                values.push(vendorId);
+                query = `UPDATE vendor_services SET ${fields.join(", ")} WHERE id = $${idx} AND vendor_id = $${idx + 1} RETURNING id`;
+            }
+            const result = await marketplacePool.query(query, values);
+            if (result.rows.length === 0) return res.status(404).json({ message: "Service offering not found" });
         }
+
+        if (serviceFields.length > 0 && serviceId) {
+            serviceFields.push(`updated_at = NOW()`);
+            serviceValues.push(serviceId);
+            await marketplacePool.query(
+                `UPDATE services SET ${serviceFields.join(", ")} WHERE id = $${serviceIdx}`,
+                serviceValues
+            );
+        }
+
         return res.status(200).json({ message: "Service offering updated" });
     } catch (error) {
         console.error("Error updating vendor service offering:", error);
         return res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function adminGetPendingServiceModificationsController(req: Request, res: Response): Promise<Response> {
+    if (!ensureAdmin(req, res)) return res as Response;
+    try {
+        const result = await marketplacePool.query(
+            `SELECT vs.id AS vendor_service_id, vs.pending_modifications, vs.modification_status,
+                    vs.price AS current_price, vs.pricing_type AS current_pricing_type,
+                    vs.moq AS current_moq, vs.is_active AS current_is_active,
+                    vs.delivery_days AS current_delivery_days, vs.token_percentage AS current_token_percentage,
+                    s.id AS service_id, s.name AS current_service_name, s.description AS current_service_description,
+                    v.company_name AS vendor_company_name, u.name AS vendor_user_name, u.email AS vendor_email,
+                    vs.updated_at
+             FROM vendor_services vs
+             JOIN services s ON s.id = vs.service_id
+             JOIN vendors v ON v.id = vs.vendor_id
+             JOIN users u ON u.id = v.user_id
+             WHERE vs.modification_status = 'pending' AND vs.pending_modifications IS NOT NULL
+             ORDER BY vs.updated_at DESC`
+        );
+        return res.status(200).json({ data: result.rows });
+    } catch (error) {
+        console.error("Error fetching pending service modifications:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function adminReviewServiceModificationController(req: Request, res: Response): Promise<Response> {
+    const admin = ensureAdmin(req, res);
+    if (!admin) return res as Response;
+    const { id } = req.params;
+    const { decision } = req.body as { decision?: string };
+    if (!REVIEW_DECISIONS.has(decision || "")) {
+        return res.status(400).json({ message: "Valid decision ('approved' or 'rejected') is required" });
+    }
+
+    const client = await marketplacePool.connect();
+    try {
+        await client.query("BEGIN");
+        const result = await client.query(
+            `SELECT vs.pending_modifications, vs.service_id
+             FROM vendor_services vs
+             WHERE vs.id = $1 AND vs.modification_status = 'pending'
+             FOR UPDATE`, [id]
+        );
+        if (result.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ message: "Pending service edit not found" });
+        }
+        const changes = result.rows[0].pending_modifications as Record<string, unknown>;
+        if (decision === "approved") {
+            const offeringFields: string[] = [];
+            const offeringValues: unknown[] = [];
+            const columns: Record<string, string> = {
+                price: "price", pricing_type: "pricing_type", moq: "moq", is_active: "is_active",
+                delivery_days: "delivery_days", token_percentage: "token_percentage",
+            };
+            for (const [key, column] of Object.entries(columns)) {
+                if (Object.prototype.hasOwnProperty.call(changes, key)) {
+                    offeringValues.push(changes[key]);
+                    offeringFields.push(`${column} = $${offeringValues.length}`);
+                }
+            }
+            if (offeringFields.length) {
+                offeringValues.push(id);
+                await client.query(`UPDATE vendor_services SET ${offeringFields.join(", ")}, updated_at = NOW() WHERE id = $${offeringValues.length}`, offeringValues);
+            }
+            const serviceFields: string[] = [];
+            const serviceValues: unknown[] = [];
+            if (Object.prototype.hasOwnProperty.call(changes, "service_name")) {
+                serviceValues.push(changes.service_name);
+                serviceFields.push(`name = $${serviceValues.length}`);
+            }
+            if (Object.prototype.hasOwnProperty.call(changes, "service_description")) {
+                serviceValues.push(changes.service_description);
+                serviceFields.push(`description = $${serviceValues.length}`);
+            }
+            if (serviceFields.length) {
+                serviceValues.push(result.rows[0].service_id);
+                await client.query(`UPDATE services SET ${serviceFields.join(", ")}, updated_at = NOW() WHERE id = $${serviceValues.length}`, serviceValues);
+            }
+        }
+        await client.query(
+            `UPDATE vendor_services
+             SET pending_modifications = NULL, modification_status = $1, updated_at = NOW()
+             WHERE id = $2`, [decision, id]
+        );
+        await client.query("COMMIT");
+        return res.status(200).json({ message: `Service edit ${decision}` });
+    } catch (error) {
+        await client.query("ROLLBACK");
+        console.error("Error reviewing pending service edit:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    } finally {
+        client.release();
     }
 }
 
@@ -904,7 +1087,15 @@ export async function vendorGetMyServiceOfferingsController(req: Request, res: R
         const result = await marketplacePool.query(
             `SELECT
                 vs.id, vs.price, vs.pricing_type, vs.moq, vs.delivery_days, vs.token_percentage, vs.is_active, vs.created_at,
-                s.id AS service_id, s.name AS service_name, s.status AS service_status,
+                vs.modification_status, vs.pending_modifications,
+                s.id AS service_id, s.name AS service_name, s.description AS service_description,
+                s.status AS service_status,
+                CASE WHEN s.created_by_user_id = $2 THEN true
+                     WHEN s.created_by_user_id IS NULL AND NOT EXISTS (
+                         SELECT 1 FROM vendor_services other
+                         WHERE other.service_id = s.id AND other.vendor_id <> $1
+                     ) THEN true
+                     ELSE false END AS can_edit_service_details,
                 (
                     SELECT COALESCE(
                         (SELECT sm.media_url FROM services_media sm WHERE sm.service_id = s.id AND sm.is_primary = true LIMIT 1),
@@ -921,7 +1112,7 @@ export async function vendorGetMyServiceOfferingsController(req: Request, res: R
              WHERE vs.vendor_id = $1
              GROUP BY vs.id, s.id
              ORDER BY vs.created_at DESC`,
-            [vendorId]
+            [vendorId, authUser.userId]
         );
 
         return res.status(200).json({ data: result.rows });
