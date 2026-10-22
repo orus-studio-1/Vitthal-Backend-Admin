@@ -1645,7 +1645,11 @@ export const getPendingProductModifications = async (req: Request, res: Response
                 p.category,
                 p.product_type,
                 p.attributes AS current_attributes,
-                p.specifications AS current_specifications,
+                COALESCE((
+                    SELECT jsonb_object_agg(ps.spec_key, ps.spec_value ORDER BY ps.created_at)
+                    FROM product_specification ps
+                    WHERE ps.product_id = p.id AND ps.approval_status = 'approved'
+                ), '{}'::jsonb) AS current_specifications,
                 p.size AS current_size,
                 COALESCE(p.brand, p.attributes->>'brand') AS current_brand,
                 COALESCE(p.grade, p.attributes->>'grade') AS current_grade,
@@ -1723,6 +1727,10 @@ export const reviewProductModification = async (req: Request, res: Response): Pr
             const newMoq = pendingMods.moq !== undefined ? Number(pendingMods.moq) : null;
             const newStock = pendingMods.stock_quantity !== undefined ? Number(pendingMods.stock_quantity) : null;
             const newGst = pendingMods.gst_percentage !== undefined ? Number(pendingMods.gst_percentage) : null;
+            const newIsActive = pendingMods.is_active !== undefined ? Boolean(pendingMods.is_active) : null;
+            const newQuotationEnabled = pendingMods.quotation_enabled !== undefined ? Boolean(pendingMods.quotation_enabled) : null;
+            const newQuotationMinQty = pendingMods.quotation_min_qty !== undefined ? pendingMods.quotation_min_qty : null;
+            const newDiscountedPrice = pendingMods.discounted_price !== undefined ? pendingMods.discounted_price : null;
 
             await marketplacePool.query(
                 `UPDATE vendor_products 
@@ -1730,12 +1738,16 @@ export const reviewProductModification = async (req: Request, res: Response): Pr
                      moq = COALESCE($2, moq),
                      stock_quantity = COALESCE($3, stock_quantity),
                      gst_percentage = COALESCE($4, gst_percentage),
+                     is_active = COALESCE($5, is_active),
+                     quotation_enabled = COALESCE($6, quotation_enabled),
+                     quotation_min_qty = CASE WHEN $10 THEN $7 ELSE quotation_min_qty END,
+                     discounted_price = CASE WHEN $10 THEN $8 ELSE discounted_price END,
                      pending_price = NULL,
                      pending_modifications = NULL,
                      modification_status = 'approved',
                      updated_at = NOW()
-                 WHERE id = $5`,
-                [newPrice, newMoq, newStock, newGst, id]
+                 WHERE id = $9`,
+                [newPrice, newMoq, newStock, newGst, newIsActive, newQuotationEnabled, newQuotationMinQty, newDiscountedPrice, id, Boolean(pendingMods.is_quotation_changed)]
             );
 
             // 2. If catalog attributes or specifications changed, update products table
@@ -1767,14 +1779,32 @@ export const reviewProductModification = async (req: Request, res: Response): Pr
                 );
             }
 
-            if (pendingMods.specifications && typeof pendingMods.specifications === 'object') {
+            if (pendingMods.has_product_field_changes) {
                 await marketplacePool.query(
-                    `UPDATE products 
-                     SET specifications = COALESCE(specifications, '{}'::jsonb) || $1::jsonb,
-                         updated_at = NOW()
-                     WHERE id = $2`,
-                    [JSON.stringify(pendingMods.specifications), vp.product_id]
+                    `UPDATE products
+                     SET name = $1, description = $2, category = $3, product_type = $4,
+                         item_code = $5, updated_at = NOW()
+                     WHERE id = $6`,
+                    [pendingMods.name, pendingMods.description, pendingMods.category,
+                        pendingMods.product_type, pendingMods.item_code, vp.product_id]
                 );
+            }
+
+            if (pendingMods.has_specification_changes && pendingMods.specifications && typeof pendingMods.specifications === 'object') {
+                await marketplacePool.query(
+                    `DELETE FROM product_specification
+                     WHERE product_id = $1 AND (approval_status = 'approved' OR created_by_user_id = $2)`,
+                    [vp.product_id, vp.user_id]
+                );
+                for (const [key, value] of Object.entries(pendingMods.specifications as Record<string, unknown>)) {
+                    const specKey = String(key).trim();
+                    if (!specKey) continue;
+                    await marketplacePool.query(
+                        `INSERT INTO product_specification (product_id, spec_key, spec_value, approval_status, created_by_user_id, reviewed_by_user_id, reviewed_at)
+                         VALUES ($1, $2, $3, 'approved', $4, $5, NOW())`,
+                        [vp.product_id, specKey, String(value ?? ''), vp.user_id, authUser.userId]
+                    );
+                }
             }
 
             // 3. Emit notification to vendor
