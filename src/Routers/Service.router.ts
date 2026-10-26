@@ -18,6 +18,8 @@ import {
     adminGetServiceReviewsController,
     vendorGetMyServiceOfferingsController,
     adminGetServiceOfferingsController,
+    adminGetPendingServiceModificationsController,
+    adminReviewServiceModificationController,
 } from "../Controllers/Service.controller.js";
 import { adminGetSubcategoriesController } from "../Controllers/Product.controller.js";
 
@@ -46,6 +48,8 @@ serviceRouter.get("/admin/list", adminListServicesController);
 serviceRouter.get("/admin/bookings", adminListServiceBookingsController);
 serviceRouter.get("/admin/quotations", adminListServiceQuotationsController);
 serviceRouter.get("/admin/reviews", adminGetServiceReviewsController);
+serviceRouter.get("/admin/pending-modifications", adminGetPendingServiceModificationsController);
+serviceRouter.put("/admin/pending-modifications/:id/review", adminReviewServiceModificationController);
 
 // --- Service catalog CRUD ---
 serviceRouter.get("/", adminListServicesController);
