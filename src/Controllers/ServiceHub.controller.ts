@@ -1,8 +1,37 @@
 import type { Request, Response } from "express";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "../lib/prisma.js";
-import { getPresignedUrlOrOriginal } from "../services/s3.service.js";
+import { BUCKET_NAME, getPresignedUrlOrOriginal, s3Client } from "../services/s3.service.js";
 
 type AuthUser = { id: string; role: string; email?: string };
+
+const serviceCategoryImageMimeTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+
+async function uploadServiceCategoryImage(file?: Express.Multer.File): Promise<string | null> {
+    if (!file) return null;
+    if (!serviceCategoryImageMimeTypes.has(file.mimetype)) {
+        throw new Error("Category image must be a JPG, PNG, or WEBP file.");
+    }
+    if (!BUCKET_NAME) throw new Error("AWS_BUCKET_NAME is not configured.");
+
+    const extension = file.originalname.includes(".")
+        ? file.originalname.split(".").pop()?.toLowerCase()
+        : file.mimetype.split("/").pop();
+    const safeExtension = extension && /^[a-z0-9]+$/.test(extension) ? extension : "jpg";
+    const key = `service-categories/${Date.now()}_${Math.random().toString(36).slice(2, 10)}.${safeExtension}`;
+
+    await s3Client.send(new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+    }));
+    return key;
+}
+
+function parseBoolean(value: unknown): boolean {
+    return value === true || value === 1 || value === "1" || String(value).toLowerCase() === "true";
+}
 
 function getAdminUser(req: Request): AuthUser | null {
     const user = (req as any).user;
@@ -282,8 +311,8 @@ export const updateSubcategorySchema = async (req: Request, res: Response): Prom
 // ────────────────────────────────────────────────────────────────────
 export const getServiceCategories = async (_req: Request, res: Response): Promise<Response> => {
     try {
+        // Admin view: return inactive categories too so they can be re-activated.
         const categories = await prisma.service_categories.findMany({
-            where: { is_active: true },
             include: {
                 service_subcategories: {
                     where: { parent_id: null },
@@ -317,20 +346,25 @@ export const createServiceCategory = async (req: Request, res: Response): Promis
     }
 
     try {
+        const uploadedImage = await uploadServiceCategoryImage(req.file);
         const category = await prisma.service_categories.create({
             data: {
                 code: String(code).trim().toLowerCase().replace(/\s+/g, "_"),
                 label: String(label).trim(),
                 description: description ? String(description).trim() : null,
-                image: image ? String(image).trim() : "",
+                image: uploadedImage || (image ? String(image).trim() : ""),
                 sort_order: parseInt(String(sort_order || 0), 10),
                 min_commision_percentage: parseInt(String(min_commision_percentage || 0), 10),
                 max_commision_percentage: parseInt(String(max_commision_percentage || 10), 10),
-                is_active: req.body.is_active !== false,
+                is_active: req.body.is_active === undefined ? true : parseBoolean(req.body.is_active),
             },
         });
 
-        return res.status(201).json({ success: true, message: "Service category created.", category });
+        return res.status(201).json({
+            success: true,
+            message: "Service category created.",
+            category: { ...category, image: await getPresignedUrlOrOriginal(category.image) },
+        });
     } catch (error: any) {
         console.error("Error creating service category:", error);
         return res.status(500).json({ success: false, message: error.message || "Failed to create category." });
@@ -339,23 +373,41 @@ export const createServiceCategory = async (req: Request, res: Response): Promis
 
 export const updateServiceCategory = async (req: Request, res: Response): Promise<Response> => {
     const id = String(req.params.id);
-    const { label, description, image, sort_order, is_active, min_commision_percentage, max_commision_percentage } = req.body;
+    const { code, label, description, image, sort_order, is_active, min_commision_percentage, max_commision_percentage } = req.body;
 
     try {
+        const uploadedImage = await uploadServiceCategoryImage(req.file);
+        const existing = await prisma.service_categories.findUnique({ where: { id }, select: { id: true } });
+        if (!existing) return res.status(404).json({ success: false, message: "Service category not found." });
+
+        if (code !== undefined && !String(code).trim()) {
+            return res.status(400).json({ success: false, message: "Category code cannot be empty." });
+        }
+        if (label !== undefined && !String(label).trim()) {
+            return res.status(400).json({ success: false, message: "Category name cannot be empty." });
+        }
+
         const category = await prisma.service_categories.update({
             where: { id },
             data: {
+                ...(code !== undefined && { code: String(code).trim().toLowerCase().replace(/\s+/g, "_") }),
                 ...(label !== undefined && { label: String(label).trim() }),
-                ...(description !== undefined && { description: String(description).trim() }),
-                ...(image !== undefined && { image: String(image).trim() }),
+                ...(description !== undefined && { description: String(description).trim() || null }),
+                ...(uploadedImage && { image: uploadedImage }),
+                ...(!uploadedImage && image !== undefined && { image: String(image).trim() }),
                 ...(sort_order !== undefined && { sort_order: parseInt(String(sort_order), 10) }),
-                ...(is_active !== undefined && { is_active: Boolean(is_active) }),
+                ...(is_active !== undefined && { is_active: parseBoolean(is_active) }),
                 ...(min_commision_percentage !== undefined && { min_commision_percentage: parseInt(String(min_commision_percentage), 10) }),
                 ...(max_commision_percentage !== undefined && { max_commision_percentage: parseInt(String(max_commision_percentage), 10) }),
+                updated_at: new Date(),
             },
         });
 
-        return res.status(200).json({ success: true, message: "Service category updated.", category });
+        return res.status(200).json({
+            success: true,
+            message: "Service category updated.",
+            category: { ...category, image: await getPresignedUrlOrOriginal(category.image) },
+        });
     } catch (error: any) {
         console.error("Error updating service category:", error);
         return res.status(500).json({ success: false, message: error.message || "Failed to update category." });
