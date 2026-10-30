@@ -37,7 +37,15 @@ export function initNotificationEmitter(): void {
     if (process.env.Production !== 'true' && process.env.NODE_ENV !== 'production') {
     }
 
+    const emitterKey = process.env.SOCKET_ADMIN_EMITTER_KEY;
+    if (!emitterKey) {
+        console.warn("[notificationEmitter] SOCKET_ADMIN_EMITTER_KEY is not set; real-time notifications to the Client Backend are disabled.");
+        return;
+    }
+
     socket = io(`${CLIENT_BACKEND_URL}/notifications`, {
+        // The Client Backend only accepts forwarded notifications from sockets that present this shared key.
+        auth: { emitterKey },
         transports: ["websocket", "polling"],
         reconnection: true,
         reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,

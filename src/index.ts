@@ -13,12 +13,13 @@ import clientQuotationRouter from './Routers/ClientQuotation.router.js';
 import serviceRouter from './Routers/Service.router.js';
 import hiringRouter from './Routers/Hiring.router.js';
 import serviceHubRouter from './Routers/ServiceHub.router.js';
-import { authMiddleware } from './Middleware/AuthMiddleware.js';
+import { authMiddleware, requireAdmin } from './Middleware/AuthMiddleware.js';
 import { validateEnv } from './lib/env.js';
 import { ensureMarketplaceSchema } from './lib/marketplace.js';
 import { initSocket } from './lib/socket.js';
 import { initNotificationEmitter } from './lib/notificationEmitter.js';
 import contactQueriesRouter from './Routers/ContactQueries.router.js';
+import uploadRouter from './Routers/Upload.router.js';
 
 validateEnv();
 
@@ -64,16 +65,19 @@ app.use(express.json({ limit: '5' + 'mb' }));
 app.use(express.urlencoded({ limit: '5' + 'mb', extended: true }));
 
 app.use("/api/auth", AuthRouter);
-app.use("/api/products", authMiddleware, productRouter);
-app.use("/api/orders", authMiddleware, orderRouter);
+// authMiddleware only proves a valid session for ANY role (the backends share token secrets),
+// so admin-only areas also need requireAdmin. Mixed routers guard per route.
+app.use("/api/products", authMiddleware, requireAdmin, productRouter);
+app.use("/api/orders", authMiddleware, requireAdmin, orderRouter);
 app.use("/api/vendors", authMiddleware, vendorRouter);
-app.use("/api/admin", authMiddleware, adminRouter);
+app.use("/api/admin", authMiddleware, requireAdmin, adminRouter);
 app.use("/api/quotations", vendorQuotationRouter);
 app.use("/api/client-quotations", clientQuotationRouter);
 app.use("/api/services", serviceRouter);
-app.use("/api/hiring", authMiddleware, hiringRouter);
-app.use("/api/service-hub", authMiddleware, serviceHubRouter);
-app.use("/api/contact",authMiddleware,contactQueriesRouter)
+app.use("/api/hiring", authMiddleware, requireAdmin, hiringRouter);
+app.use("/api/service-hub", authMiddleware, requireAdmin, serviceHubRouter);
+app.use("/api/contact", authMiddleware, requireAdmin, contactQueriesRouter);
+app.use("/api/uploads", authMiddleware, uploadRouter);
 
 async function startServer() {
     try {

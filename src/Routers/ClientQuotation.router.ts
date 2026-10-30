@@ -4,11 +4,12 @@ import {
     getClientQuotationById,
     sendConfirmationMessage,
 } from "../Controllers/ClientQuotation.controller.js";
-import { authMiddleware } from "../Middleware/AuthMiddleware.js";
+import { authMiddleware, requireAdmin } from "../Middleware/AuthMiddleware.js";
 
 const router = Router();
 
-router.use(authMiddleware);
+// Admin Web is the only caller: admins reviewing client quotations.
+router.use(authMiddleware, requireAdmin);
 
 router.get("/", getClientQuotations);
 router.get("/:id", getClientQuotationById);

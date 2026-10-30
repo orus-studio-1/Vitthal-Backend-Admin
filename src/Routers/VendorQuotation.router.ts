@@ -10,7 +10,7 @@ import {
     respondVendorQuotationPublic,
     reviewAdminVendorQuotation,
 } from "../Controllers/VendorQuotation.controller.js";
-import { authMiddleware } from "../Middleware/AuthMiddleware.js";
+import { authMiddleware, requireAdmin } from "../Middleware/AuthMiddleware.js";
 
 const router = Router();
 
@@ -19,7 +19,7 @@ router.get("/vendor/:token", getVendorQuotationPublic);
 router.get("/vendor/:token/pdf", downloadVendorQuotationPdfPublic);
 router.post("/vendor/:token/respond", respondVendorQuotationPublic);
 
-router.use("/admin", authMiddleware);
+router.use("/admin", authMiddleware, requireAdmin);
 router.post("/admin", createVendorQuotation);
 router.get("/admin", getAdminVendorQuotations);
 router.get("/admin/:id", getAdminVendorQuotationById);
