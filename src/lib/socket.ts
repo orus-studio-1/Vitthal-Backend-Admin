@@ -2,6 +2,7 @@ import type { IncomingMessage } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server as HttpServer } from "http";
 import { verifyToken } from "../helpers/jwt.helper.js";
+import { getVendorIdByUserId } from "../services/vendorInsights.service.js";
 
 type SocketUser = {
     userId: string;
@@ -98,7 +99,9 @@ function emitToRoom(room: string, event: string, data: unknown) {
     }
 }
 
-function handleSocketMessage(ws: ExtWebSocket, rawMessage: string) {
+const ADMIN_ROLES = new Set(["admin", "super_admin"]);
+
+async function handleSocketMessage(ws: ExtWebSocket, rawMessage: string) {
     if (!ws.user) {
         return;
     }
@@ -110,8 +113,14 @@ function handleSocketMessage(ws: ExtWebSocket, rawMessage: string) {
             if (ws.user.role === "vendor") {
                 joinRoom(ws, `vendor:${ws.user.userId}`);
             }
-            if (message.data?.vendorId) {
-                joinRoom(ws, `vendor:${message.data.vendorId}`);
+            // Admins may open any vendor's chat room; a vendor only its own (vendors.id, not the user id).
+            const requestedVendorId = message.data?.vendorId;
+            if (requestedVendorId) {
+                const canJoin = ADMIN_ROLES.has(ws.user.role)
+                    || (ws.user.role === "vendor" && (await getVendorIdByUserId(ws.user.userId)) === requestedVendorId);
+                if (canJoin) {
+                    joinRoom(ws, `vendor:${requestedVendorId}`);
+                }
             }
         }
 
@@ -137,7 +146,7 @@ export function initSocket(httpServer: HttpServer) {
         joinRoom(ws, `user:${user.userId}`);
 
         ws.on("message", (message: WebSocket.RawData) => {
-            handleSocketMessage(ws, message.toString());
+            void handleSocketMessage(ws, message.toString());
         });
 
         ws.on("close", () => {

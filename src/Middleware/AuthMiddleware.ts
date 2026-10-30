@@ -119,3 +119,14 @@ const generateNewAccessToken = (refreshToken: string) => {
         throw new Error("Failed to generate new access token", { cause: error });
     }
 }
+
+export const requireRole = (...roles: string[]) => (req: Request, res: Response, next: NextFunction) => {
+    const role = (req as any).user?.role;
+    if (!role || !roles.includes(role)) {
+        return res.status(403).json({ message: "Forbidden! You do not have access to this resource." });
+    }
+    return next();
+}
+
+export const requireAdmin = requireRole("admin", "super_admin");
+export const requireVendor = requireRole("vendor");

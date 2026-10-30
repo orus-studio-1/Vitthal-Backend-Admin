@@ -1,6 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import { authMiddleware } from "../Middleware/AuthMiddleware.js";
+import { authMiddleware, requireAdmin, requireVendor } from "../Middleware/AuthMiddleware.js";
 import {
     adminListServicesController,
     adminCreateServiceController,
@@ -35,13 +35,16 @@ const upload = multer({
 serviceRouter.use(authMiddleware);
 
 // --- Subcategories ---
-serviceRouter.get("/subcategories", adminGetSubcategoriesController);
+serviceRouter.get("/subcategories", requireAdmin, adminGetSubcategoriesController);
 
 // --- Vendor routes (must be before /:id to avoid route clash) ---
-serviceRouter.get("/vendor/offerings", vendorGetMyServiceOfferingsController);
-serviceRouter.post("/vendor/offerings", vendorOfferServiceController);
-serviceRouter.put("/vendor/offerings/:id", vendorUpdateServiceOfferingController);
-serviceRouter.delete("/vendor/offerings/:id", vendorDeleteServiceOfferingController);
+serviceRouter.get("/vendor/offerings", requireVendor, vendorGetMyServiceOfferingsController);
+serviceRouter.post("/vendor/offerings", requireVendor, vendorOfferServiceController);
+serviceRouter.put("/vendor/offerings/:id", requireVendor, vendorUpdateServiceOfferingController);
+serviceRouter.delete("/vendor/offerings/:id", requireVendor, vendorDeleteServiceOfferingController);
+
+// Everything below is admin-only.
+serviceRouter.use(requireAdmin);
 
 // --- Admin monitoring routes (must be before /:id to avoid route clash) ---
 serviceRouter.get("/admin/list", adminListServicesController);
