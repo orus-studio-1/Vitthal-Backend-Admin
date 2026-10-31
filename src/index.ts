@@ -81,10 +81,14 @@ app.use("/api/uploads", authMiddleware, uploadRouter);
 
 async function startServer() {
     try {
-        try {
-            await ensureMarketplaceSchema();
-        } catch (schemaError) {
-            console.warn("Non-fatal: Schema sync bypassed or completed concurrently in another process:", schemaError);
+        // Schema changes ship as Prisma migrations (npm run db:deploy). The legacy schema script only
+        // runs when explicitly enabled, e.g. to bootstrap an empty local database.
+        if (process.env.RUN_SCHEMA_SYNC_ON_START === "true") {
+            try {
+                await ensureMarketplaceSchema();
+            } catch (schemaError) {
+                console.warn("Non-fatal: Schema sync bypassed or completed concurrently in another process:", schemaError);
+            }
         }
         initSocket(server);
         initNotificationEmitter();

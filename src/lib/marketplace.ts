@@ -153,44 +153,8 @@ CREATE TABLE IF NOT EXISTS product_category (
             ADD COLUMN IF NOT EXISTS max_commision_percentage INTEGER NOT NULL DEFAULT 10,
             ADD COLUMN IF NOT EXISTS category_type TEXT NOT NULL DEFAULT 'product';
 
-        INSERT INTO product_category (code, label, description, image, min_commision_percentage, max_commision_percentage, sort_order, is_active, category_type) VALUES
-        ('metal_fabrication_parts', 'Metal & Fabrication Products', 'Sheet metal, structural parts, and custom fabricated components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780292933/Metal_Fabricated_n51kin.jpg', 0, 10, 1, true, 'product'),
-        ('electrical_automation_components', 'Electrical & Electronics Manufacturing', 'Industrial panels, sensors, and automation hardware.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780293409/Electrical_Electronics_twuwgm.jpg', 0, 10, 2, true, 'product'),
-        ('industrial_machinery_equipment', 'Machinery & Industrial Equipment', 'Pumps, compressors, conveyor systems, and packaging machines.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780293705/Industrial_Machinery_jubodl.jpg', 0, 10, 3, true, 'product'),
-        ('construction_building_materials', 'Construction & Building Material', 'Hardware, roofing, flooring, and structural materials.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294255/Construction_zozolo.jpg', 0, 10, 4, true, 'product'),
-        ('automotive_spare_parts', 'Automobile & Auto Parts', 'Engine parts, braking systems, and EV components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294268/Automative_part_tusmob.jpg', 0, 10, 5, true, 'product'),
-        ('plastic_polymer_components', 'Plastic & Polymer Products', 'Injection molded parts and industrial plastic components.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294480/Plastic_polymer_ysm22x.jpg', 0, 10, 6, true, 'product'),
-        ('food_agriculture_supplies', 'Food & Agriculture Processing', 'Agro-equipment, processing inputs, and organic supplies.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294555/Food_Agriculture_heawd4.jpg', 0, 10, 7, true, 'product'),
-        ('laboratory_pharma_consumables', 'Chemical & Pharma Manufacturing', 'Chemicals, additives, and medical consumables.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294629/Pharamas_labs_nigahy.jpg', 0, 10, 8, true, 'product'),
-        ('modular_furniture_wood', 'Furniture & Wood Products', 'Office, kitchen, and interior decorative products.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294735/Furniture_uig7s6.jpg', 0, 10, 9, true, 'product'),
-        ('renewable_energy_systems', 'Renewable Energy Products', 'Solar panels, inverters, and energy storage solutions.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294829/Renewable_Energy_piev0o.jpg', 0, 10, 10, true, 'product'),
-        ('packaging_logistics_supplies', 'Packaging Industry', 'Corrugated boxes, labels, and industrial pallets.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780294984/Packaging_boxes_mivqtz.jpg', 0, 10, 11, true, 'product'),
-        ('textile_garment_materials', 'Textile & Garments', 'Fabrics, yarns, and industrial safety apparel.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780295062/Textile_gqybcg.jpg', 0, 10, 12, true, 'product'),
-        ('cnc_industrial_tooling', 'CNC & VMC Tooling Product Categories', 'Precision cutting tools, holders, and inserts for CNC machines.', 'https://res.cloudinary.com/djolzxgct/image/upload/v1780295138/CNCC_Industrial_Tooling_vqipnh.jpg', 0, 10, 13, true, 'product')
-        ON CONFLICT (code) DO UPDATE 
-        SET label = EXCLUDED.label,
-            description = EXCLUDED.description,
-            image = EXCLUDED.image,
-            sort_order = EXCLUDED.sort_order,
-            is_active = EXCLUDED.is_active,
-            category_type = EXCLUDED.category_type;
-
-        DELETE FROM product_category 
-        WHERE category_type = 'product' AND code NOT IN (
-            'metal_fabrication_parts',
-            'electrical_automation_components',
-            'industrial_machinery_equipment',
-            'construction_building_materials',
-            'automotive_spare_parts',
-            'plastic_polymer_components',
-            'food_agriculture_supplies',
-            'laboratory_pharma_consumables',
-            'modular_furniture_wood',
-            'renewable_energy_systems',
-            'packaging_logistics_supplies',
-            'textile_garment_materials',
-            'cnc_industrial_tooling'
-        );
+        -- Categories are managed from Admin Web. The old hard-coded seed here reset the built-in
+        -- categories and deleted every other product category on each run, so it was removed.
 
 CREATE TABLE IF NOT EXISTS vendor_categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
