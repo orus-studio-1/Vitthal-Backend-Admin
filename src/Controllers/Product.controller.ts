@@ -1601,12 +1601,21 @@ export const deleteProductVariant = async (req: Request, res: Response): Promise
 };
 
 export const getProductTypes = async (req: Request, res: Response): Promise<Response> => {
+    // Optional ?categoryId= limits the list to types used by products in that category
+    // (products.category stores the category id). Without it, all types are returned.
+    const categoryId = typeof req.query.categoryId === "string" ? req.query.categoryId.trim() : "";
+    if (categoryId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) {
+        return res.status(400).json({ message: "categoryId must be a valid category id." });
+    }
+
     try {
         const result = await marketplacePool.query(
             `SELECT DISTINCT product_type 
              FROM products 
              WHERE product_type IS NOT NULL AND product_type != '' AND is_active = TRUE AND approval_status = 'approved'
-             ORDER BY product_type ASC`
+               ${categoryId ? "AND category::text = $1" : ""}
+             ORDER BY product_type ASC`,
+            categoryId ? [categoryId] : []
         );
         const types = result.rows.map(row => row.product_type);
         return res.status(200).json({ message: "Product types fetched successfully", data: types });
