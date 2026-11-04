@@ -614,7 +614,7 @@ export async function vendorUpdateServiceOfferingController(req: Request, res: R
             if (!vendorId) return res.status(403).json({ message: "Vendor profile not found or not approved" });
 
             const offering = await marketplacePool.query(
-                `SELECT s.id AS service_id,
+                `SELECT s.id AS service_id, s.status AS service_status, vs.is_active AS current_is_active,
                         (s.created_by_user_id = $1 OR (
                             s.created_by_user_id IS NULL AND NOT EXISTS (
                                 SELECT 1 FROM vendor_services other
@@ -630,6 +630,14 @@ export async function vendorUpdateServiceOfferingController(req: Request, res: R
             if (offering.rows.length === 0) return res.status(404).json({ message: "Service offering not found" });
             serviceId = offering.rows[0].service_id;
             canEditServiceDetails = Boolean(offering.rows[0].can_edit_service_details);
+            const changesActiveState = isActive !== undefined && Boolean(isActive) !== Boolean(offering.rows[0].current_is_active);
+            if (changesActiveState && offering.rows[0].service_status !== "approved") {
+                return res.status(409).json({
+                    message: offering.rows[0].service_status === "rejected"
+                        ? "This service was rejected by the admin, so it can't be activated."
+                        : "This service can't be activated until the admin approves it. Once approved, you can activate or deactivate it.",
+                });
+            }
             if (serviceFields.length > 0 && !canEditServiceDetails) {
                 return res.status(409).json({ message: "This service is shared in the catalog. Ask an administrator to change its name or description." });
             }
@@ -1255,7 +1263,12 @@ export async function vendorGetMyServiceOfferingsController(req: Request, res: R
             [vendorId, authUser.userId]
         );
 
-        return res.status(200).json({ data: result.rows });
+        const rows = await Promise.all(result.rows.map(async (row) => ({
+            ...row,
+            service_image: await getPresignedUrlOrOriginal(row.service_image),
+        })));
+
+        return res.status(200).json({ data: rows });
     } catch (error) {
         console.error("Error fetching vendor service offerings:", error);
         return res.status(500).json({ message: "Internal server error" });
