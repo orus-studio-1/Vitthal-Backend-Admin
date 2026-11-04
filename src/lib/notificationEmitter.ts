@@ -121,6 +121,7 @@ export async function createAndEmitNotification(params: {
 
         }
     } catch (error) {
+        console.error("[notificationEmitter] Failed to create notification:", error);
     }
 }
 

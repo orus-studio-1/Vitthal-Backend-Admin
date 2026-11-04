@@ -8,6 +8,9 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
         const requestFrom = req.headers["x-request-from"];
         const authorization = req.headers.authorization;
         const usesHeaderAuth = typeof authorization === "string";
+        const headerRefreshToken = typeof req.headers["x-refresh-token"] === "string"
+            ? req.headers["x-refresh-token"]
+            : undefined;
         const bearerToken = authorization?.startsWith("Bearer ")
             ? authorization.slice(7).trim()
             : undefined;
@@ -44,6 +47,9 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
             accessToken = req.cookies.accessToken;
             refreshToken = req.cookies.refreshToken;
         }
+
+        // The mobile apps have no cookies for this host, so they send the refresh token as a header.
+        if (usesHeaderAuth && headerRefreshToken) refreshToken = headerRefreshToken;
 
         if (!refreshToken)
             return res.status(401).json({ message: "Unauthorized" });
@@ -83,6 +89,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
                 ...COOKIE_OPTIONS,
                 maxAge: 30 * 60 * 1000,
             });
+            res.setHeader("x-access-token", newAccessToken);
             (req as any).user = decodedRefreshToken;
             return next();
         }

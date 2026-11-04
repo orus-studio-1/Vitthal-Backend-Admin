@@ -12,6 +12,7 @@ import {
     vendorDeleteServiceOfferingController,
     uploadServiceMediaController,
     adminReviewServiceMediaController,
+    adminGetPendingServiceMediaController,
     deleteServiceMediaController,
     adminListServiceBookingsController,
     adminListServiceQuotationsController,
@@ -51,6 +52,7 @@ serviceRouter.get("/admin/list", adminListServicesController);
 serviceRouter.get("/admin/bookings", adminListServiceBookingsController);
 serviceRouter.get("/admin/quotations", adminListServiceQuotationsController);
 serviceRouter.get("/admin/reviews", adminGetServiceReviewsController);
+serviceRouter.get("/admin/pending-media", adminGetPendingServiceMediaController);
 serviceRouter.get("/admin/pending-modifications", adminGetPendingServiceModificationsController);
 serviceRouter.put("/admin/pending-modifications/:id/review", adminReviewServiceModificationController);
 

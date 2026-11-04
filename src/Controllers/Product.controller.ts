@@ -744,6 +744,18 @@ export const reviewProductImage = async (req: Request, res: Response): Promise<R
             return res.status(404).json({ message: "Product image not found" });
         }
 
+        // A product without an approved main image shows none to clients, so the first approved image takes over.
+        if (decision === "approved") {
+            await marketplacePool.query(
+                `UPDATE products_images target SET is_primary = (target.id = $1)
+                 WHERE target.product_id = $2 AND NOT EXISTS (
+                     SELECT 1 FROM products_images live
+                     WHERE live.product_id = $2 AND live.is_primary = TRUE AND live.approval_status = 'approved' AND live.id <> $1
+                 )`,
+                [id, result.rows[0].product_id]
+            );
+        }
+
         // Notify the image creator
         const imgCreatorId = result.rows[0].created_by_user_id;
         if (imgCreatorId) {
@@ -1407,12 +1419,18 @@ export const uploadProductImagesController = async (req: Request, res: Response)
             );
         }
 
-        // Check if product already has a primary image
+        // Only an approved primary shows to clients; a pending or rejected one must not block this upload.
         const existingImages = await marketplacePool.query(
-            `SELECT id FROM products_images WHERE product_id = $1 AND is_primary = true`,
+            `SELECT id FROM products_images WHERE product_id = $1 AND is_primary = true AND approval_status = 'approved'`,
             [productId]
         );
         let hasPrimary = existingImages.rows.length > 0;
+        if (!hasPrimary) {
+            await marketplacePool.query(
+                `UPDATE products_images SET is_primary = false WHERE product_id = $1`,
+                [productId]
+            );
+        }
 
         const uploadedImages = [];
 
@@ -1816,6 +1834,14 @@ export const reviewProductModification = async (req: Request, res: Response): Pr
                 }
             }
 
+            if (pendingMods.has_variant_changes && pendingMods.variant_properties) {
+                await marketplacePool.query(
+                    `UPDATE product_variants SET properties = $1::jsonb, updated_at = NOW()
+                     WHERE id = (SELECT product_variant_id FROM vendor_products WHERE id = $2)`,
+                    [JSON.stringify(pendingMods.variant_properties), id]
+                );
+            }
+
             // 3. Emit notification to vendor
             try {
                 await createAndEmitNotification({
@@ -1865,6 +1891,131 @@ export const reviewProductModification = async (req: Request, res: Response): Pr
     } catch (error) {
         console.error("Error while reviewing product modification:", error);
         return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getPendingImages = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res;
+
+    try {
+        // Images of a product still under review are decided along with that product.
+        const result = await marketplacePool.query(
+            `SELECT pi.id, pi.product_id, pi.image_url, pi.media_type, pi.created_at, p.name AS product_name,
+                    u.name AS creator_name, u.email AS creator_email
+             FROM products_images pi
+             JOIN products p ON p.id = pi.product_id
+             LEFT JOIN users u ON u.id = pi.created_by_user_id
+             WHERE pi.approval_status = 'pending' AND p.approval_status = 'approved'
+             ORDER BY pi.created_at ASC`
+        );
+        for (const image of result.rows) {
+            image.image_url = await getPresignedUrlOrOriginal(image.image_url);
+        }
+        return res.status(200).json({ message: "Pending images fetched successfully", data: result.rows });
+    } catch (error) {
+        console.error("Error while fetching pending images:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getPendingDeletions = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res;
+
+    try {
+        const result = await marketplacePool.query(
+            `SELECT vp.id, vp.product_id, vp.deletion_reason, vp.deletion_requested_at, vp.price, vp.stock_quantity,
+                    p.name AS product_name, pv.properties AS variant_properties, pv.sku AS variant_sku,
+                    v.company_name AS vendor_company_name, u.name AS vendor_user_name, u.email AS vendor_email
+             FROM vendor_products vp
+             JOIN products p ON p.id = vp.product_id
+             LEFT JOIN product_variants pv ON pv.id = vp.product_variant_id
+             JOIN vendors v ON v.id = vp.vendor_id
+             JOIN users u ON u.id = v.user_id
+             WHERE vp.deletion_status = 'pending'
+             ORDER BY vp.deletion_requested_at ASC`
+        );
+        return res.status(200).json({ message: "Pending deletions fetched successfully", data: result.rows });
+    } catch (error) {
+        console.error("Error while fetching pending deletions:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const reviewProductDeletion = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res;
+
+    const { id } = req.params; // vendor_products.id
+    const { decision } = req.body as { decision?: string };
+    if (decision !== "approved" && decision !== "rejected") {
+        return res.status(400).json({ message: "Decision must be approved or rejected." });
+    }
+
+    const client = await marketplacePool.connect();
+    try {
+        await client.query("BEGIN");
+        const listing = await client.query(
+            `SELECT vp.id, vp.product_id, vp.product_variant_id, v.user_id, p.name AS product_name,
+                    p.created_by_user_id, creator.role::text AS creator_role
+             FROM vendor_products vp
+             JOIN vendors v ON v.id = vp.vendor_id
+             JOIN products p ON p.id = vp.product_id
+             LEFT JOIN users creator ON creator.id = p.created_by_user_id
+             WHERE vp.id = $1 AND vp.deletion_status = 'pending'
+             FOR UPDATE OF vp`,
+            [id]
+        );
+        if (!listing.rows.length) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ message: "Pending deletion request not found." });
+        }
+        const row = listing.rows[0];
+        let removedFromCatalog = false;
+
+        if (decision === "rejected") {
+            await client.query(
+                `UPDATE vendor_products SET deletion_status = NULL, deletion_reason = NULL, deletion_requested_at = NULL, updated_at = NOW() WHERE id = $1`,
+                [id]
+            );
+        } else {
+            await client.query(`DELETE FROM vendor_products WHERE id = $1`, [id]);
+
+            // Other vendors keep the catalog entry. A vendor-created product nobody sells any more leaves the catalog.
+            const remaining = await client.query(`SELECT 1 FROM vendor_products WHERE product_id = $1 LIMIT 1`, [row.product_id]);
+            if (!remaining.rows.length && row.creator_role === "vendor") {
+                await client.query("SAVEPOINT remove_product");
+                try {
+                    await client.query(`DELETE FROM products WHERE id = $1`, [row.product_id]);
+                    removedFromCatalog = true;
+                } catch (error: any) {
+                    // Past orders still point at it, so keep the row and take it out of circulation.
+                    if (error?.code !== "23503") throw error;
+                    await client.query("ROLLBACK TO SAVEPOINT remove_product");
+                    await client.query(`UPDATE products SET is_active = FALSE, updated_at = NOW() WHERE id = $1`, [row.product_id]);
+                }
+            }
+        }
+        await client.query("COMMIT");
+
+        void createAndEmitNotification({
+            userId: row.user_id,
+            type: decision === "approved" ? "vendor_product_approved" : "vendor_product_rejected",
+            title: decision === "approved" ? "Product Deletion Approved" : "Product Deletion Rejected",
+            body: decision === "approved"
+                ? `Your listing for "${row.product_name}" has been removed.`
+                : `Your request to delete "${row.product_name}" was rejected. The listing stays live.`,
+            ...(removedFromCatalog ? {} : { referenceType: "product", referenceId: row.product_id }),
+        });
+
+        return res.status(200).json({ message: decision === "approved" ? "Listing deleted." : "Deletion request rejected." });
+    } catch (error) {
+        await client.query("ROLLBACK");
+        console.error("Error while reviewing product deletion:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    } finally {
+        client.release();
     }
 };
 
@@ -1922,10 +2073,11 @@ export const reviewProductVariant = async (req: Request, res: Response): Promise
         const query = `
             UPDATE product_variants
             SET 
-                approval_status = $1,
+                approval_status = $1::text,
                 approval_notes = $2,
                 reviewed_by_user_id = $3,
                 reviewed_at = NOW(),
+                is_active = ($1::text = 'approved'),
                 updated_at = NOW()
             WHERE id = $4
             RETURNING id, product_id, sku, properties, approval_status, created_by_user_id
@@ -1937,6 +2089,15 @@ export const reviewProductVariant = async (req: Request, res: Response): Promise
         }
 
         const variant = result.rows[0];
+
+        // One decision covers the variant and the listing its creator submitted with it.
+        await marketplacePool.query(
+            `UPDATE vendor_products vp
+             SET status = $1::vendor_product_status, is_active = $2, updated_at = NOW()
+             FROM vendors v
+             WHERE v.id = vp.vendor_id AND v.user_id = $3 AND vp.product_variant_id = $4 AND vp.status = 'waiting'`,
+            [decision === "approved" ? "active" : "inactive", decision === "approved", variant.created_by_user_id, variant.id]
+        );
 
         // Notify the creator of the variant if it's a vendor
         if (variant.created_by_user_id) {

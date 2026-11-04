@@ -315,8 +315,8 @@ export const getServiceCategories = async (_req: Request, res: Response): Promis
         const categories = await prisma.service_categories.findMany({
             include: {
                 service_subcategories: {
-                    where: { parent_id: null },
-                    include: { children: { orderBy: { name: "asc" } } },
+                    where: { parent_id: null, approval_status: "approved" },
+                    include: { children: { where: { approval_status: "approved" }, orderBy: { name: "asc" } } },
                     orderBy: { name: "asc" },
                 },
             },

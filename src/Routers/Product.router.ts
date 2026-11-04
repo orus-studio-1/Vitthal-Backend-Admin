@@ -32,7 +32,10 @@ import {
     deleteProductImage,
     addProductVariant,
     updateProductVariant,
-    deleteProductVariant
+    deleteProductVariant,
+    getPendingDeletions,
+    getPendingImages,
+    reviewProductDeletion
 } from "../Controllers/Product.controller.js";
 import { authMiddleware } from "../Middleware/AuthMiddleware.js";
 
@@ -57,6 +60,9 @@ productRouter.get("/pending-modifications/all", getPendingProductModifications);
 productRouter.put("/pending-modifications/:id/review", reviewProductModification);
 productRouter.put("/pending-price/:id/review", reviewPendingPriceChange);
 productRouter.get("/pending-variants/all", getPendingVariants);
+productRouter.get("/pending-deletions/all", getPendingDeletions);
+productRouter.get("/pending-images/all", getPendingImages);
+productRouter.put("/pending-deletions/:id/review", reviewProductDeletion);
 productRouter.put("/pending-variants/:id/review", reviewProductVariant);
 productRouter.put("/image/set-primary", setProductPrimaryImage);
 productRouter.delete("/image/:id", deleteProductImage);

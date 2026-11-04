@@ -1,7 +1,8 @@
 import type { Request, Response } from "express";
 import { marketplacePool } from "../lib/marketplace.js";
+import { createAndEmitNotification } from "../lib/notificationEmitter.js";
 import { getPresignedUrlOrOriginal, s3Client, BUCKET_NAME } from "../services/s3.service.js";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const adminRoles = new Set(["admin", "super_admin"]);
 const ALLOWED_MEDIA_MIME = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/x-msvideo"]);
@@ -91,14 +92,18 @@ export async function adminListServicesController(req: Request, res: Response): 
                 `SELECT
                     s.id, s.name, s.description, s.status, s.rating, s.review_count, s.category_id,
                     pc.label AS category_label,
+                    CASE WHEN parent_sub.id IS NOT NULL THEN parent_sub.name || ' > ' || ss.name ELSE ss.name END AS subcategory_name,
+                    (ss.approval_status = 'pending' OR parent_sub.approval_status = 'pending') AS has_new_subcategory,
                     COUNT(DISTINCT vs.id) AS vendor_count,
                     COUNT(DISTINCT sb.id) AS booking_count
                  FROM services s
                  LEFT JOIN service_categories pc ON pc.id = s.category_id
+                 LEFT JOIN service_subcategories ss ON ss.id = s.subcategory_id
+                 LEFT JOIN service_subcategories parent_sub ON parent_sub.id = ss.parent_id
                  LEFT JOIN vendor_services vs ON vs.service_id = s.id
                  LEFT JOIN service_bookings sb ON sb.vendor_service_id = vs.id
                  ${where}
-                 GROUP BY s.id, pc.label
+                 GROUP BY s.id, pc.label, ss.id, parent_sub.id
                  ORDER BY s.created_at DESC
                  LIMIT $${idx} OFFSET $${idx + 1}`,
                 [...values, limitNum, offset]
@@ -353,6 +358,62 @@ export async function adminReviewServiceController(req: Request, res: Response):
         if (result.rows.length === 0) {
             return res.status(404).json({ message: "Service not found" });
         }
+        await marketplacePool.query(
+            `UPDATE vendor_services SET is_active = $1, updated_at = NOW() WHERE service_id = $2`,
+            [decision === "approved", id]
+        );
+
+        // The vendor's proposed sub-categories and media are decided together with the service.
+        const proposedNodes = `
+            WITH node AS (
+                SELECT sub.id, sub.parent_id FROM services s
+                JOIN service_subcategories sub ON sub.id = s.subcategory_id
+                WHERE s.id = $1
+            )
+            SELECT id FROM node UNION SELECT parent_id FROM node WHERE parent_id IS NOT NULL`;
+        if (decision === "approved") {
+            await marketplacePool.query(
+                `UPDATE service_subcategories SET approval_status = 'approved', updated_at = NOW()
+                 WHERE approval_status = 'pending' AND id IN (${proposedNodes})`,
+                [id]
+            );
+            await marketplacePool.query(
+                `UPDATE services_media SET approval_status = 'approved', is_approved = TRUE, reviewed_by_user_id = $2
+                 WHERE service_id = $1 AND approval_status = 'pending'`,
+                [id, authUser.userId]
+            );
+        } else {
+            await marketplacePool.query(
+                `UPDATE service_subcategories sub SET approval_status = 'rejected', updated_at = NOW()
+                 WHERE sub.approval_status = 'pending' AND sub.id IN (${proposedNodes})
+                   AND NOT EXISTS (
+                       SELECT 1 FROM services other
+                       WHERE other.id <> $1 AND other.status <> 'rejected'
+                         AND (other.subcategory_id = sub.id
+                              OR other.subcategory_id IN (SELECT child.id FROM service_subcategories child WHERE child.parent_id = sub.id))
+                   )`,
+                [id]
+            );
+        }
+
+        const trimmedNotes = typeof notes === "string" ? notes.trim() : "";
+        const vendors = await marketplacePool.query(
+            `SELECT DISTINCT v.user_id FROM vendor_services vs JOIN vendors v ON v.id = vs.vendor_id WHERE vs.service_id = $1`,
+            [id]
+        );
+        for (const vendor of vendors.rows) {
+            void createAndEmitNotification({
+                userId: vendor.user_id,
+                type: decision === "approved" ? "vendor_product_approved" : "vendor_product_rejected",
+                title: decision === "approved" ? "Service Approved ✅" : "Service Rejected ❌",
+                body: decision === "approved"
+                    ? `Your service "${result.rows[0].name}" has been approved by the admin and is now live.`
+                    : `Your service "${result.rows[0].name}" has been rejected by the admin.${trimmedNotes ? ` Reason: ${trimmedNotes}` : ""}`,
+                referenceType: "service",
+                referenceId: String(id),
+            });
+        }
+
         return res.status(200).json({ message: `Service ${decision}`, data: result.rows[0] });
     } catch (error) {
         console.error("Error reviewing service:", error);
@@ -661,10 +722,12 @@ export async function adminReviewServiceModificationController(req: Request, res
     try {
         await client.query("BEGIN");
         const result = await client.query(
-            `SELECT vs.pending_modifications, vs.service_id
+            `SELECT vs.pending_modifications, vs.service_id,
+                    (SELECT v.user_id FROM vendors v WHERE v.id = vs.vendor_id) AS vendor_user_id,
+                    (SELECT sv.name FROM services sv WHERE sv.id = vs.service_id) AS service_name
              FROM vendor_services vs
              WHERE vs.id = $1 AND vs.modification_status = 'pending'
-             FOR UPDATE`, [id]
+             FOR UPDATE OF vs`, [id]
         );
         if (result.rows.length === 0) {
             await client.query("ROLLBACK");
@@ -709,6 +772,18 @@ export async function adminReviewServiceModificationController(req: Request, res
              WHERE id = $2`, [decision, id]
         );
         await client.query("COMMIT");
+        if (result.rows[0].vendor_user_id) {
+            void createAndEmitNotification({
+                userId: result.rows[0].vendor_user_id,
+                type: decision === "approved" ? "vendor_product_approved" : "vendor_product_rejected",
+                title: decision === "approved" ? "Service Changes Approved ✅" : "Service Changes Rejected ❌",
+                body: decision === "approved"
+                    ? `Your changes to "${result.rows[0].service_name}" have been approved and are now live.`
+                    : `Your changes to "${result.rows[0].service_name}" were rejected. The previous details stay live.`,
+                referenceType: "service",
+                referenceId: result.rows[0].service_id,
+            });
+        }
         return res.status(200).json({ message: `Service edit ${decision}` });
     } catch (error) {
         await client.query("ROLLBACK");
@@ -814,6 +889,29 @@ export async function uploadServiceMediaController(req: Request, res: Response):
     }
 }
 
+export async function adminGetPendingServiceMediaController(req: Request, res: Response): Promise<Response> {
+    if (!ensureAdmin(req, res)) return res as Response;
+    try {
+        // Media of a service still under review is decided along with that service.
+        const result = await marketplacePool.query(
+            `SELECT sm.id, sm.service_id, sm.media_url, sm.media_type, sm.approval_status, sm.removal_requested_at, sm.created_at,
+                    s.name AS service_name
+             FROM services_media sm
+             JOIN services s ON s.id = sm.service_id
+             WHERE s.status = 'approved' AND (sm.approval_status = 'pending' OR sm.removal_requested_at IS NOT NULL)
+             ORDER BY COALESCE(sm.removal_requested_at, sm.created_at) ASC`
+        );
+        const rows = await Promise.all(result.rows.map(async (row) => ({
+            ...row,
+            media_url: await getPresignedUrlOrOriginal(row.media_url),
+        })));
+        return res.status(200).json({ data: rows });
+    } catch (error) {
+        console.error("Error fetching pending service media:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+}
+
 export async function adminReviewServiceMediaController(req: Request, res: Response): Promise<Response> {
     const authUser = ensureAdmin(req, res);
     if (!authUser) return res as Response;
@@ -826,17 +924,59 @@ export async function adminReviewServiceMediaController(req: Request, res: Respo
     }
 
     try {
-        const result = await marketplacePool.query(
-            `UPDATE services_media
-             SET approval_status = $1, reviewed_by_user_id = $2
-             WHERE id = $3 AND service_id = $4
-             RETURNING id, media_type, approval_status`,
-            [decision, authUser.userId, mediaId, id]
+        const current = await marketplacePool.query(
+            `SELECT sm.id, sm.media_url, sm.s3_key, sm.is_primary, sm.removal_requested_at, sv.name AS service_name
+             FROM services_media sm JOIN services sv ON sv.id = sm.service_id
+             WHERE sm.id = $1 AND sm.service_id = $2`,
+            [mediaId, id]
         );
-        if (result.rows.length === 0) {
+        if (current.rows.length === 0) {
             return res.status(404).json({ message: "Media not found" });
         }
-        return res.status(200).json({ message: `Media ${decision}`, data: result.rows[0] });
+        const media = current.rows[0];
+        const isRemoval = Boolean(media.removal_requested_at);
+
+        if (isRemoval && decision === "approved") {
+            await marketplacePool.query(`DELETE FROM services_media WHERE id = $1`, [mediaId]);
+            if (media.is_primary) {
+                await marketplacePool.query(
+                    `UPDATE services_media SET is_primary = TRUE
+                     WHERE id = (SELECT id FROM services_media WHERE service_id = $1 AND media_type = 'image' AND approval_status = 'approved'
+                                 ORDER BY display_order, created_at LIMIT 1)`,
+                    [id]
+                );
+            }
+            const key = media.s3_key;
+            if (BUCKET_NAME && key) {
+                await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key }))
+                    .catch((error) => console.warn("Could not delete service media from S3:", error));
+            }
+        } else if (isRemoval) {
+            await marketplacePool.query(`UPDATE services_media SET removal_requested_at = NULL WHERE id = $1`, [mediaId]);
+        } else {
+            await marketplacePool.query(
+                `UPDATE services_media SET approval_status = $1, is_approved = $2, reviewed_by_user_id = $3 WHERE id = $4`,
+                [decision, decision === "approved", authUser.userId, mediaId]
+            );
+        }
+
+        const vendors = await marketplacePool.query(
+            `SELECT DISTINCT v.user_id FROM vendor_services vs JOIN vendors v ON v.id = vs.vendor_id WHERE vs.service_id = $1`,
+            [id]
+        );
+        const action = isRemoval ? "removal of a file from" : "new file for";
+        for (const vendor of vendors.rows) {
+            void createAndEmitNotification({
+                userId: vendor.user_id,
+                type: decision === "approved" ? "vendor_product_approved" : "vendor_product_rejected",
+                title: decision === "approved" ? "Service Media Approved ✅" : "Service Media Rejected ❌",
+                body: `The ${action} "${media.service_name}" was ${decision} by the admin.`,
+                referenceType: "service",
+                referenceId: String(id),
+            });
+        }
+
+        return res.status(200).json({ message: `Media request ${decision}` });
     } catch (error) {
         console.error("Error reviewing service media:", error);
         return res.status(500).json({ message: "Internal server error" });
