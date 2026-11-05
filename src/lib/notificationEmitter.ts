@@ -91,21 +91,32 @@ export async function createAndEmitNotification(params: {
 }): Promise<void> {
     try {
         // 1. Insert into the database
-        const result = await marketplacePool.query(
-            `INSERT INTO notifications (user_id, type, title, body, reference_type, reference_id)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING id, type, title, body, reference_type, reference_id, is_read, created_at`,
-            [
-                params.userId,
-                params.type,
-                params.title,
-                params.body,
-                params.referenceType || null,
-                params.referenceId || null,
-            ]
-        );
+        // A check constraint must never lose a notification, so a rejected value falls back to a plain one.
+        let type = params.type;
+        let referenceType = params.referenceType || null;
+        let referenceId = params.referenceId || null;
+        let result;
+        for (let attempt = 0; attempt < 3 && !result; attempt++) {
+            try {
+                result = await marketplacePool.query(
+                    `INSERT INTO notifications (user_id, type, title, body, reference_type, reference_id)
+                     VALUES ($1, $2, $3, $4, $5, $6)
+                     RETURNING id, type, title, body, reference_type, reference_id, is_read, created_at`,
+                    [params.userId, type, params.title, params.body, referenceType, referenceId]
+                );
+            } catch (dbError: any) {
+                if (attempt === 2 || dbError?.code !== "23514") throw dbError;
+                console.error(`[notificationEmitter] ${dbError.constraint} rejected type "${type}", reference "${referenceType}". Saving a plain notification.`);
+                if (dbError.constraint === "chk_notification_reference_type") {
+                    referenceType = null;
+                    referenceId = null;
+                } else {
+                    type = "general";
+                }
+            }
+        }
 
-        if (!result.rows.length) {
+        if (!result?.rows.length) {
             return;
         }
 
