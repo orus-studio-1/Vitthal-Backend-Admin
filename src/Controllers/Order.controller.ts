@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { marketplacePool } from "../lib/marketplace.js";
+import { createAndEmitNotification } from "../lib/notificationEmitter.js";
 import { getPresignedUrlOrOriginal } from "../services/s3.service.js";
 import { decryptPayoutAccountNumber } from "../services/payoutBankEncryption.service.js";
 
@@ -168,6 +169,43 @@ async function ensureClientUser(client: any, customerName: string, customerEmail
     );
 
     return userId;
+}
+
+const ORDER_STATUS_MESSAGES: Record<string, { title: string; body: string }> = {
+    processing: { title: "Order accepted", body: "is being prepared." },
+    shipped: { title: "Order shipped", body: "is on its way." },
+    delivered: { title: "Order delivered", body: "has been delivered." },
+    cancelled: { title: "Order cancelled", body: "has been cancelled." },
+};
+
+/** Tells the client and the vendor when an admin changes an order. Never fails the status change. */
+async function notifyOrderStatusChange(orderId: string, status: string): Promise<void> {
+    const message = ORDER_STATUS_MESSAGES[status];
+    if (!message) return;
+    try {
+        const result = await marketplacePool.query(
+            `SELECT o.user_id, o.order_reference, v.user_id AS vendor_user_id
+             FROM orders o LEFT JOIN vendors v ON v.id = o.vendor_id
+             WHERE o.id = $1`,
+            [orderId]
+        );
+        const order = result.rows[0];
+        if (!order) return;
+        const reference = order.order_reference || `#${orderId.slice(0, 8).toUpperCase()}`;
+        for (const userId of [order.user_id, order.vendor_user_id]) {
+            if (!userId) continue;
+            await createAndEmitNotification({
+                userId,
+                type: "general",
+                title: message.title,
+                body: `Order ${reference} ${message.body}`,
+                referenceType: "order",
+                referenceId: orderId,
+            });
+        }
+    } catch (error) {
+        console.error("Could not notify about the order status change:", error);
+    }
 }
 
 export const createOrder = async (req: Request, res: Response): Promise<Response> => {
@@ -848,6 +886,7 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<Re
         }
 
         await client.query("COMMIT");
+        void notifyOrderStatusChange(orderId, mappedStatus);
 
         const updated = await marketplacePool.query(`${orderSelect} WHERE o.id = $1`, [orderId]);
         return res.status(200).json({ message: "Order status updated successfully", data: updated.rows[0] });

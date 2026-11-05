@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
+import { createAndEmitNotification } from "../lib/notificationEmitter.js";
 import { getPresignedUrl } from "../services/s3.service.js";
 
 const adminRoles = ["admin", "super_admin"];
@@ -228,10 +229,14 @@ export async function sendConfirmationMessage(req: Request, res: Response): Prom
         `, id, authUser.userId, message.trim());
 
         // Create notification for the client
-        await prisma.$executeRawUnsafe(`
-            INSERT INTO notifications (user_id, type, title, body, reference_type, reference_id)
-            VALUES ($1::uuid, 'admin_confirmation_sent', 'Admin confirmation required', $2, 'quotation', $3::uuid)
-        `, quotation.user_id, `Admin sent a confirmation message for your quotation. Please review and confirm or reject.`, id);
+        await createAndEmitNotification({
+            userId: quotation.user_id,
+            type: "admin_confirmation_sent",
+            title: "Admin confirmation required",
+            body: "Admin sent a confirmation message for your quotation. Please review and confirm or reject.",
+            referenceType: "quotation",
+            referenceId: String(id),
+        });
 
         return res.status(200).json({ message: "Confirmation message sent to client" });
     } catch (error) {
