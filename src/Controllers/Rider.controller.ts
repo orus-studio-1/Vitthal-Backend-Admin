@@ -167,7 +167,7 @@ export const createDeliveryAgent = async (req: Request, res: Response): Promise<
     const normalizedEmail = String(email).trim().toLowerCase();
 
     try {
-        const existingUser = await prisma.user.findUnique({
+        const existingUser = await prisma.user.findFirst({
             where: { email: normalizedEmail },
             select: { id: true }
         });

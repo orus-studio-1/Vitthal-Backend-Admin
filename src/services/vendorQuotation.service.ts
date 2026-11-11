@@ -1257,7 +1257,7 @@ export async function createAndSendVendorQuotation(input: {
 
         if (!adminResult.rows.length && input.createdByAdminEmail?.trim()) {
             adminResult = await client.query(
-                `SELECT id, name, email FROM users WHERE LOWER(email::text) = LOWER($1)`,
+                `SELECT id, name, email FROM users WHERE LOWER(email::text) = LOWER($1) AND role IN ('admin', 'super_admin') LIMIT 1`,
                 [input.createdByAdminEmail.trim()]
             );
         }
@@ -1594,7 +1594,7 @@ export async function reviewVendorQuotation(input: {
 
     if (!reviewerResult.rows.length && input.reviewedByAdminEmail?.trim()) {
         reviewerResult = await marketplacePool.query(
-            `SELECT id, email FROM users WHERE LOWER(email::text) = LOWER($1)`,
+            `SELECT id, email FROM users WHERE LOWER(email::text) = LOWER($1) AND role IN ('admin', 'super_admin') LIMIT 1`,
             [input.reviewedByAdminEmail.trim()]
         );
     }

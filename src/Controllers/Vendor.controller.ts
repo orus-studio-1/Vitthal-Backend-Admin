@@ -105,7 +105,7 @@ export const createVendor = async (req: Request, res: Response): Promise<Respons
 
         const normalizedEmail = String(email).trim().toLowerCase();
         const existingUserResult = await client.query(
-            `SELECT id, role FROM users WHERE email = $1`,
+            `SELECT id, role FROM users WHERE email = $1 AND role = 'vendor'`,
             [normalizedEmail]
         );
 

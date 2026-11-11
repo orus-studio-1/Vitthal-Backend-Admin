@@ -42,6 +42,22 @@ type LegacyAdminUser = {
 };
 
 const adminRoles = new Set<UserRole>(["admin", "super_admin"]);
+const staffRoles: string[] = ["super_admin", "admin", "fulfillment_center", "delivery_agent"];
+
+/**
+ * An email can have one account per role, so a login picks the account for the portal being
+ * signed into. Without a role, staff accounts come first, which is what this backend serves.
+ */
+async function findLoginAccount(email: string, requestedRole: string) {
+    const accounts = await prisma.user.findMany({ where: { email }, orderBy: { created_at: "asc" } });
+    if (!accounts.length) return null;
+    if (requestedRole === "admin") return accounts.find((account) => isAdminRole(account.role)) ?? accounts[0];
+    if (requestedRole) {
+        const match = accounts.find((account) => normalizeRoleValue(account.role) === requestedRole);
+        if (match) return match;
+    }
+    return accounts.find((account) => staffRoles.includes(account.role)) ?? accounts[0];
+}
 
 function normalizeRoleValue(role: string | null | undefined): string {
     return String(role ?? "").trim().toLowerCase().replace(/-/g, "_");
@@ -114,7 +130,7 @@ async function findLegacyAdminUserByEmail(email: string): Promise<LegacyAdminUse
 
 async function ensureSessionUserFromLegacy(legacyUser: LegacyAdminUser): Promise<any> {
     return prisma.user.upsert({
-        where: { email: legacyUser.email.trim().toLowerCase() },
+        where: { email_role: { email: legacyUser.email.trim().toLowerCase(), role: normalizeRoleValue(legacyUser.role) as UserRole } },
         update: {
             name: legacyUser.name || "MTWO Admin",
             password_hash: legacyUser.password_hash,
@@ -218,7 +234,7 @@ export async function loginUser(req: Request, res: Response): Promise<Response> 
     }
 
     try {
-        let user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        let user = await findLoginAccount(normalizedEmail, normalizedRequestedRole);
         let effectiveRole = user?.role;
         let legacyAdminUser: LegacyAdminUser | null = null;
         let legacyPasswordValid = false;

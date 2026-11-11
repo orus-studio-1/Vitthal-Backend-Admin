@@ -129,7 +129,7 @@ async function recordOrderTracking(client: any, orderId: string, status: (typeof
 async function ensureClientUser(client: any, customerName: string, customerEmail: string, customerPhone?: string) {
     const normalizedEmail = customerEmail.trim().toLowerCase();
     const existingUser = await client.query(
-        `SELECT id, role FROM users WHERE email = $1`,
+        `SELECT id, role FROM users WHERE email = $1 AND role = 'client'`,
         [normalizedEmail]
     );
 

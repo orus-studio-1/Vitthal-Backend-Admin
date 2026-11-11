@@ -11,7 +11,7 @@ datasource db {
 model User {
   id                                                                     String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                                                                   String
-  email                                                                  String                       @unique(map: "idx_users_email_unique") @db.Citext
+  email                                                                  String                       @db.Citext
   password_hash                                                          String
   role                                                                   UserRole                     @default(client)
   is_active                                                              Boolean                      @default(true)
@@ -66,6 +66,7 @@ model User {
   service_tickets_agent                                                  service_tickets[]            @relation("service_tickets_agent")
   service_ticket_documents_uploaded                                      service_ticket_documents[]   @relation("service_ticket_documents_uploaded_by")
 
+  @@unique([email, role], map: "users_email_role_key")
   @@map("users")
 }
 
