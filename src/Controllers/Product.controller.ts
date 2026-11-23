@@ -310,6 +310,403 @@ export const addProductController = async (req: Request, res: Response): Promise
     }
 };
 
+/**
+ * Bulk-import products from a parsed Excel payload into the global catalogue.
+ *
+ * Everything runs in one transaction with a fixed number of round trips (the DB is remote,
+ * so per-row queries would be very slow). If anything fails, nothing is saved, including
+ * auto-created categories. `dryRun: true` runs every check and rolls back, for the preview.
+ *
+ * Rules:
+ *  - The category cell may hold a category label or code (case-insensitive).
+ *  - An unknown category is created (active, type "product"). A category that exists but is
+ *    inactive is NOT reused or renamed; those rows fail, since the client portal hides them.
+ *  - No duplicates: a row is skipped when its item code already exists (case-insensitive), or,
+ *    without an item code, when a product with the same name, category and product type exists.
+ *    Repeated rows inside the file are skipped too. Rejected products do not count.
+ *  - The exact same file (SHA-256 `fileHash`) cannot be imported twice.
+ *  - Material / Grade / Application / Standard are stored under lowercase keys, like Add Product.
+ *  - Products are created approved + active, exactly like Add Product. They appear on the client
+ *    portal only once an approved vendor lists them (same as any catalogue product).
+ */
+const BULK_IMPORT_MAX_ROWS = 5000;
+const canonicalAttributeKeys = ["material", "grade", "application", "standard"];
+
+/**
+ * The import accepts only Add Product's fields (the admin frontend's lib/product-import.ts has the
+ * matching column list). Anything else in a row is refused, so unrelated data never reaches the catalogue.
+ */
+const BULK_IMPORT_ROW_KEYS = new Set(["sourceRow", "name", "itemCode", "category", "productType", "description", "quotationLimit", "attributes"]);
+const BULK_IMPORT_ATTRIBUTE_KEYS = new Map<string, string>([
+    ["size", "Size"], ["brand", "Brand"], ["material", "material"], ["grade", "grade"], ["colour", "Colour"],
+    ["warranty / guarantee", "Warranty / Guarantee"], ["manufacturer", "Manufacturer"], ["unit", "Unit"],
+    ["application", "application"], ["standard", "standard"],
+]);
+const BULK_IMPORT_LIMITS = { name: 200, itemCode: 100, category: 100, productType: 100, description: 5000, attribute: 200 };
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+
+type BulkImportRow = {
+    name: string;
+    itemCode?: string | number | null;
+    category: string;
+    productType: string;
+    description?: string;
+    quotationLimit?: number | string | null;
+    attributes?: Record<string, string>;
+    sourceRow?: number;
+};
+
+type SkippedRow = { row: number; name: string; reason: string; existingName?: string; existingItemCode?: string | null };
+
+/** Returns the problems with one import row; an empty list means the row is acceptable. */
+function bulkImportRowProblems(row: BulkImportRow, name: string, category: string, productType: string): string[] {
+    const problems: string[] = [];
+    const extraKeys = Object.keys(row ?? {}).filter((key) => !BULK_IMPORT_ROW_KEYS.has(key));
+    if (extraKeys.length) problems.push(`Unsupported field${extraKeys.length > 1 ? "s" : ""}: ${extraKeys.join(", ")}`);
+    if (!name || !category || !productType) problems.push("Product Name, Category and Product Type are required");
+    if (name.length > BULK_IMPORT_LIMITS.name) problems.push(`Product Name is longer than ${BULK_IMPORT_LIMITS.name} characters`);
+    if (category.length > BULK_IMPORT_LIMITS.category) problems.push(`Category is longer than ${BULK_IMPORT_LIMITS.category} characters`);
+    if (productType.length > BULK_IMPORT_LIMITS.productType) problems.push(`Product Type is longer than ${BULK_IMPORT_LIMITS.productType} characters`);
+    if (cellToString(row?.itemCode).length > BULK_IMPORT_LIMITS.itemCode) problems.push(`Item Code is longer than ${BULK_IMPORT_LIMITS.itemCode} characters`);
+    if (cellToString(row?.description).length > BULK_IMPORT_LIMITS.description) problems.push(`Description is longer than ${BULK_IMPORT_LIMITS.description} characters`);
+
+    const limit = row?.quotationLimit;
+    if (limit !== undefined && limit !== null && limit !== "") {
+        const n = Number(limit);
+        if (!Number.isInteger(n) || n < 1) problems.push("Quotation Limit must be a whole number of 1 or more");
+    }
+
+    const attributes = row?.attributes;
+    if (attributes !== undefined && attributes !== null) {
+        if (typeof attributes !== "object" || Array.isArray(attributes)) {
+            problems.push("Attributes must be key/value pairs");
+        } else {
+            for (const [key, value] of Object.entries(attributes)) {
+                if (!BULK_IMPORT_ATTRIBUTE_KEYS.has(key.trim().toLowerCase())) problems.push(`"${key}" is not a catalogue attribute`);
+                else if (String(value ?? "").length > BULK_IMPORT_LIMITS.attribute) problems.push(`${key} is longer than ${BULK_IMPORT_LIMITS.attribute} characters`);
+            }
+        }
+    }
+    return problems;
+}
+
+function categoryCodeFromLabel(label: string) {
+    return label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 60);
+}
+
+function cellToString(value: unknown) {
+    return typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+}
+
+/** Name used for duplicate matching: case-insensitive, extra spaces ignored. */
+function matchName(value: string) {
+    return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+export const bulkImportProducts = async (req: Request, res: Response): Promise<Response> => {
+    const authUser = ensureAdmin(req, res);
+    if (!authUser) return res as Response;
+
+    const body = (req.body ?? {}) as { products?: unknown; fileHash?: unknown; fileName?: unknown; dryRun?: unknown };
+    const rows = body.products as BulkImportRow[] | undefined;
+    const dryRun = body.dryRun === true;
+    const fileHash = typeof body.fileHash === "string" && SHA256_PATTERN.test(body.fileHash.toLowerCase()) ? body.fileHash.toLowerCase() : null;
+    const fileName = typeof body.fileName === "string" ? body.fileName.trim().slice(0, 255) || null : null;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ message: "No products provided in the import payload." });
+    }
+    if (rows.length > BULK_IMPORT_MAX_ROWS) {
+        return res.status(400).json({ message: `Too many rows (${rows.length}). Import at most ${BULK_IMPORT_MAX_ROWS} at a time.` });
+    }
+
+    // Validate in JS first (no DB round trips). rowNo is the spreadsheet row when the client sends it.
+    const errors: Array<{ row: number; name: string; reason: string }> = [];
+    const validRows: Array<BulkImportRow & { rowNo: number; categoryKey: string }> = [];
+    rows.forEach((row, i) => {
+        const rowNo = Number.isInteger(row?.sourceRow) ? Number(row.sourceRow) : i + 1;
+        const name = cellToString(row?.name);
+        const category = cellToString(row?.category);
+        const productType = cellToString(row?.productType);
+        const problems = bulkImportRowProblems(row, name, category, productType);
+        if (problems.length) {
+            errors.push({ row: rowNo, name: name || "(unnamed)", reason: problems.join("; ") });
+            return;
+        }
+        validRows.push({ ...row, name, category, productType, rowNo, categoryKey: category.toLowerCase() });
+    });
+
+    if (validRows.length === 0) {
+        return res.status(400).json({ message: "No valid rows to import.", data: { imported: 0, failed: errors.length, skipped: 0, errors, skippedRows: [] } });
+    }
+
+    const client = await marketplacePool.connect();
+    try {
+        await client.query("BEGIN");
+        // One import at a time, so two uploads of the same products cannot both pass the duplicate checks.
+        await client.query(`SELECT pg_advisory_xact_lock(hashtext('product_bulk_import'))`);
+
+        // 0. The exact same file was imported before.
+        if (fileHash) {
+            const previous = await client.query(
+                `SELECT b.file_name, b.created_at, b.imported_count, u.name AS imported_by
+                 FROM product_import_batches b
+                 LEFT JOIN users u ON u.id = b.imported_by_user_id
+                 WHERE b.file_hash = $1 AND b.imported_count > 0
+                 ORDER BY b.created_at DESC
+                 LIMIT 1`,
+                [fileHash]
+            );
+            if (previous.rows.length > 0) {
+                await client.query("ROLLBACK");
+                const p = previous.rows[0];
+                const when = new Date(p.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" });
+                return res.status(409).json({
+                    message: `This file was already imported on ${when}${p.imported_by ? ` by ${p.imported_by}` : ""} (${p.imported_count} products). Importing it again would create duplicates.`,
+                    data: {
+                        duplicateFile: true,
+                        previousImport: { fileName: p.file_name, importedAt: p.created_at, importedBy: p.imported_by, importedCount: p.imported_count },
+                    },
+                });
+            }
+        }
+
+        // 1. Resolve every category cell by label OR code (active and inactive).
+        const uniqueKeys = [...new Set(validRows.map((r) => r.categoryKey))];
+        const generatedCodes = uniqueKeys.map(categoryCodeFromLabel);
+        const existingCats = await client.query(
+            `SELECT id, code, label, is_active FROM product_category
+             WHERE LOWER(label) = ANY($1::text[]) OR LOWER(code) = ANY($1::text[]) OR LOWER(code) = ANY($2::text[])`,
+            [uniqueKeys, generatedCodes]
+        );
+
+        type CatRow = { id: string; code: string; label: string; is_active: boolean };
+        const cats = existingCats.rows as CatRow[];
+        const categoryMap = new Map<string, string>(); // cell (lowercase) -> active category id
+        const inactiveKeys = new Set<string>();         // cell resolves only to an inactive category
+        const missingKeys = new Map<string, string>();   // cell (lowercase) -> generated code, for new categories
+
+        uniqueKeys.forEach((key, idx) => {
+            const code = generatedCodes[idx] ?? "";
+            const matches = cats.filter((c) =>
+                c.label.toLowerCase() === key || c.code.toLowerCase() === key || (code && c.code.toLowerCase() === code)
+            );
+            const active = matches.find((c) => c.is_active);
+            if (active) categoryMap.set(key, active.id);
+            else if (matches.length > 0) inactiveKeys.add(key);
+            else if (code) missingKeys.set(key, code);
+        });
+
+        // 2. Duplicates against the catalogue, before anything is created.
+        const codes = [...new Set(validRows.map((r) => cellToString(r.itemCode).toLowerCase()).filter(Boolean))];
+        const namesToCheck = [...new Set(validRows.filter((r) => !cellToString(r.itemCode)).map((r) => matchName(r.name)))];
+        const existingCategoryIds = [...new Set(categoryMap.values())];
+
+        const [byCode, byName] = await Promise.all([
+            codes.length
+                ? client.query(
+                    `SELECT DISTINCT ON (LOWER(item_code)) LOWER(item_code) AS code, name, item_code
+                     FROM products
+                     WHERE item_code IS NOT NULL AND LOWER(item_code) = ANY($1::text[]) AND approval_status <> 'rejected'
+                     ORDER BY LOWER(item_code), created_at ASC`,
+                    [codes]
+                )
+                : Promise.resolve({ rows: [] as any[] }),
+            namesToCheck.length && existingCategoryIds.length
+                ? client.query(
+                    `SELECT name, item_code, category::text AS category, LOWER(TRIM(COALESCE(product_type, ''))) AS product_type
+                     FROM products
+                     WHERE LOWER(TRIM(name)) = ANY($1::text[]) AND category = ANY($2::uuid[]) AND approval_status <> 'rejected'`,
+                    [namesToCheck, existingCategoryIds]
+                )
+                : Promise.resolve({ rows: [] as any[] }),
+        ]);
+
+        const existingByCode = new Map<string, { name: string; item_code: string }>();
+        for (const r of byCode.rows) existingByCode.set(r.code, r);
+        const existingByIdentity = new Map<string, { name: string; item_code: string | null }>();
+        for (const r of byName.rows) existingByIdentity.set(`${matchName(r.name)}|${r.category}|${r.product_type}`, r);
+
+        const skippedRows: SkippedRow[] = [];
+        const seenInFile = new Map<string, number>(); // identity -> first row number
+        const toInsert: typeof validRows = [];
+
+        for (const row of validRows) {
+            if (inactiveKeys.has(row.categoryKey) || (!categoryMap.has(row.categoryKey) && !missingKeys.has(row.categoryKey))) {
+                errors.push({
+                    row: row.rowNo,
+                    name: row.name,
+                    reason: inactiveKeys.has(row.categoryKey)
+                        ? `Category "${row.category}" exists but is inactive. Activate it first or use another category.`
+                        : `Category could not be resolved: ${row.category}`,
+                });
+                continue;
+            }
+
+            const code = cellToString(row.itemCode).toLowerCase();
+            // New categories are keyed by their future code, so two spellings of one new category match.
+            const categoryIdentity = categoryMap.get(row.categoryKey) ?? `new:${missingKeys.get(row.categoryKey)}`;
+            const identity = code ? `code:${code}` : `name:${matchName(row.name)}|${categoryIdentity}|${row.productType.trim().toLowerCase()}`;
+
+            const firstRow = seenInFile.get(identity);
+            if (firstRow !== undefined) {
+                skippedRows.push({ row: row.rowNo, name: row.name, reason: `Repeats row ${firstRow} of this file` });
+                continue;
+            }
+            seenInFile.set(identity, row.rowNo);
+
+            if (code) {
+                const existing = existingByCode.get(code);
+                if (existing) {
+                    skippedRows.push({
+                        row: row.rowNo, name: row.name,
+                        reason: `Item code "${existing.item_code}" is already in the catalogue`,
+                        existingName: existing.name, existingItemCode: existing.item_code,
+                    });
+                    continue;
+                }
+            } else {
+                const categoryId = categoryMap.get(row.categoryKey);
+                const existing = categoryId ? existingByIdentity.get(`${matchName(row.name)}|${categoryId}|${row.productType.trim().toLowerCase()}`) : undefined;
+                if (existing) {
+                    skippedRows.push({
+                        row: row.rowNo, name: row.name,
+                        reason: "A product with the same name, category and product type is already in the catalogue",
+                        existingName: existing.name, existingItemCode: existing.item_code,
+                    });
+                    continue;
+                }
+            }
+            toInsert.push(row);
+        }
+
+        // 3. Create the categories that rows still being imported need, in one INSERT.
+        const createdCategories: string[] = [];
+        const neededNew = new Map<string, { label: string; keys: string[] }>(); // code -> label + cells
+        for (const row of toInsert) {
+            const code = missingKeys.get(row.categoryKey);
+            if (!code) continue;
+            const entry = neededNew.get(code);
+            if (!entry) neededNew.set(code, { label: row.category, keys: [row.categoryKey] });
+            else if (!entry.keys.includes(row.categoryKey)) entry.keys.push(row.categoryKey);
+        }
+        if (neededNew.size > 0) {
+            const newCodes = [...neededNew.keys()];
+            const created = await client.query(
+                `INSERT INTO product_category
+                    (code, label, description, min_commision_percentage, max_commision_percentage, sort_order, is_active, category_type)
+                 SELECT c.code, c.label, 'Auto-created during bulk import', 0, 0, 999, TRUE, 'product'
+                 FROM unnest($1::text[], $2::text[]) AS c(code, label)
+                 RETURNING id, code, label`,
+                [newCodes, newCodes.map((c) => neededNew.get(c)?.label ?? c)]
+            );
+            for (const row of created.rows as Array<{ id: string; code: string; label: string }>) {
+                createdCategories.push(row.label);
+                for (const key of neededNew.get(row.code)?.keys ?? []) categoryMap.set(key, row.id);
+            }
+        }
+
+        // 4. Build and insert all products in one INSERT.
+        const names: string[] = [];
+        const descs: (string | null)[] = [];
+        const catIds: string[] = [];
+        const types: string[] = [];
+        const attrsArr: string[] = [];
+        const iCodes: (string | null)[] = [];
+        const quoteLimits: (number | null)[] = [];
+
+        for (const row of toInsert) {
+            const categoryId = categoryMap.get(row.categoryKey);
+            if (!categoryId) {
+                errors.push({ row: row.rowNo, name: row.name, reason: `Category could not be resolved: ${row.category}` });
+                continue;
+            }
+
+            // Store attributes under the same keys Add Product uses; Unit defaults to "nos" like the form.
+            const attrs: Record<string, string> = {};
+            for (const [key, value] of Object.entries(normalizeAttributes(row.attributes || {}))) {
+                const canonical = BULK_IMPORT_ATTRIBUTE_KEYS.get(key.toLowerCase());
+                if (canonical && value) attrs[canonical] = value;
+            }
+            if (!attrs.Unit) attrs.Unit = "nos";
+            for (const key of Object.keys(attrs)) {
+                const lower = key.toLowerCase();
+                if (canonicalAttributeKeys.includes(lower) && key !== lower) {
+                    attrs[lower] = attrs[key] ?? "";
+                    delete attrs[key];
+                }
+            }
+
+            names.push(row.name);
+            descs.push(cellToString(row.description) || null);
+            catIds.push(categoryId);
+            types.push(row.productType);
+            attrsArr.push(JSON.stringify(attrs));
+            iCodes.push(cellToString(row.itemCode) || null);
+            const limit = row.quotationLimit;
+            quoteLimits.push(limit === undefined || limit === null || limit === "" ? null : Number(limit));
+        }
+
+        let importedCount = 0;
+        if (names.length > 0) {
+            const inserted = await client.query(
+                `INSERT INTO products (
+                    name, description, category, product_type,
+                    specifications, attributes, approval_status, is_active,
+                    item_code, quotation_limit, created_by_user_id
+                )
+                SELECT r.name, r.description, r.category, r.product_type,
+                       '[]'::jsonb, r.attributes, 'approved', TRUE,
+                       r.item_code, r.quotation_limit, $7::uuid
+                FROM unnest($1::text[], $2::text[], $3::uuid[], $4::text[], $5::jsonb[], $6::text[], $8::int[])
+                     AS r(name, description, category, product_type, attributes, item_code, quotation_limit)
+                RETURNING id`,
+                [names, descs, catIds, types, attrsArr, iCodes, authUser.userId, quoteLimits]
+            );
+            importedCount = inserted.rowCount ?? 0;
+        }
+
+        errors.sort((a, b) => a.row - b.row);
+        skippedRows.sort((a, b) => a.row - b.row);
+        const data = {
+            dryRun,
+            imported: importedCount,
+            failed: errors.length,
+            skipped: skippedRows.length,
+            errors,
+            skippedRows,
+            createdCategories,
+        };
+
+        if (dryRun) {
+            await client.query("ROLLBACK");
+            return res.status(200).json({ message: "Check complete. Nothing was saved.", data });
+        }
+
+        if (fileHash && importedCount > 0) {
+            await client.query(
+                `INSERT INTO product_import_batches (file_hash, file_name, row_count, imported_count, skipped_count, failed_count, imported_by_user_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [fileHash, fileName, rows.length, importedCount, skippedRows.length, errors.length, authUser.userId]
+            );
+        }
+
+        await client.query("COMMIT");
+        return res.status(200).json({
+            message: `Bulk import completed. ${importedCount} imported, ${skippedRows.length} already in the catalogue, ${errors.length} failed.`,
+            data,
+        });
+    } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        console.error("Bulk import error:", error);
+        return res.status(500).json({
+            message: error instanceof Error ? `Import failed, nothing was saved: ${error.message}` : "Bulk import failed due to a server error.",
+        });
+    } finally {
+        client.release();
+    }
+};
+
 export const getAllProducts = async (req: Request, res: Response): Promise<Response> => {
     const authUser = ensureAdmin(req, res);
     if (!authUser) {

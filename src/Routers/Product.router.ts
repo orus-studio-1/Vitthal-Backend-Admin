@@ -35,7 +35,8 @@ import {
     deleteProductVariant,
     getPendingDeletions,
     getPendingImages,
-    reviewProductDeletion
+    reviewProductDeletion,
+    bulkImportProducts
 } from "../Controllers/Product.controller.js";
 import { authMiddleware } from "../Middleware/AuthMiddleware.js";
 
@@ -85,6 +86,7 @@ productRouter.put("/image/:id/review", reviewProductImage);
 productRouter.put("/specification/:id/review", reviewProductSpecification);
 productRouter.put("/:id/specifications", replaceProductSpecifications);
 productRouter.post("/addProduct", addProductController);
+productRouter.post("/bulkImport", bulkImportProducts);
 productRouter.post("/", addProductController);
 productRouter.post("/uploadProductImages", upload.array("images", 5), uploadProductImagesController);
 productRouter.post("/addProductVariant", addProductVariant);

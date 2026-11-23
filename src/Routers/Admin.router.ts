@@ -28,6 +28,7 @@ import {
     updateRiderKYCStatus
 } from "../Controllers/Rider.controller.js";
 import { getPayoutCommissionSettings, updatePayoutCommissionSettings } from "../Controllers/PayoutCommission.controller.js";
+import { getVendorCategoryRequests, reviewVendorCategoryRequest } from "../Controllers/VendorCategoryRequest.controller.js";
 
 const router = Router();
 
@@ -58,5 +59,7 @@ router.get("/delivery-agents", getAllDeliveryAgents);
 router.get("/delivery-agents/:id/deliveries", getRiderDeliveries);
 router.post("/delivery-agents", createDeliveryAgent);
 router.patch("/delivery-agents/:riderId/kyc-status", updateRiderKYCStatus);
+router.get("/vendor-category-requests", getVendorCategoryRequests);
+router.put("/vendor-category-requests/:id/review", reviewVendorCategoryRequest);
 
 export default router;
