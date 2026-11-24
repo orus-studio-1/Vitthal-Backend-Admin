@@ -165,9 +165,11 @@ const productSelect = `
         CASE WHEN v.id IS NOT NULL THEN v.id ELSE NULL END AS created_by_vendor_id,
         creator.name AS creator_name,
         creator.email AS creator_email,
+        -- Admins and super admins both count as "admin" so their products stay in the admin list.
         CASE
-            WHEN v.id IS NOT NULL THEN 'vendor'
             WHEN p.created_by_user_id IS NULL THEN 'admin'
+            WHEN creator.role::text IN ('admin', 'super_admin') THEN 'admin'
+            WHEN v.id IS NOT NULL THEN 'vendor'
             ELSE creator.role::text
         END AS creator_role,
         v.company_name AS creator_vendor_name,
